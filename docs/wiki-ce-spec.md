@@ -1,0 +1,1214 @@
+# Wiki for Plane CE — Product & Technical Specification
+
+> Status: **Draft for review**
+>
+> Target repository: `r2d-ai/plane`
+>
+> Baseline branch: `preview`
+>
+> Research baseline: **2026-09-22**
+>
+> Goal: implement a workspace-level Wiki in Plane CE with behavior and UX as close as practical to Plane Commercial, while reusing CE's existing Page/editor/live-collaboration foundations and minimizing long-term upstream merge conflicts.
+
+---
+
+## 1. Executive decision
+
+### 1.1 Wiki should be a native Plane feature, not a separate application
+
+Plane CE already contains most of the primitives required for Wiki:
+
+- a workspace-owned `Page` model;
+- `Page.parent` for nesting;
+- `Page.sort_order` for ordering;
+- `Page.is_global`, which is currently unused by the CE project-page path and is a strong fit for distinguishing workspace Wiki pages;
+- `PageVersion`;
+- page locking;
+- page access/public-private state;
+- archive/restore;
+- favorites;
+- rich document editor;
+- collaborative Yjs/Hocuspocus document persistence;
+- project page stores/services/UI that are already mostly generic;
+- explicit `workspace_page` in shared webhook/query parameter types;
+- Wiki-specific empty-state assets in the web app.
+
+The implementation should therefore **reuse the Page entity and Page engine** rather than introduce a second `WikiPage` model.
+
+Recommended scope discriminator:
+
+```text
+Project Page
+  Page.is_global = false
+  Page <-> ProjectPage <-> Project
+
+Workspace Wiki Page
+  Page.is_global = true
+  Page.workspace = workspace
+  no ProjectPage relation required
+```
+
+This keeps both products on the same editor, versioning, asset, activity, export, and realtime primitives.
+
+### 1.2 Do not implement Wiki as a Plane App / external plugin
+
+Plane now documents “Plane Apps” as a beta extension platform based on:
+
+- OAuth 2.0;
+- API access;
+- webhooks;
+- bot/user tokens;
+- external services using the Node/Python SDKs.
+
+That extension mechanism is suitable for agents, automation, integrations, dashboards, and webhook handlers. It does **not** provide a documented mechanism for injecting a first-class native workspace route, sidebar entry, MobX store, editor extensions, Django models, or Hocuspocus document type.
+
+Therefore Wiki cannot achieve commercial-like native UX as an external Plane App.
+
+### 1.3 Use Plane's existing compile-time extension seams wherever possible
+
+The CE source contains clear extension seams that appear designed to separate CE from commercial code, including:
+
+- `apps/web/app/routes/extended.ts`;
+- `packages/types/src/page/extended.ts`;
+- `apps/web/core/hooks/pages/use-extended-editor-extensions.ts`;
+- `apps/web/core/hooks/pages/use-pages-pane-extensions.ts`;
+- `apps/live/src/services/page/extended.service.ts`, which explicitly notes that the implementation exists in the enterprise repository;
+- other `extended.*` hooks/types across the monorepo.
+
+The Wiki implementation should behave like a **compile-time native extension module**:
+
+1. put Wiki-specific code in isolated Wiki/workspace-page modules;
+2. register through existing extension seams when available;
+3. make the smallest possible changes to shared CE core;
+4. avoid a new generic plugin framework in the first Wiki milestone.
+
+A generic feature-plugin registry can be evaluated later if Workflow, Portal, Teamspaces, etc. repeatedly require the same injection points.
+
+---
+
+## 2. Product objective
+
+Add a first-class **Wiki** application at workspace scope.
+
+Primary URL surface:
+
+```text
+/:workspaceSlug/wiki
+/:workspaceSlug/wiki/:pageId
+```
+
+The user should experience Wiki as a sibling of Work/Projects rather than as a special Project Page.
+
+Primary use cases:
+
+- company policies;
+- onboarding documents;
+- runbooks;
+- engineering references;
+- architecture decisions;
+- meeting/decision records;
+- operating procedures;
+- cross-project documentation.
+
+Project Pages continue to exist and remain scoped to individual projects.
+
+---
+
+## 3. Commercial parity target
+
+The target is behavioral parity with the public Plane Wiki feature set as of 2026-09-22, subject to capabilities available in CE.
+
+### 3.1 Core Wiki
+
+| Capability | Commercial behavior / public description | CE target |
+| --- | --- | --- |
+| Workspace Wiki | Wiki pages live at workspace level | Required |
+| Nested pages | Deep parent/child hierarchy | Required |
+| Reordering | Drag-and-drop/order within hierarchy | Required |
+| Public pages | Workspace-visible documentation | Required |
+| Private pages | Creator/private visibility | Required |
+| Shared pages | Named users with scoped access | Required after core |
+| Archive | Archived Wiki section | Required |
+| Favorites | Dedicated favorite access | Required |
+| Search | Search Wiki by title/content | Required |
+| Rich editor | Existing Page editor | Required |
+| Realtime collaboration | Collaborative editing | Required |
+| Work embeds | Link/embed work items and related execution context | Required |
+| Automatic outline/TOC | Existing editor outline | Required |
+| Page locking | Lock a page against edits | Required |
+| Version history | Browse and restore prior versions | Required |
+| Version comparison | Compare changes between versions | Parity phase |
+| Page comments | Collaborative review/comments | Parity phase |
+| Publish externally | Public URL, external viewing/commenting where supported | Parity phase |
+| Templates | Workspace/page templates | Parity phase |
+| Export | Page export | Required |
+| Nested export | Export page hierarchy as ZIP with PDF/DOCX output | Parity phase |
+| Labels | Labels on Wiki pages | Parity phase |
+| Page analytics | Page/Collection view analytics | Later parity |
+| Collections | Group pages into Collections | Required parity |
+| Collection ACL | Public/private collection and View/Comment/Edit roles | Required parity |
+| ACL inheritance | Collection -> Page -> child page inheritance | Required parity |
+| Tabs/toggles | Rich page organization blocks | Editor parity |
+| Page hierarchy embeds | Embed parent/children or page lists | Editor parity |
+| Mermaid | Diagram rendering | Editor parity |
+| Draw.io | Diagram integration | Optional integration parity |
+| LaTeX | Formula/document block support | Editor parity where feasible |
+| URL media embeds | Images/video and rich embeds | Editor parity |
+| MS Office in-place editing | Edit attached Office files via desktop Office | Later/optional |
+| AI Block | Inline generated content | Deferred to Plane AI/provider work |
+| AI editing/search | AI native Wiki assistance | Deferred |
+| Confluence/Notion import | Documentation import | Deferred integration phase |
+
+### 3.2 Minimum production milestone
+
+The first production-usable milestone does **not** need every advanced commercial feature.
+
+It must include:
+
+1. workspace Wiki navigation;
+2. list/tree view;
+3. create/read/update/archive/delete;
+4. public/private access;
+5. nested hierarchy;
+6. drag-and-drop reordering;
+7. rich editor;
+8. realtime collaboration;
+9. lock/unlock;
+10. favorites;
+11. version history + restore;
+12. attachments/assets;
+13. title/content search;
+14. export using the existing Page export pipeline;
+15. strict workspace/page authorization;
+16. hierarchy cycle prevention;
+17. test coverage for REST and websocket access.
+
+Shared-page ACL and Collections are the next parity milestone and must be considered in the core schema/permission design from the start.
+
+---
+
+## 4. Existing CE foundation
+
+### 4.1 Page model
+
+Current `apps/api/plane/db/models/page.py` already provides key fields:
+
+- `workspace`;
+- `name`;
+- `description_json`;
+- `description_binary`;
+- `description_html`;
+- `description_stripped`;
+- `owned_by`;
+- `access`;
+- `color`;
+- `labels`;
+- `parent`;
+- `archived_at`;
+- `is_locked`;
+- `view_props`;
+- `logo_props`;
+- `is_global`;
+- `projects` through `ProjectPage`;
+- move metadata;
+- `sort_order`;
+- external import IDs.
+
+The existing schema is already compatible with workspace Wiki pages.
+
+### 4.2 Page versioning
+
+`PageVersion` already stores:
+
+- workspace;
+- page;
+- save timestamp;
+- owner;
+- binary/html/json/stripped document forms;
+- sub-page metadata.
+
+No second Wiki version model should be created.
+
+### 4.3 Project Page path
+
+Current project Page APIs are project-scoped and enforce `ProjectPage` membership.
+
+The existing serializer create path assumes `project_id` and creates `ProjectPage`; therefore workspace Wiki requires a separate workspace serializer/view/service path rather than weakening project scoping.
+
+### 4.4 Existing reusable web UI
+
+The CE web app already contains reusable Page components for:
+
+- editor root/body/header;
+- toolbar;
+- list filters/order/search;
+- create/delete/export modals;
+- page header actions;
+- lock control;
+- favorite control;
+- archive badge;
+- sync/offline indicators;
+- navigation pane;
+- outline;
+- assets;
+- document info;
+- version history;
+- version restore views.
+
+Wiki should reuse these components.
+
+### 4.5 Existing reusable stores
+
+`BasePage` already encapsulates most page operations.
+
+Current `ProjectPage` extends it with:
+
+- project-aware service calls;
+- project role permissions;
+- project URL generation.
+
+Wiki should add `WorkspacePage` using the same base class.
+
+### 4.6 Existing live collaboration
+
+The live service already has:
+
+- Hocuspocus;
+- Yjs binary storage;
+- Redis integration;
+- REST-backed page persistence;
+- title synchronization;
+- database extension;
+- asset resolution.
+
+Current limitation:
+
+`apps/live/src/types/index.ts` currently recognizes only `"project_page"` as a document type even though shared request types already anticipate `workspace_page`.
+
+Workspace Wiki should extend the existing live pipeline, not create another collaboration service.
+
+---
+
+## 5. Data model
+
+### 5.1 Workspace Wiki Page
+
+Reuse `Page`.
+
+Invariant for Wiki:
+
+```text
+page.workspace_id = target workspace
+page.is_global = true
+page.parent is null OR:
+  parent.workspace_id = page.workspace_id
+  parent.is_global = true
+```
+
+A workspace Wiki page must not require a `ProjectPage` row.
+
+### 5.2 Project Page compatibility
+
+Project pages remain:
+
+```text
+page.is_global = false
+active ProjectPage relation exists
+```
+
+No migration should rewrite existing project-page content unless required to normalize legacy data.
+
+### 5.3 Shared page access
+
+Commercial Wiki supports sharing private pages with named members.
+
+Add an explicit page-sharing model rather than overloading `Page.access`.
+
+Proposed logical model:
+
+```text
+PageShare
+- id
+- workspace_id
+- page_id
+- member_id
+- role: VIEW | COMMENT | EDIT
+- created_by
+- created_at
+- updated_at
+```
+
+Constraints:
+
+- unique active share per `(page_id, member_id)`;
+- shared member must belong to the same workspace;
+- share page must be a workspace Wiki page;
+- `EDIT` implies view/comment;
+- `COMMENT` implies view;
+- owner does not need a share row.
+
+Exact naming may be adjusted to Plane conventions during implementation.
+
+### 5.4 Page comments
+
+Project work-item comments are not a safe direct substitute for Page comments because they carry work-item-specific assumptions.
+
+Introduce a Page-comment model or a generic entity-comment abstraction only if a safe existing generic abstraction exists at implementation time.
+
+Minimum logical fields:
+
+```text
+PageComment
+- id
+- workspace_id
+- page_id
+- actor_id
+- body / description formats
+- parent_id (thread/reply if supported)
+- resolved_at / resolved_by (if matching UX)
+- edited_at
+- created_at
+- updated_at
+```
+
+Permissions must derive from effective Page access.
+
+### 5.5 Collections
+
+Collections are a workspace-level Wiki grouping primitive.
+
+Proposed logical entities:
+
+```text
+PageCollection
+- id
+- workspace_id
+- name
+- description
+- logo/icon props
+- access: PUBLIC | PRIVATE
+- sort_order
+- is_default
+- created_by
+
+PageCollectionMember
+- collection_id
+- member_id
+- role: VIEW | COMMENT | EDIT
+
+PageCollectionPage
+- collection_id
+- page_id
+- sort_order
+```
+
+Important behavior:
+
+- a default collection may exist per workspace;
+- moving pages between collections must be explicit;
+- private collection membership is not visible to unauthorized users;
+- collection role is inherited by pages;
+- descendants inherit restrictions through their parent hierarchy;
+- implementation must define a single deterministic effective-permission algorithm.
+
+Whether `PageCollectionPage` is a join model or a direct FK should be selected after confirming whether Commercial permits a page in multiple Collections. The first implementation must not accidentally support multi-collection membership if the product UX does not.
+
+---
+
+## 6. Permission model
+
+### 6.1 Never reuse `ProjectPagePermission` for Wiki
+
+`ProjectPagePermission` is intentionally project-scoped and validates active `ProjectPage` membership.
+
+Wiki needs a dedicated `WorkspacePagePermission`.
+
+### 6.2 Base rules
+
+For every Wiki lookup:
+
+```text
+workspace.slug = URL workspaceSlug
+page.workspace_id = resolved workspace
+page.is_global = true
+page.deleted_at IS NULL
+```
+
+Never perform `Page.objects.get(id=page_id)` followed by a later workspace check.
+
+This is a hard BOLA/IDOR invariant.
+
+### 6.3 Effective access
+
+The effective access function should be centralized.
+
+Pseudo-logic:
+
+```text
+effective_access(user, page):
+
+  if user is not an active workspace member:
+      DENY
+
+  if user == page.owner:
+      OWNER
+
+  inherited = collection/page-parent inherited access
+  direct = page share role, if any
+
+  if page is PRIVATE:
+      allow max(inherited, direct)
+      otherwise DENY
+
+  if page is PUBLIC:
+      baseline from workspace role
+      combine with inherited/direct restrictions
+```
+
+The exact baseline edit policy should follow Plane CE role semantics at implementation time.
+
+### 6.4 Required operations
+
+Permission checks must distinguish at least:
+
+- view;
+- comment;
+- edit content;
+- rename/update metadata;
+- create child;
+- reorder/move;
+- share;
+- lock/unlock;
+- archive/restore;
+- delete;
+- publish;
+- manage collection membership.
+
+Do not implement access as a single boolean.
+
+### 6.5 Private page confidentiality
+
+For unauthorized users, private pages/collections should behave as nonexistent wherever practical:
+
+- not returned in lists;
+- not returned in search;
+- not shown in recents;
+- not exposed through parent/child tree metadata;
+- not leaked in counts;
+- no asset URL leakage;
+- no websocket document access.
+
+---
+
+## 7. Hierarchy invariants
+
+Wiki supports deep nesting, so hierarchy validation is security- and reliability-critical.
+
+On create/move/update parent:
+
+1. parent cannot equal page;
+2. parent must exist;
+3. parent must belong to same workspace;
+4. parent must be a Wiki page;
+5. parent must be visible/editable according to move semantics;
+6. parent cannot be a descendant of page;
+7. collection compatibility/inheritance must be validated;
+8. archived state behavior must be explicit.
+
+### 7.1 Cycle prevention
+
+A -> B -> A must be impossible.
+
+Do not rely only on UI drag/drop validation.
+
+Server-side validation is mandatory.
+
+Recursive archive/export/tree queries must be safe even if legacy/corrupt cycles exist.
+
+### 7.2 Sort ordering
+
+All order-by input must use a strict allowlist.
+
+Reordering should use the existing float sort-order convention unless a more current Plane utility exists.
+
+Concurrent reorders should avoid duplicate/unstable order when possible.
+
+---
+
+## 8. REST API
+
+### 8.1 Internal CE API
+
+Target internal endpoints:
+
+```text
+GET    /api/workspaces/:workspace_slug/pages/
+POST   /api/workspaces/:workspace_slug/pages/
+
+GET    /api/workspaces/:workspace_slug/pages/:page_id/
+PATCH  /api/workspaces/:workspace_slug/pages/:page_id/
+DELETE /api/workspaces/:workspace_slug/pages/:page_id/
+
+PATCH  /api/workspaces/:workspace_slug/pages/:page_id/description/
+POST   /api/workspaces/:workspace_slug/pages/:page_id/archive/
+DELETE /api/workspaces/:workspace_slug/pages/:page_id/archive/
+
+POST   /api/workspaces/:workspace_slug/pages/:page_id/lock/
+DELETE /api/workspaces/:workspace_slug/pages/:page_id/lock/
+
+PATCH  /api/workspaces/:workspace_slug/pages/:page_id/access/
+
+GET    /api/workspaces/:workspace_slug/pages/:page_id/versions/
+GET    /api/workspaces/:workspace_slug/pages/:page_id/versions/:version_id/
+POST   /api/workspaces/:workspace_slug/pages/:page_id/versions/:version_id/restore/
+
+POST   /api/workspaces/:workspace_slug/pages/:page_id/duplicate/
+POST   /api/workspaces/:workspace_slug/pages/:page_id/move/
+```
+
+Endpoint names should follow existing Plane conventions where they differ.
+
+### 8.2 External API compatibility
+
+Plane's documented external API already exposes workspace Wiki pages at:
+
+```text
+POST /api/v1/workspaces/{workspace_slug}/pages/
+GET  /api/v1/workspaces/{workspace_slug}/pages/{page_id}/
+```
+
+The CE implementation should converge on the same resource naming/semantics to reduce integration differences between CE and Commercial.
+
+Do not break existing project-page API:
+
+```text
+/api/v1/workspaces/{workspace_slug}/projects/{project_id}/pages/
+```
+
+### 8.3 List filters
+
+Minimum filters:
+
+- public;
+- private;
+- archived;
+- favorite;
+- parent;
+- owner;
+- search;
+- collection when Collections ship.
+
+Ordering must use an allowlist.
+
+---
+
+## 9. Realtime collaboration
+
+### 9.1 Document type
+
+Extend live types:
+
+```ts
+type TDocumentTypes = "project_page" | "workspace_page";
+```
+
+### 9.2 Workspace service
+
+Add a workspace page live service using:
+
+```text
+/api/workspaces/{workspaceSlug}
+```
+
+as the REST base path.
+
+Reuse `PageCoreService` for:
+
+- fetch page;
+- fetch/update binary description;
+- metadata updates;
+- mentions;
+- asset URL handling.
+
+### 9.3 Handler
+
+`getPageService(documentType, context)` must dispatch:
+
+- `project_page` -> ProjectPageService;
+- `workspace_page` -> WorkspacePageService.
+
+### 9.4 Authorization
+
+A valid authenticated websocket is **not enough**.
+
+The document-specific REST/API permission must verify page access before:
+
+- loading initial Yjs state;
+- persisting Yjs updates;
+- updating title;
+- resolving assets.
+
+Unauthorized users must not receive document bytes.
+
+### 9.5 Lock behavior
+
+Locked Wiki pages must reject write persistence.
+
+Read-only collaborative connections may remain possible if the UI supports them.
+
+---
+
+## 10. Web architecture
+
+### 10.1 Routes
+
+Preferred routes:
+
+```text
+/:workspaceSlug/wiki
+/:workspaceSlug/wiki/:pageId
+```
+
+Use `apps/web/app/routes/extended.ts` where practical rather than hardcoding all routes into CE base route definitions.
+
+### 10.2 Store type
+
+Extend:
+
+```ts
+enum EPageStoreType {
+  PROJECT = "PROJECT_PAGE",
+  WORKSPACE = "WORKSPACE_PAGE",
+}
+```
+
+### 10.3 Workspace page service/store
+
+Add:
+
+```text
+WorkspacePageService
+WorkspacePageVersionService
+WorkspacePage extends BasePage
+WorkspacePageStore
+```
+
+Responsibilities unique to Workspace Wiki:
+
+- workspace URLs;
+- workspace permission mapping;
+- hierarchy;
+- Wiki list sections;
+- Collections;
+- sharing.
+
+Everything else should stay in shared Page code.
+
+### 10.4 Navigation
+
+Add Wiki as workspace navigation.
+
+Target information architecture:
+
+```text
+Wiki
+  Favorites
+  Public
+  Private
+  Collections
+  Archived
+```
+
+The exact visual layout should track current Commercial Wiki as closely as practical.
+
+### 10.5 Page tree
+
+Tree requirements:
+
+- lazy or efficient loading for large workspaces;
+- arbitrary nesting depth;
+- expand/collapse;
+- create child;
+- drag/drop reorder;
+- move to another parent;
+- cycle prevention feedback;
+- access-aware hiding;
+- archived pages excluded from active tree;
+- collection-aware rendering when Collections ship.
+
+---
+
+## 11. Editor parity
+
+### 11.1 Reuse existing editor first
+
+The first Wiki release should not fork the editor.
+
+Use `@plane/editor` and existing Page editor props.
+
+### 11.2 Existing extension hook
+
+`useExtendedEditorProps` is the preferred place for Wiki/commercial-like Page editor enhancements where applicable.
+
+### 11.3 Block roadmap
+
+Target parity in this order:
+
+1. existing text/headings/lists/quotes;
+2. tables;
+3. code blocks;
+4. images/assets;
+5. work-item embeds;
+6. links/mentions;
+7. toggles;
+8. tabs;
+9. Mermaid;
+10. Page hierarchy/page-list embed;
+11. URL video/media embed;
+12. LaTeX;
+13. Draw.io integration;
+14. Office attachment integration.
+
+Do not block core Wiki on advanced blocks.
+
+---
+
+## 12. Search
+
+### 12.1 Core search
+
+Minimum:
+
+- page title;
+- `description_stripped`;
+- labels when available.
+
+Every result must be permission-filtered before returning to the client.
+
+### 12.2 No vector database requirement for core Wiki
+
+Core Wiki search should not require embeddings or a vector service.
+
+Postgres full-text/trigram search is sufficient for the initial implementation if the existing search infrastructure cannot already index workspace pages.
+
+AI/natural-language retrieval is a separate enhancement.
+
+---
+
+## 13. Version history
+
+Required:
+
+- list versions;
+- view version;
+- restore version;
+- actor/time metadata.
+
+Parity enhancement:
+
+- compare arbitrary page versions;
+- visually show added/removed/changed content.
+
+Version retrieval must be page/workspace scoped. A version ID alone is never sufficient authorization.
+
+---
+
+## 14. Comments
+
+Commercial Wiki supports Page comments.
+
+Target:
+
+- page-level comment thread;
+- replies if consistent with current product;
+- edit/delete creator restrictions;
+- comment reactions if reusable;
+- comment permission distinct from edit permission;
+- collection `COMMENT` role support;
+- later inline/block comments if page-level comments ship first.
+
+The spec intentionally separates **page comments** from **inline comments** so the initial implementation can deliver useful review collaboration without prematurely binding comment storage to editor node IDs.
+
+---
+
+## 15. Publishing
+
+Parity target:
+
+- publish a Wiki page externally;
+- stable public link/token;
+- revoke publication;
+- optional external comments if implemented;
+- assets render safely;
+- no leakage of non-published private descendants;
+- explicit behavior for nested export/publish.
+
+Publishing must use a separate public permission path. It must never reuse workspace membership assumptions.
+
+---
+
+## 16. Templates
+
+Target:
+
+- save Page as template;
+- template visibility at workspace scope;
+- create Page from template;
+- preserve supported editor content/structure;
+- template management permissions.
+
+Do not duplicate the document engine for templates; store template document content in a compatible format.
+
+---
+
+## 17. Export
+
+### 17.1 Initial
+
+Reuse existing page PDF/export UI/pipeline where possible.
+
+### 17.2 Parity
+
+Commercial behavior now includes exporting a Page with nested pages and packaging output as ZIP, including PDF/DOCX-related formats.
+
+Requirements:
+
+- explicit root page;
+- descendants traversed safely;
+- stable hierarchy order;
+- permission check for every included page;
+- predictable file naming;
+- asset handling;
+- export job limits to prevent resource exhaustion.
+
+---
+
+## 18. Labels
+
+Commercial Wiki supports Page labels.
+
+The current `Page` model already has labels.
+
+Wiki implementation should expose:
+
+- add/remove label;
+- filter by label;
+- label in search;
+- permission-safe list.
+
+Avoid a second Wiki label system.
+
+---
+
+## 19. Collections and ACL inheritance
+
+Collections are a major commercial-parity feature and must be treated as an authorization feature, not only UI grouping.
+
+### 19.1 Effective permissions
+
+A private Collection applies its restrictions to pages inside it.
+
+Subpages inherit from their parent.
+
+Implementation must define precedence explicitly.
+
+Recommended principle:
+
+```text
+effective capability = most restrictive mandatory ancestor boundary
+                       + explicitly granted role within that boundary
+```
+
+A direct Page share must not accidentally bypass a private Collection if Commercial behavior treats Collection privacy as authoritative.
+
+This rule must be confirmed against observed Commercial behavior before the Collection implementation is merged.
+
+### 19.2 Atomic moves
+
+Moving a page into/out of a private Collection can change access for an entire subtree.
+
+The operation should:
+
+1. validate requester permission;
+2. calculate affected subtree;
+3. validate target collection;
+4. update association;
+5. invalidate relevant cache/search entries;
+6. emit activity/events;
+7. commit atomically.
+
+---
+
+## 20. Activity, events, webhooks
+
+Workspace Wiki mutations should integrate with Plane's existing activity/event mechanisms where possible.
+
+Minimum event categories:
+
+- page created;
+- page updated;
+- page moved;
+- page archived/restored;
+- page deleted;
+- access changed;
+- share changed;
+- lock changed;
+- comment created/updated/deleted;
+- collection changed.
+
+Webhook parity can follow after internal events are stable.
+
+Avoid embedding sensitive page content into webhook payloads by default.
+
+---
+
+## 21. Performance
+
+Expected large-workspace concerns:
+
+- tree traversal;
+- recursive hierarchy queries;
+- search;
+- permission filtering;
+- version history;
+- realtime sessions.
+
+Candidate indexes to evaluate with `EXPLAIN` rather than add blindly:
+
+```text
+(workspace_id, is_global, archived_at)
+(workspace_id, is_global, parent_id, sort_order)
+(page_id, last_saved_at) for versions
+(collection_id, sort_order)
+(page_id, member_id) for shares
+```
+
+Use pagination for flat lists/search.
+
+Do not load an entire large Wiki document tree if the UI only needs one branch.
+
+---
+
+## 22. Security requirements
+
+These are release blockers.
+
+### 22.1 BOLA / IDOR
+
+Every entity lookup must be scoped by workspace and entity relation.
+
+Test cross-workspace UUID reuse/guessing for:
+
+- page;
+- version;
+- share;
+- comment;
+- collection;
+- export;
+- asset;
+- websocket document.
+
+### 22.2 Stored content
+
+Continue using existing HTML sanitization and binary/JSON conversion paths.
+
+No new editor block may introduce unsanitized HTML/script execution.
+
+### 22.3 Assets
+
+Asset retrieval must verify effective page access or use appropriately scoped signed URLs.
+
+Private-page attachment URLs must not become permanent public URLs.
+
+### 22.4 Recursive operations
+
+Archive/delete/move/export must guard against cycles and resource exhaustion.
+
+### 22.5 Search leakage
+
+Unauthorized private pages must not leak through:
+
+- result title;
+- snippets;
+- autocomplete;
+- counts;
+- filters;
+- AI context.
+
+### 22.6 Websocket authorization
+
+Test:
+
+- unauthenticated connection;
+- workspace non-member;
+- member without private-page access;
+- read-only share trying to write;
+- locked page write;
+- access revoked during session.
+
+---
+
+## 23. Testing requirements
+
+### Backend
+
+- serializer tests;
+- permission matrix tests;
+- hierarchy invariant tests;
+- archive/restore tests;
+- move/reorder tests;
+- version scoping tests;
+- sharing tests;
+- Collection inheritance tests;
+- API contract tests;
+- cross-workspace BOLA tests.
+
+### Live
+
+- workspace_page handler;
+- load/store document;
+- unauthorized load;
+- unauthorized write;
+- lock behavior;
+- access revocation;
+- title update authorization.
+
+### Web
+
+- store/service tests where infrastructure exists;
+- tree behavior;
+- filter tabs;
+- drag/drop;
+- permission-driven controls;
+- route handling;
+- private-page 404/not-authorized behavior;
+- editor readonly state;
+- version restore.
+
+### Regression
+
+Project Pages must retain:
+
+- existing URLs;
+- existing project scoping;
+- existing realtime behavior;
+- existing version API;
+- existing permissions.
+
+---
+
+## 24. Backward compatibility and upstream strategy
+
+### 24.1 Rules
+
+- do not rename existing Page tables;
+- do not weaken Project Page scoping;
+- prefer additive models/URLs;
+- prefer new workspace-specific adapters over branching generic code everywhere;
+- keep changes near existing `extended.*` seams;
+- avoid broad editor forks;
+- keep shared changes small and covered by tests.
+
+### 24.2 Upstream merge objective
+
+A future upstream CE update should mostly conflict in:
+
+- route registration;
+- store registration;
+- sidebar registration;
+- live document handler;
+- API URL registration.
+
+Wiki business logic should live in isolated modules.
+
+---
+
+## 25. Definition of done: core Wiki
+
+Core Wiki is production-ready when all are true:
+
+- [ ] Wiki appears as workspace navigation.
+- [ ] Workspace members can access `/:workspaceSlug/wiki`.
+- [ ] Wiki page CRUD works independently of a Project.
+- [ ] Wiki pages use `Page.is_global = true`.
+- [ ] Project Pages continue to work unchanged.
+- [ ] Public/private list filtering works.
+- [ ] Nested page creation works.
+- [ ] Reparent/reorder works.
+- [ ] Self-parent and descendant-parent cycles are rejected server-side.
+- [ ] Rich editor works.
+- [ ] Yjs/Hocuspocus collaboration works for `workspace_page`.
+- [ ] Unauthorized users cannot load document state.
+- [ ] Page lock prevents writes.
+- [ ] Version history and restore work.
+- [ ] Favorites work.
+- [ ] Archive/restore works recursively and safely.
+- [ ] Title/content search works without private-page leakage.
+- [ ] Existing export path works for Wiki pages.
+- [ ] Backend/live/web regression tests pass.
+- [ ] Cross-workspace BOLA tests pass.
+
+---
+
+## 26. Definition of done: commercial-parity Wiki
+
+Commercial-parity target is reached when, in addition to core:
+
+- [ ] Shared private pages with View/Comment/Edit ACL.
+- [ ] Page comments.
+- [ ] Collections.
+- [ ] Private Collections with ACL inheritance.
+- [ ] Default Collection.
+- [ ] Collection/page drag/drop.
+- [ ] Templates.
+- [ ] External publishing.
+- [ ] Version comparison.
+- [ ] Labels exposed in Wiki UX.
+- [ ] Favorites dedicated view.
+- [ ] Nested hierarchy export.
+- [ ] Tabs and toggles.
+- [ ] Mermaid.
+- [ ] Page hierarchy embeds.
+- [ ] URL media embeds.
+- [ ] Page/Collection analytics.
+- [ ] Remaining advanced editor integrations evaluated individually.
+
+AI, importers, and Office desktop integration are separate tracks because they depend on services/integrations beyond the Wiki core.
+
+---
+
+## 27. Public references used for parity research
+
+Research baseline: 2026-09-22.
+
+- Plane Wiki product page: https://plane.so/wiki
+- Plane pricing / feature matrix: https://plane.so/pricing
+- Workspace Wiki API — create page: https://developers.plane.so/api-reference/page/add-workspace-page
+- Workspace Wiki API — retrieve page: https://developers.plane.so/api-reference/page/get-workspace-page
+- Project Page API — create page: https://developers.plane.so/api-reference/page/add-project-page
+- Collections introduction: https://plane.so/blog/introducing-collections-and-ai-native-documentation
+- Collections changelog: https://plane.so/changelog/2026-04-15-wiki-collections-initiative-boards
+- Page/version/label enhancements: https://plane.so/changelog/2026-07-31-skills-plane-ai-richer-pages-audit-logs
+- Nested export/toggles/security fixes: https://plane.so/changelog/2026-08-14-collapsible-toggle-blocks-dashboard-intake-widgets
+- Page tabs, page hierarchy links, analytics: https://plane.so/changelog/2026-08-31-shared-views-tabs-in-pages-and-more
+- Release v3.2.0: https://plane.so/changelog/release-v3-2-0-workspace-governance-ai-memory-pii-scanning-and-more
+- Plane App extension model: https://developers.plane.so/dev-tools/build-plane-app/overview
+- Plane Marketplace overview: https://plane.so/marketplace
+
+---
+
+## 28. Open questions to validate during implementation
+
+These should be resolved by observing current Commercial behavior or public docs before the affected parity PR:
+
+1. Can one Wiki page belong to multiple Collections or exactly one?
+2. Exact precedence between direct Page share and private Collection ACL.
+3. Whether Workspace Admin/Owner may read a creator-private page without explicit share.
+4. Whether page-level comments and inline/block comments share a storage model.
+5. Whether public pages are editable by all Workspace Members by default or require a separate edit capability.
+6. Exact semantics of external comments on published pages.
+7. Whether moving a parent across Collections always moves all descendants.
+8. Exact collection/default collection behavior for legacy/uncollected pages.
+9. Exact version-diff granularity expected by current Commercial UI.
+
+None of these questions block the core Wiki milestone; the architecture above intentionally keeps room for the parity features.
