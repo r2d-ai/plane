@@ -11,6 +11,18 @@ import type { HocusPocusServerContext } from "@/types";
 import { DebounceManager } from "./debounce";
 
 /**
+ * Statuses the Page API returns when the effective Page permission no longer
+ * allows the write (revoked access, read-only role, locked page -> 400,
+ * private/removed page -> 404). Title sync must never bypass these: the write
+ * is rejected upstream, and we only log it as an authorization outcome rather
+ * than a transport failure.
+ */
+const TITLE_WRITE_FORBIDDEN_STATUSES = new Set([400, 401, 403, 404]);
+
+export const isTitleWriteForbidden = (error: AppError): boolean =>
+  error.statusCode !== undefined && TITLE_WRITE_FORBIDDEN_STATUSES.has(error.statusCode);
+
+/**
  * Manages title update operations for a single document
  * Handles debouncing, aborting, and force saving title updates
  */
@@ -69,6 +81,15 @@ export class TitleUpdateManager {
       const appError = new AppError(error, {
         context: { operation: "updateTitle", documentName: this.documentName },
       });
+      // The Page API is the authority on whether this write is allowed (page
+      // lock -> 400, revoked access -> 403, private/removed -> 404). Surface it
+      // as an authorization outcome instead of retrying as a transient error.
+      if (isTitleWriteForbidden(appError)) {
+        logger.warn(
+          `Title sync rejected for document ${this.documentName}: effective permission does not allow writes`
+        );
+        return;
+      }
       logger.error("Error updating title", appError);
     }
   }

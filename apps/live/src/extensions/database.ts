@@ -23,7 +23,18 @@ import { broadcastError } from "@/utils/broadcast-error";
 // force close utility
 import { forceCloseDocumentAcrossServers } from "./force-close-handler";
 
-const fetchDocument = async ({ context, documentName: pageId, instance }: FetchPayloadWithContext) => {
+/**
+ * HTTP statuses the Page APIs return when the caller is no longer allowed to
+ * touch the document (revoked membership, downgraded role, private page, page
+ * moved/deleted, unauthenticated). Kept in one place so the store path can
+ * distinguish an authorization failure from a transient one.
+ */
+const PERSISTENCE_FORBIDDEN_STATUSES = new Set([401, 403, 404]);
+
+const isPersistenceForbidden = (error: AppError): boolean =>
+  error.statusCode !== undefined && PERSISTENCE_FORBIDDEN_STATUSES.has(error.statusCode);
+
+export const fetchDocument = async ({ context, documentName: pageId, instance }: FetchPayloadWithContext) => {
   try {
     const service = getPageService(context.documentType, context);
     // fetch details
@@ -69,7 +80,7 @@ const fetchDocument = async ({ context, documentName: pageId, instance }: FetchP
   }
 };
 
-const storeDocument = async ({
+export const storeDocument = async ({
   context,
   state: pageBinaryData,
   documentName: pageId,
@@ -96,8 +107,16 @@ const storeDocument = async ({
     // Check error types
     const isContentTooLarge = appError.statusCode === 413;
 
+    // Workspace pages (Workspace Wiki / Company Wiki) must not keep a live
+    // session alive once persistence is forbidden: access revoked, role
+    // downgraded, page made private or removed. The Page API already rejects
+    // the write, so no unauthorized bytes are stored; here we additionally
+    // surface the failure and force the session closed. Project pages keep
+    // their existing store behavior (regression guard).
+    const isPersistenceDenied = context.documentType === "workspace_page" && isPersistenceForbidden(appError);
+
     // Determine if we should disconnect and unload
-    const shouldDisconnect = isContentTooLarge;
+    const shouldDisconnect = isContentTooLarge || isPersistenceDenied;
 
     // Determine error message and code
     let errorMessage: string;
@@ -106,6 +125,8 @@ const storeDocument = async ({
     if (isContentTooLarge) {
       errorMessage = "Document is too large to save. Please reduce the content size.";
       errorCode = "content_too_large";
+    } else if (isPersistenceDenied) {
+      errorMessage = "You no longer have permission to edit this page. Live editing has been stopped.";
     } else {
       errorMessage = "Unable to save the page. Please try again.";
     }
@@ -116,10 +137,9 @@ const storeDocument = async ({
     // If we should disconnect, close connections and unload document
     if (shouldDisconnect) {
       // Map error code to ForceCloseReason with proper types
-      const reason =
-        errorCode === "content_too_large" ? ForceCloseReason.DOCUMENT_TOO_LARGE : ForceCloseReason.CRITICAL_ERROR;
+      const reason = isContentTooLarge ? ForceCloseReason.DOCUMENT_TOO_LARGE : ForceCloseReason.SECURITY_VIOLATION;
 
-      const closeCode = errorCode === "content_too_large" ? CloseCode.DOCUMENT_TOO_LARGE : CloseCode.FORCE_CLOSE;
+      const closeCode = isContentTooLarge ? CloseCode.DOCUMENT_TOO_LARGE : CloseCode.SECURITY_VIOLATION;
 
       // force close connections and unload document
       await forceCloseDocumentAcrossServers(instance, pageId, reason, closeCode);

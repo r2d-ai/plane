@@ -66,10 +66,51 @@ export const onAuthenticate = async ({
   context.userId = userId;
   context.workspaceSlug = requestParameters.get("workspaceSlug");
 
+  // Reject malformed connection parameters before any document bytes are touched.
+  // This is defense in depth: the Page APIs the live service calls are themselves
+  // permission-protected, so authorization is never decided here.
+  validateDocumentConnection({
+    documentType: context.documentType,
+    workspaceSlug: context.workspaceSlug,
+    projectId: context.projectId,
+  });
+
   return await handleAuthentication({
     cookie: context.cookie,
     userId: context.userId,
   });
+};
+
+/**
+ * Validate the document connection parameters.
+ *
+ * `project_page` requires a workspace slug and a project id; `workspace_page`
+ * (Workspace Wiki / Company Wiki) requires a workspace slug and treats
+ * `projectId` as optional (spec §5.4). Every other document type is rejected so
+ * an unknown type can never be routed to a permissive service.
+ */
+export const validateDocumentConnection = ({
+  documentType,
+  workspaceSlug,
+  projectId,
+}: {
+  documentType: TDocumentTypes;
+  workspaceSlug: string | null | undefined;
+  projectId: string | null | undefined;
+}) => {
+  if (documentType !== "project_page" && documentType !== "workspace_page") {
+    throw new AppError(`Invalid document type ${documentType} provided.`, {
+      code: "AUTH_INVALID_DOCUMENT_TYPE",
+    });
+  }
+
+  if (!workspaceSlug) {
+    throw new AppError("Workspace slug is required.", { code: "AUTH_MISSING_WORKSPACE_SLUG" });
+  }
+
+  if (documentType === "project_page" && !projectId) {
+    throw new AppError("Project ID is required for project pages.", { code: "AUTH_MISSING_PROJECT_ID" });
+  }
 };
 
 export const handleAuthentication = async ({ cookie, userId }: { cookie: string; userId: string }) => {
