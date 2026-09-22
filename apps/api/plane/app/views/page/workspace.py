@@ -47,6 +47,7 @@ from plane.db.models import (
     Workspace,
 )
 from plane.utils.error_codes import ERROR_CODES
+from plane.utils.page_access import hidden_page_ids, resolve_workspace_role
 from plane.utils.page_hierarchy import PageHierarchyError, validate_page_parent
 
 from plane.bgtasks.page_transaction_task import page_transaction
@@ -120,6 +121,20 @@ class WorkspacePageViewSet(BaseViewSet):
         order_by = self.request.GET.get("order_by", "-created_at")
         if order_by not in ORDER_BY_ALLOWLIST:
             raise ValidationError({"error": "Invalid order_by value", "error_code": "INVALID_ORDER_BY"})
+
+        # Private Collection boundaries hide whole subtrees. The helper is a
+        # no-op (zero extra queries) when the workspace has no private
+        # Collection, so the pre-Collections list path is unchanged.
+        workspace = Workspace.objects.filter(slug=self.kwargs.get("slug"), deleted_at__isnull=True).first()
+        if workspace is not None:
+            hidden = hidden_page_ids(
+                workspace,
+                user,
+                workspace_role=resolve_workspace_role(workspace.id, user.id),
+            )
+            if hidden:
+                queryset = queryset.exclude(id__in=hidden)
+
         queryset = queryset.order_by("-is_favorite", order_by)
 
         parent = self.request.GET.get("parent")

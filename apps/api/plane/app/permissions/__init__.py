@@ -21,3 +21,4 @@ from .project import (
 from .base import allow_permission, ROLE
 from .page import ProjectPagePermission
 from .workspace_page import WorkspacePagePermission
+from .page_collection import PageCollectionPermission

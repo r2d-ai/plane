@@ -195,6 +195,177 @@ class ProjectPage(BaseModel):
         return f"{self.project.name} {self.page.name}"
 
 
+class PageCollection(BaseModel):
+    """Workspace-level Wiki grouping primitive (spec §5.5, §19; plan §8.2).
+
+    A Collection belongs to exactly one workspace and never mixes the designated
+    Company Wiki workspace with another: every relation below carries the same
+    ``workspace`` as the collection so a Collection can never leak a page across
+    scopes (WIKI-05, decision D6).
+
+    Access semantics (open question Q8 in ``docs/wiki-ce-spec.md``):
+    - ``access=PRIVATE`` makes the collection a mandatory authorization boundary
+      for every page in its (inherited) subtree;
+    - ``access=PUBLIC`` keeps the collection visible to workspace members and
+      adds grouping only.
+    """
+
+    ACCESS_PUBLIC = 0
+    ACCESS_PRIVATE = 1
+    ACCESS_CHOICES = ((ACCESS_PUBLIC, "Public"), (ACCESS_PRIVATE, "Private"))
+
+    DEFAULT_SORT_ORDER = 65535
+
+    # Collection member roles map onto effective page capabilities (spec §19.1).
+    ROLE_VIEW = 5
+    ROLE_COMMENT = 10
+    ROLE_EDIT = 15
+    ROLE_CHOICES = ((ROLE_VIEW, "View"), (ROLE_COMMENT, "Comment"), (ROLE_EDIT, "Edit"))
+
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_collections")
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    logo_props = models.JSONField(default=dict)
+    access = models.PositiveSmallIntegerField(choices=ACCESS_CHOICES, default=ACCESS_PUBLIC)
+    sort_order = models.FloatField(default=DEFAULT_SORT_ORDER)
+    is_default = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Page Collection"
+        verbose_name_plural = "Page Collections"
+        db_table = "page_collections"
+        ordering = ("sort_order", "-created_at")
+        constraints = [
+            # A default collection may exist per workspace (spec §5.5).
+            models.UniqueConstraint(
+                fields=["workspace"],
+                condition=models.Q(is_default=True, deleted_at__isnull=True),
+                name="page_collection_unique_default_per_workspace",
+            ),
+            # Collection names are unique inside a workspace while alive.
+            models.UniqueConstraint(
+                fields=["workspace", "name"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="page_collection_unique_name_per_workspace",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["workspace", "sort_order"], name="page_collection_ws_sort_idx"),
+            models.Index(fields=["workspace", "access"], name="page_collection_ws_access_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.workspace_id} <{self.name}>"
+
+    @property
+    def is_private(self):
+        return self.access == self.ACCESS_PRIVATE
+
+
+class PageCollectionMember(BaseModel):
+    """Membership + role of a user inside a Collection (spec §5.5)."""
+
+    VIEW = PageCollection.ROLE_VIEW
+    COMMENT = PageCollection.ROLE_COMMENT
+    EDIT = PageCollection.ROLE_EDIT
+    ROLE_CHOICES = PageCollection.ROLE_CHOICES
+
+    collection = models.ForeignKey(PageCollection, on_delete=models.CASCADE, related_name="members")
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="page_collection_memberships",
+    )
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_collection_members")
+    role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=VIEW)
+
+    class Meta:
+        verbose_name = "Page Collection Member"
+        verbose_name_plural = "Page Collection Members"
+        db_table = "page_collection_members"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["collection", "member"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="page_collection_member_unique_collection_member",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["collection", "member"], name="page_coll_member_lookup_idx"),
+            models.Index(fields=["workspace", "member"], name="page_coll_member_ws_idx"),
+        ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        if self.collection_id and self.workspace_id and self.collection.workspace_id != self.workspace_id:
+            raise DjangoValidationError("Collection member must belong to the collection's workspace.")
+
+    def save(self, *args, **kwargs):
+        if self.collection_id:
+            self.workspace_id = self.collection.workspace_id
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.collection_id} {self.member_id} {self.role}"
+
+
+class PageCollectionPage(BaseModel):
+    """Association + order of a page inside a Collection (spec §5.5).
+
+    Exactly one Collection may own a page at a time: the conditional unique
+    constraint on ``page`` is what makes the spec's "must not accidentally
+    support multi-collection membership" guarantee enforceable in the DB
+    (open question Q8). Descendants inherit the nearest ancestor's Collection
+    through the Page hierarchy, so this table stores boundaries only.
+    """
+
+    collection = models.ForeignKey(PageCollection, on_delete=models.CASCADE, related_name="collection_pages")
+    page = models.ForeignKey(Page, on_delete=models.CASCADE, related_name="collection_pages")
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_collection_pages")
+    sort_order = models.FloatField(default=Page.DEFAULT_SORT_ORDER)
+
+    class Meta:
+        verbose_name = "Page Collection Page"
+        verbose_name_plural = "Page Collection Pages"
+        db_table = "page_collection_pages"
+        ordering = ("sort_order", "-created_at")
+        constraints = [
+            # A page belongs to at most one Collection (Q8).
+            models.UniqueConstraint(
+                fields=["page"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="page_collection_page_unique_page",
+            ),
+            models.UniqueConstraint(
+                fields=["collection", "page"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="page_collection_page_unique_collection_page",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["collection", "sort_order"], name="page_coll_page_coll_sort_idx"),
+            models.Index(fields=["workspace", "page"], name="page_coll_page_ws_page_idx"),
+        ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        if self.collection_id and self.workspace_id and self.collection.workspace_id != self.workspace_id:
+            raise DjangoValidationError("Collection page must belong to the collection's workspace.")
+        if self.page_id and self.workspace_id and self.page.workspace_id != self.workspace_id:
+            raise DjangoValidationError("Collection page must belong to the collection's workspace.")
+
+    def save(self, *args, **kwargs):
+        if self.collection_id:
+            self.workspace_id = self.collection.workspace_id
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.collection_id} {self.page_id}"
+
+
 class PageVersion(BaseModel):
     workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_versions")
     page = models.ForeignKey("db.Page", on_delete=models.CASCADE, related_name="page_versions")

@@ -16,6 +16,7 @@ from plane.app.views import (
     WorkspacePageFavoriteViewSet,
     WorkspacePageDuplicateEndpoint,
     WorkspacePageVersionEndpoint,
+    PageCollectionViewSet,
 )
 
 urlpatterns = [
@@ -129,5 +130,42 @@ urlpatterns = [
         "workspaces/<str:slug>/pages/<uuid:page_id>/duplicate/",
         WorkspacePageDuplicateEndpoint.as_view(),
         name="workspace-page-duplicate",
+    ),
+    # Collections (WIKI-05). Same routes serve Workspace Wiki and the
+    # designated Company Wiki workspace.
+    path(
+        "workspaces/<str:slug>/page-collections/",
+        PageCollectionViewSet.as_view({"get": "list", "post": "create"}),
+        name="workspace-page-collections",
+    ),
+    path(
+        "workspaces/<str:slug>/page-collections/reorder/",
+        PageCollectionViewSet.as_view({"patch": "reorder"}),
+        name="workspace-page-collections-reorder",
+    ),
+    path(
+        "workspaces/<str:slug>/page-collections/<uuid:collection_id>/",
+        PageCollectionViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}),
+        name="workspace-page-collection",
+    ),
+    path(
+        "workspaces/<str:slug>/page-collections/<uuid:collection_id>/members/",
+        PageCollectionViewSet.as_view({"get": "members", "post": "member_add"}),
+        name="workspace-page-collection-members",
+    ),
+    path(
+        "workspaces/<str:slug>/page-collections/<uuid:collection_id>/members/<uuid:member_id>/",
+        PageCollectionViewSet.as_view({"patch": "member_update", "delete": "member_remove"}),
+        name="workspace-page-collection-member",
+    ),
+    path(
+        "workspaces/<str:slug>/page-collections/<uuid:collection_id>/pages/",
+        PageCollectionViewSet.as_view({"get": "pages", "post": "page_add", "patch": "page_reorder"}),
+        name="workspace-page-collection-pages",
+    ),
+    path(
+        "workspaces/<str:slug>/page-collections/<uuid:collection_id>/pages/<uuid:page_id>/",
+        PageCollectionViewSet.as_view({"post": "page_move", "patch": "page_move", "delete": "page_remove"}),
+        name="workspace-page-collection-page",
     ),
 ]
