@@ -51,6 +51,8 @@ export const SidebarItemBase = observer(function SidebarItemBase({
     "home",
     "pi_chat",
     "projects",
+    "wiki",
+    "company_wiki",
     "your_work",
     "stickies",
     "drafts",
@@ -63,8 +65,11 @@ export const SidebarItemBase = observer(function SidebarItemBase({
   const isPinned = isWorkspaceItemPinned(item.key);
   if (!isPinned && !staticItems.includes(item.key)) return null;
 
-  const itemHref =
-    item.key === "your_work" && data?.id ? joinUrlPath(slug, item.href, data?.id) : joinUrlPath(slug, item.href);
+  const itemHref = (() => {
+    if (item.key === "company_wiki") return item.href;
+    if (item.key === "your_work" && data?.id) return joinUrlPath(slug, item.href, data?.id);
+    return joinUrlPath(slug, item.href);
+  })();
   const icon = getSidebarNavigationItemIcon(item.key);
 
   return (

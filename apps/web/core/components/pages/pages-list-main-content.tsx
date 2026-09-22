@@ -20,35 +20,61 @@ import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
 // plane web hooks
 import { EPageStoreType, usePageStore } from "@/hooks/store";
+import type { EPageStoreType as EPageStoreTypeType } from "@/hooks/store";
+import type { IProjectPageStore } from "@/store/pages/project-page.store";
+import type { IWorkspacePageStore } from "@/store/pages/workspace-page.store";
 
 type Props = {
   children: React.ReactNode;
   pageType: TPageNavigationTabs;
-  storeType: EPageStoreType;
+  storeType: EPageStoreTypeType;
+  /**
+   * Optional callback that builds the page redirect URL after a new page is created.
+   * Defaults to the project-scoped URL `/${workspaceSlug}/projects/${projectId}/pages/${pageId}`.
+   * Workspace Wiki callers should pass `${workspaceSlug}/wiki/${pageId}` (or
+   * `/company-wiki/${pageId}` when running from the Company Wiki surface).
+   */
+  buildPageHref?: (params: { workspaceSlug: string; pageId: string }) => string;
+  /**
+   * Optional permission predicate that gates the empty-state create CTA.
+   * Defaults to project ADMIN/MEMBER at the project level.
+   */
+  canCreatePage?: boolean;
 };
 
 export const PagesListMainContent = observer(function PagesListMainContent(props: Props) {
-  const { children, pageType, storeType } = props;
+  const { children, pageType, storeType, buildPageHref, canCreatePage } = props;
   // plane hooks
   const { t } = useTranslation();
   // store hooks
   const { currentProjectDetails } = useProject();
-  const { isAnyPageAvailable, getCurrentProjectFilteredPageIdsByTab, getCurrentProjectPageIdsByTab, loader } =
-    usePageStore(storeType);
+  const isWorkspaceStore = storeType === EPageStoreType.WORKSPACE;
+  const pageStore: IProjectPageStore | IWorkspacePageStore = usePageStore(storeType);
+  const { isAnyPageAvailable, loader, createPage } = pageStore;
+  const pageIds = isWorkspaceStore
+    ? (pageStore as IWorkspacePageStore).getCurrentWorkspacePageIdsByTab(pageType)
+    : (pageStore as IProjectPageStore).getCurrentProjectPageIdsByTab(pageType);
+  const filteredPageIds = isWorkspaceStore
+    ? (pageStore as IWorkspacePageStore).getCurrentWorkspaceFilteredPageIdsByTab(pageType)
+    : (pageStore as IProjectPageStore).getCurrentProjectFilteredPageIdsByTab(pageType);
   const { allowPermissions } = useUserPermissions();
-  const { createPage } = usePageStore(EPageStoreType.PROJECT);
   // states
   const [isCreatingPage, setIsCreatingPage] = useState(false);
   // router
   const router = useRouter();
   const { workspaceSlug } = useParams();
   // derived values
-  const pageIds = getCurrentProjectPageIdsByTab(pageType);
-  const filteredPageIds = getCurrentProjectFilteredPageIdsByTab(pageType);
-  const canPerformEmptyStateActions = allowPermissions(
+  const defaultCanPerformEmptyStateActions = allowPermissions(
     [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],
     EUserPermissionsLevel.PROJECT
   );
+  const canPerformEmptyStateActions = canCreatePage ?? defaultCanPerformEmptyStateActions;
+
+  const resolvePageHref = (pageId?: string): string | undefined => {
+    if (!pageId) return undefined;
+    if (buildPageHref) return buildPageHref({ workspaceSlug: workspaceSlug?.toString() ?? "", pageId });
+    return `/${workspaceSlug}/projects/${currentProjectDetails?.id}/pages/${pageId}`;
+  };
 
   // handle page create
   const handleCreatePage = async () => {
@@ -60,8 +86,8 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
 
     await createPage(payload)
       .then((res) => {
-        const pageId = `/${workspaceSlug}/projects/${currentProjectDetails?.id}/pages/${res?.id}`;
-        router.push(pageId);
+        const href = resolvePageHref(res?.id);
+        if (href) router.push(href);
       })
       .catch((err) => {
         setToast({

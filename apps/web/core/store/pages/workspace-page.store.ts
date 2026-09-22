@@ -10,54 +10,41 @@ import { computedFn } from "mobx-utils";
 // types
 import { EUserPermissions } from "@plane/constants";
 import type { TPage, TPageFilters, TPageNavigationTabs } from "@plane/types";
-import { EUserProjectRoles } from "@plane/types";
 // helpers
 import { filterPagesByPageType, getPageName, orderPages, shouldFilterPage } from "@plane/utils";
 // plane web constants
 // plane web store
 // services
-import { ProjectPageService } from "@/services/page";
+import { WorkspacePageService } from "@/services/page";
 // store
 import type { CoreRootStore } from "../root.store";
 import type { IBasePageStore } from "./base-page-store";
-import type { TProjectPage } from "./project-page";
-import { ProjectPage } from "./project-page";
+import type { TWorkspacePage } from "./workspace-page";
+import { WorkspacePage } from "./workspace-page";
 
 type TLoader = "init-loader" | "mutation-loader" | undefined;
 
 type TError = { title: string; description: string };
 
-export const ROLE_PERMISSIONS_TO_CREATE_PAGE = [
-  EUserPermissions.ADMIN,
-  EUserPermissions.MEMBER,
-  EUserProjectRoles.ADMIN,
-  EUserProjectRoles.MEMBER,
-];
+export const WORKSPACE_WIKI_CREATE_PAGE_ROLES: EUserPermissions[] = [EUserPermissions.ADMIN, EUserPermissions.MEMBER];
 
-export interface IProjectPageStore extends IBasePageStore<TProjectPage> {
+export interface IWorkspacePageStore extends IBasePageStore<TWorkspacePage> {
   // helper actions
-  getCurrentProjectPageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
-  getCurrentProjectPageIds: (projectId: string) => string[];
-  getCurrentProjectFilteredPageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
+  getCurrentWorkspacePageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
+  getCurrentWorkspaceFilteredPageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
   // actions
-  fetchPagesList: (
-    workspaceSlug: string,
-    projectId: string,
-    pageType?: TPageNavigationTabs
-  ) => Promise<TPage[] | undefined>;
+  fetchPagesList: (workspaceSlug: string, pageType?: TPageNavigationTabs) => Promise<TPage[] | undefined>;
   fetchPageDetails: (
     workspaceSlug: string,
-    projectId: string,
     pageId: string,
     options?: { trackVisit?: boolean }
   ) => Promise<TPage | undefined>;
-  movePage: (workspaceSlug: string, projectId: string, pageId: string, newProjectId: string) => Promise<void>;
 }
 
-export class ProjectPageStore implements IProjectPageStore {
+export class WorkspacePageStore implements IWorkspacePageStore {
   // observables
   loader: TLoader = "init-loader";
-  data: Record<string, TProjectPage> = {}; // pageId => Page
+  data: Record<string, TWorkspacePage> = {}; // pageId => Page
   error: TError | undefined = undefined;
   filters: TPageFilters = {
     searchQuery: "",
@@ -65,7 +52,7 @@ export class ProjectPageStore implements IProjectPageStore {
     sortBy: "desc",
   };
   // service
-  service: ProjectPageService;
+  service: WorkspacePageService;
   rootStore: CoreRootStore;
 
   constructor(private store: CoreRootStore) {
@@ -86,16 +73,14 @@ export class ProjectPageStore implements IProjectPageStore {
       fetchPageDetails: action,
       createPage: action,
       removePage: action,
-      movePage: action,
     });
     this.rootStore = store;
     // service
-    this.service = new ProjectPageService();
-    // initialize display filters of the current project
+    this.service = new WorkspacePageService();
+    // reset filters when the workspace slug changes
     reaction(
-      () => this.store.router.projectId,
-      (projectId) => {
-        if (!projectId) return;
+      () => this.store.router.workspaceSlug,
+      () => {
         this.filters.searchQuery = "";
       }
     );
@@ -113,60 +98,39 @@ export class ProjectPageStore implements IProjectPageStore {
    * @description returns true if the current logged in user can create a page
    */
   get canCurrentUserCreatePage() {
-    const { workspaceSlug, projectId } = this.store.router;
-    const currentUserProjectRole = this.store.user.permission.getProjectRoleByWorkspaceSlugAndProjectId(
-      workspaceSlug?.toString() || "",
-      projectId?.toString() || ""
-    );
-    return !!currentUserProjectRole && ROLE_PERMISSIONS_TO_CREATE_PAGE.includes(currentUserProjectRole);
+    const { workspaceSlug } = this.store.router;
+    const workspaceRole = this.store.user.permission.getWorkspaceRoleByWorkspaceSlug(workspaceSlug?.toString() || "");
+    if (!workspaceRole) return false;
+    if (typeof workspaceRole === "number") {
+      return WORKSPACE_WIKI_CREATE_PAGE_ROLES.includes(workspaceRole as EUserPermissions);
+    }
+    return false;
   }
 
   /**
-   * @description get the current project page ids based on the pageType
+   * @description get the current workspace page ids based on the pageType
    * @param {TPageNavigationTabs} pageType
    */
-  getCurrentProjectPageIdsByTab = computedFn((pageType: TPageNavigationTabs) => {
-    const { projectId } = this.store.router;
-    if (!projectId) return undefined;
-    // helps to filter pages based on the pageType
-    let pagesByType = filterPagesByPageType(pageType, Object.values(this?.data || {}));
-    pagesByType = pagesByType.filter((p) => p.project_ids?.includes(projectId));
-
+  getCurrentWorkspacePageIdsByTab = computedFn((pageType: TPageNavigationTabs) => {
+    const pagesByType = filterPagesByPageType(pageType, Object.values(this?.data || {}));
     const pages = (pagesByType.map((page) => page.id) as string[]) || undefined;
-
     return pages ?? undefined;
   });
 
   /**
-   * @description get the current project page ids
-   * @param {string} projectId
-   */
-  getCurrentProjectPageIds = computedFn((projectId: string) => {
-    if (!projectId) return [];
-    const pages = Object.values(this?.data || {}).filter((page) => page.project_ids?.includes(projectId));
-    return pages.map((page) => page.id) as string[];
-  });
-
-  /**
-   * @description get the current project filtered page ids based on the pageType
+   * @description get the current workspace filtered page ids based on the pageType
    * @param {TPageNavigationTabs} pageType
    */
-  getCurrentProjectFilteredPageIdsByTab = computedFn((pageType: TPageNavigationTabs) => {
-    const { projectId } = this.store.router;
-    if (!projectId) return undefined;
-
-    // helps to filter pages based on the pageType
+  getCurrentWorkspaceFilteredPageIdsByTab = computedFn((pageType: TPageNavigationTabs) => {
     const pagesByType = filterPagesByPageType(pageType, Object.values(this?.data || {}));
     let filteredPages = pagesByType.filter(
       (p) =>
-        p.project_ids?.includes(projectId) &&
         getPageName(p.name).toLowerCase().includes(this.filters.searchQuery.toLowerCase()) &&
         shouldFilterPage(p, this.filters.filters)
     );
     filteredPages = orderPages(filteredPages, this.filters.sortKey, this.filters.sortBy);
 
     const pages = (filteredPages.map((page) => page.id) as string[]) || undefined;
-
     return pages ?? undefined;
   });
 
@@ -193,29 +157,26 @@ export class ProjectPageStore implements IProjectPageStore {
   /**
    * @description fetch all the pages
    */
-  fetchPagesList = async (workspaceSlug: string, projectId: string, pageType?: TPageNavigationTabs) => {
+  fetchPagesList = async (workspaceSlug: string, pageType?: TPageNavigationTabs) => {
     try {
-      if (!workspaceSlug || !projectId) return undefined;
+      if (!workspaceSlug) return undefined;
 
-      const currentPageIds = pageType ? this.getCurrentProjectPageIdsByTab(pageType) : undefined;
+      const currentPageIds = pageType ? this.getCurrentWorkspacePageIdsByTab(pageType) : undefined;
       runInAction(() => {
         this.loader = currentPageIds && currentPageIds.length > 0 ? `mutation-loader` : `init-loader`;
         this.error = undefined;
       });
 
-      const pages = await this.service.fetchAll(workspaceSlug, projectId);
+      const pages = await this.service.fetchAll(workspaceSlug);
       runInAction(() => {
         for (const page of pages) {
           if (page?.id) {
             const existingPage = this.getPageById(page.id);
             if (existingPage) {
-              // If page already exists, update all fields except name
-
               const { name, ...otherFields } = page;
               existingPage.mutateProperties(otherFields, false);
             } else {
-              // If new page, create a new instance with all data
-              set(this.data, [page.id], new ProjectPage(this.store, page));
+              set(this.data, [page.id], new WorkspacePage(this.store, page));
             }
           }
         }
@@ -239,11 +200,11 @@ export class ProjectPageStore implements IProjectPageStore {
    * @description fetch the details of a page
    * @param {string} pageId
    */
-  fetchPageDetails = async (...args: Parameters<IProjectPageStore["fetchPageDetails"]>) => {
-    const [workspaceSlug, projectId, pageId, options] = args;
+  fetchPageDetails = async (...args: Parameters<IWorkspacePageStore["fetchPageDetails"]>) => {
+    const [workspaceSlug, pageId, options] = args;
     const { trackVisit } = options || {};
     try {
-      if (!workspaceSlug || !projectId || !pageId) return undefined;
+      if (!workspaceSlug || !pageId) return undefined;
 
       const currentPageId = this.getPageById(pageId);
       runInAction(() => {
@@ -251,7 +212,7 @@ export class ProjectPageStore implements IProjectPageStore {
         this.error = undefined;
       });
 
-      const page = await this.service.fetchById(workspaceSlug, projectId, pageId, trackVisit ?? true);
+      const page = await this.service.fetchById(workspaceSlug, pageId, trackVisit ?? true);
 
       runInAction(() => {
         if (page?.id) {
@@ -259,7 +220,7 @@ export class ProjectPageStore implements IProjectPageStore {
           if (pageInstance) {
             pageInstance.mutateProperties(page, false);
           } else {
-            set(this.data, [page.id], new ProjectPage(this.store, page));
+            set(this.data, [page.id], new WorkspacePage(this.store, page));
           }
         }
         this.loader = undefined;
@@ -284,17 +245,17 @@ export class ProjectPageStore implements IProjectPageStore {
    */
   createPage = async (pageData: Partial<TPage>) => {
     try {
-      const { workspaceSlug, projectId } = this.store.router;
-      if (!workspaceSlug || !projectId) return undefined;
+      const { workspaceSlug } = this.store.router;
+      if (!workspaceSlug) return undefined;
 
       runInAction(() => {
         this.loader = "mutation-loader";
         this.error = undefined;
       });
 
-      const page = await this.service.create(workspaceSlug, projectId, pageData);
+      const page = await this.service.create(workspaceSlug, pageData);
       runInAction(() => {
-        if (page?.id) set(this.data, [page.id], new ProjectPage(this.store, page));
+        if (page?.id) set(this.data, [page.id], new WorkspacePage(this.store, page));
         this.loader = undefined;
       });
 
@@ -317,10 +278,10 @@ export class ProjectPageStore implements IProjectPageStore {
    */
   removePage = async ({ pageId, shouldSync: _shouldSync = true }: { pageId: string; shouldSync?: boolean }) => {
     try {
-      const { workspaceSlug, projectId } = this.store.router;
-      if (!workspaceSlug || !projectId || !pageId) return undefined;
+      const { workspaceSlug } = this.store.router;
+      if (!workspaceSlug || !pageId) return undefined;
 
-      await this.service.remove(workspaceSlug, projectId, pageId);
+      await this.service.remove(workspaceSlug, pageId);
       runInAction(() => {
         unset(this.data, [pageId]);
         if (this.rootStore.favorite.entityMap[pageId]) this.rootStore.favorite.removeFavoriteFromStore(pageId);
@@ -333,25 +294,6 @@ export class ProjectPageStore implements IProjectPageStore {
           description: "Failed to delete a page, Please try again later.",
         };
       });
-      throw error;
-    }
-  };
-
-  /**
-   * @description move a page to a new project
-   * @param {string} workspaceSlug
-   * @param {string} projectId
-   * @param {string} pageId
-   * @param {string} newProjectId
-   */
-  movePage = async (workspaceSlug: string, projectId: string, pageId: string, newProjectId: string) => {
-    try {
-      await this.service.move(workspaceSlug, projectId, pageId, newProjectId);
-      runInAction(() => {
-        unset(this.data, [pageId]);
-      });
-    } catch (error) {
-      console.error("Unable to move page", error);
       throw error;
     }
   };

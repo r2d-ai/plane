@@ -7,6 +7,9 @@
 // local components
 import { useProjectNavigationPreferences } from "@/hooks/use-navigation-preferences";
 import { ProjectBreadcrumb } from "./project";
+import { CommonWorkspaceBreadcrumbs } from "./workspace";
+
+export { CommonWorkspaceBreadcrumbs };
 
 type TCommonProjectBreadcrumbProps = {
   workspaceSlug: string;

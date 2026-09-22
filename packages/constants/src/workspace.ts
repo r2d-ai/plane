@@ -7,6 +7,9 @@
 import type { TStaticViewTypes, IWorkspaceSearchResults } from "@plane/types";
 import { EUserWorkspaceRoles } from "@plane/types";
 
+export const COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG: string =
+  (typeof process !== "undefined" && process.env?.VITE_COMPANY_WIKI_WORKSPACE_SLUG) || "";
+
 export const ORGANIZATION_SIZE: string[] = ["Just myself", "2-10", "11-50", "51-200", "201-500", "500+"];
 
 export const RESTRICTED_URLS: string[] = [
@@ -75,6 +78,8 @@ export const RESTRICTED_URLS: string[] = [
   "licenses",
   "instances",
   "instance",
+  "wiki",
+  "company-wiki",
 ];
 
 export const ROLE = {
@@ -271,6 +276,20 @@ export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS: Record<string, IWorkspac
     access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER, EUserWorkspaceRoles.GUEST],
     highlight: (pathname: string, url: string) => pathname === url,
   },
+  wiki: {
+    key: "wiki",
+    labelTranslationKey: "wiki",
+    href: `/wiki/`,
+    access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER, EUserWorkspaceRoles.GUEST],
+    highlight: (pathname: string) => pathname.includes(`/wiki`),
+  },
+  "company-wiki": {
+    key: "company_wiki",
+    labelTranslationKey: "company_wiki",
+    href: `/company-wiki/`,
+    access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER, EUserWorkspaceRoles.GUEST],
+    highlight: (pathname: string) => pathname.includes(`/company-wiki`),
+  },
 };
 
 export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
@@ -279,6 +298,8 @@ export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarN
 
 export const WORKSPACE_SIDEBAR_STATIC_PINNED_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
   WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["projects"],
+  WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["wiki"],
+  WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["company-wiki"],
 ];
 
 export const IS_FAVORITE_MENU_OPEN = "is_favorite_menu_open";

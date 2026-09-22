@@ -10,27 +10,32 @@ import type { TPageNavigationTabs } from "@plane/types";
 // components
 import { ListLayout } from "@/components/core/list";
 // plane web hooks
-import type { EPageStoreType } from "@/hooks/store";
-import { usePageStore } from "@/hooks/store";
+import { EPageStoreType, usePageStore } from "@/hooks/store";
+import type { EPageStoreType as EPageStoreTypeType } from "@/hooks/store";
+import type { IProjectPageStore } from "@/store/pages/project-page.store";
+import type { IWorkspacePageStore } from "@/store/pages/workspace-page.store";
 // local imports
 import { PageListBlock } from "./block";
 
 type TPagesListRoot = {
   pageType: TPageNavigationTabs;
-  storeType: EPageStoreType;
+  storeType: EPageStoreTypeType;
 };
 
 export const PagesListRoot = observer(function PagesListRoot(props: TPagesListRoot) {
   const { pageType, storeType } = props;
-  // store hooks
-  const { getCurrentProjectFilteredPageIdsByTab } = usePageStore(storeType);
+  // store helper
+  const pageStore: IProjectPageStore | IWorkspacePageStore = usePageStore(storeType);
   // derived values
-  const filteredPageIds = getCurrentProjectFilteredPageIdsByTab(pageType);
+  const filteredPageIds =
+    storeType === EPageStoreType.WORKSPACE
+      ? (pageStore as IWorkspacePageStore).getCurrentWorkspaceFilteredPageIdsByTab(pageType)
+      : (pageStore as IProjectPageStore).getCurrentProjectFilteredPageIdsByTab(pageType);
 
   if (!filteredPageIds) return <></>;
   return (
     <ListLayout>
-      {filteredPageIds.map((pageId) => (
+      {filteredPageIds.map((pageId: string) => (
         <PageListBlock key={pageId} pageId={pageId} storeType={storeType} />
       ))}
     </ListLayout>

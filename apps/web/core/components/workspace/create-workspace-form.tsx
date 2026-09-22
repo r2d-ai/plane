@@ -8,7 +8,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import { Controller, useForm } from "react-hook-form";
-import { ORGANIZATION_SIZE, RESTRICTED_URLS } from "@plane/constants";
+import { COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG, ORGANIZATION_SIZE, RESTRICTED_URLS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { Button } from "@plane/propel/button";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
@@ -70,7 +70,11 @@ export const CreateWorkspaceForm = observer(function CreateWorkspaceForm(props: 
   const handleCreateWorkspace = async (formData: IWorkspace) => {
     try {
       const res = (await workspaceService.workspaceSlugCheck(formData.slug)) as { status: boolean };
-      if (res.status === true && !RESTRICTED_URLS.includes(formData.slug)) {
+      if (
+        res.status === true &&
+        !RESTRICTED_URLS.includes(formData.slug) &&
+        formData.slug !== COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG
+      ) {
         setSlugError(false);
         try {
           const workspaceResponse = await createWorkspace(formData);
