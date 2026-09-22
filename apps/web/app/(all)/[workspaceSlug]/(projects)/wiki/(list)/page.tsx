@@ -7,6 +7,7 @@
 import { observer } from "mobx-react";
 import { useSearchParams } from "next/navigation";
 // plane imports
+import { useTranslation } from "@plane/i18n";
 import type { TPageNavigationTabs } from "@plane/types";
 // components
 import { PageHead } from "@/components/core/page-title";
@@ -27,13 +28,14 @@ function WorkspaceWikiListPage({ params }: Route.ComponentProps) {
   const searchParams = useSearchParams();
   const type = searchParams.get("type");
   const pageType = getPageType(type);
+  const { t } = useTranslation();
 
   // store hooks
   const { canCurrentUserCreatePage } = usePageStore(EPageStoreType.WORKSPACE);
 
   return (
     <>
-      <PageHead title={workspaceSlug ? `${workspaceSlug} - Wiki` : "Wiki"} />
+      <PageHead title={workspaceSlug ? `${workspaceSlug} - ${t("sidebar.wiki")}` : t("sidebar.wiki")} />
       <PagesListView
         pageType={pageType}
         storeType={EPageStoreType.WORKSPACE}
@@ -41,6 +43,7 @@ function WorkspaceWikiListPage({ params }: Route.ComponentProps) {
         buildTabHref={({ workspaceSlug: slug, tabKey }) => `/${slug}/wiki?type=${tabKey}`}
         buildPageHref={({ workspaceSlug: slug, pageId }) => `/${slug}/wiki/${pageId}`}
         canCreatePage={canCurrentUserCreatePage}
+        emptyStateVariant="workspace_wiki"
       >
         <PagesListRoot pageType={pageType} storeType={EPageStoreType.WORKSPACE} />
       </PagesListView>

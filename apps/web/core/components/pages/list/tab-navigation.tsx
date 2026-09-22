@@ -5,7 +5,9 @@
  */
 
 import Link from "next/link";
+import { observer } from "mobx-react";
 // types
+import { useTranslation } from "@plane/i18n";
 import type { TPageNavigationTabs } from "@plane/types";
 // helpers
 import { cn } from "@plane/utils";
@@ -24,24 +26,15 @@ type TPageTabNavigation = {
   buildTabHref?: (params: { workspaceSlug: string; tabKey: TPageNavigationTabs }) => string;
 };
 
-// pages tab options
-const pageTabs: { key: TPageNavigationTabs; label: string }[] = [
-  {
-    key: "public",
-    label: "Public",
-  },
-  {
-    key: "private",
-    label: "Private",
-  },
-  {
-    key: "archived",
-    label: "Archived",
-  },
-];
-
-export function PageTabNavigation(props: TPageTabNavigation) {
+export const PageTabNavigation = observer(function PageTabNavigation(props: TPageTabNavigation) {
   const { workspaceSlug, projectId, pageType, buildTabHref } = props;
+  const { t } = useTranslation();
+
+  const tabs: { key: TPageNavigationTabs; label: string }[] = [
+    { key: "public", label: t("wiki.tabs.public") },
+    { key: "private", label: t("wiki.tabs.private") },
+    { key: "archived", label: t("wiki.tabs.archived") },
+  ];
 
   const handleTabClick = (e: React.MouseEvent<HTMLAnchorElement>, tabKey: TPageNavigationTabs) => {
     if (tabKey === pageType) e.preventDefault();
@@ -54,7 +47,7 @@ export function PageTabNavigation(props: TPageTabNavigation) {
 
   return (
     <div className="relative flex h-full items-center">
-      {pageTabs.map((tab) => (
+      {tabs.map((tab) => (
         <Link
           key={tab.key}
           href={tabHref(tab.key)}
@@ -77,4 +70,4 @@ export function PageTabNavigation(props: TPageTabNavigation) {
       ))}
     </div>
   );
-}
+});

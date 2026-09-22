@@ -9,6 +9,7 @@ import { Outlet } from "react-router";
 import useSWR from "swr";
 import { AppHeader } from "@/components/core/app-header";
 import { ContentWrapper } from "@/components/core/content-wrapper";
+import { CompanyWikiRouteScope } from "@/components/pages/company-wiki-route-scope";
 // plane web hooks
 import { COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG } from "@plane/constants";
 import { EPageStoreType, usePageStore } from "@/hooks/store";
@@ -22,6 +23,7 @@ export default function CompanyWikiDetailsLayout() {
   useSWR(`WORKSPACE_PAGES_${workspaceSlug}`, workspaceSlug ? () => fetchPagesList(workspaceSlug) : null);
   return (
     <>
+      <CompanyWikiRouteScope />
       <AppHeader header={<CompanyWikiDetailsHeader />} />
       <ContentWrapper>
         <Outlet />

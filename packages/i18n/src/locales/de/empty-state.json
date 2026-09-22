@@ -265,6 +265,46 @@
         "title": "Zustände hinzufügen",
         "description": "Wählen Sie die Zustände aus, die das Arbeitselement durchläuft."
       }
+    },
+    "wiki": {
+      "public": {
+        "title": "No public pages yet",
+        "description": "Public pages are visible to everyone in this workspace. Share meeting notes, project documentation, or runbooks.",
+        "cta_primary": "Create your first public page"
+      },
+      "private": {
+        "title": "No private pages yet",
+        "description": "Private pages are visible only to you. Use them for personal notes, drafts, or work-in-progress.",
+        "cta_primary": "Create your first private page"
+      },
+      "archived": {
+        "title": "No archived pages yet",
+        "description": "Archived pages are stored here for future reference. Archive a page from its options menu."
+      },
+      "search": {
+        "title": "No matching pages",
+        "description": "Try adjusting your search or filters."
+      },
+      "company_wiki": {
+        "public": {
+          "title": "No Company Wiki pages yet",
+          "description": "Company Wiki pages live here for everyone in the organization. Share policies, onboarding, and shared knowledge.",
+          "cta_primary": "Create your first Company Wiki page"
+        },
+        "private": {
+          "title": "No private Company Wiki pages yet",
+          "description": "Private pages are visible only to you.",
+          "cta_primary": "Create your first private page"
+        },
+        "archived": {
+          "title": "No archived Company Wiki pages yet",
+          "description": "Archived pages are stored here for future reference."
+        },
+        "search": {
+          "title": "No matching Company Wiki pages",
+          "description": "Try adjusting your search or filters."
+        }
+      }
     }
   }
 }

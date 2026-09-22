@@ -9,6 +9,7 @@ import { observer } from "mobx-react";
 import { useRouter, useSearchParams } from "next/navigation";
 // constants
 import { COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG, EPageAccess } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 // plane types
 import { Button } from "@plane/propel/button";
 import { WikiIcon } from "@plane/propel/icons";
@@ -27,6 +28,8 @@ const storeType = EPageStoreType.WORKSPACE;
 export const CompanyWikiListHeader = observer(function CompanyWikiListHeader() {
   // states
   const [isCreatingPage, setIsCreatingPage] = useState(false);
+  // i18n
+  const { t } = useTranslation();
   // router
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -49,8 +52,8 @@ export const CompanyWikiListHeader = observer(function CompanyWikiListHeader() {
       .catch((err) => {
         setToast({
           type: TOAST_TYPE.ERROR,
-          title: "Error!",
-          message: err?.data?.error || "Page could not be created. Please try again.",
+          title: t("common.error"),
+          message: err?.data?.error || t("wiki.errors.load_failed"),
         });
       })
       .finally(() => setIsCreatingPage(false));
@@ -63,7 +66,7 @@ export const CompanyWikiListHeader = observer(function CompanyWikiListHeader() {
           <Breadcrumbs.Item
             component={
               <BreadcrumbLink
-                label="Company Wiki"
+                label={t("sidebar.company_wiki")}
                 href="/company-wiki/"
                 icon={<WikiIcon className="h-4 w-4 text-tertiary" />}
                 isLast
@@ -76,7 +79,7 @@ export const CompanyWikiListHeader = observer(function CompanyWikiListHeader() {
       {canCurrentUserCreatePage && designatedWorkspaceSlug && (
         <Header.RightItem>
           <Button variant="primary" size="lg" onClick={handleCreatePage} loading={isCreatingPage}>
-            {isCreatingPage ? "Adding" : "Add page"}
+            {isCreatingPage ? t("common.adding") : t("wiki.actions.add_page")}
           </Button>
         </Header.RightItem>
       )}
