@@ -112,6 +112,8 @@ from .page_collection import (
     PageCollectionPageSerializer,
 )
 
+from .page_share import PageShareSerializer
+
 from .estimate import (
     EstimateSerializer,
     EstimatePointSerializer,

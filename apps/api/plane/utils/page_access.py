@@ -12,7 +12,7 @@ so two call sites can never disagree about who may read or edit a page:
       + page access (public/private + owner)
       + Collection access / member role
       + parent inheritance
-      + (direct PageShare, added in WIKI-06)
+      + direct PageShare (inherited from the nearest shared ancestor)
       = effective capabilities
 
 Precedence (open question Q8, recorded in the WIKI-05 PR description):
@@ -30,9 +30,11 @@ Precedence (open question Q8, recorded in the WIKI-05 PR description):
 * No Collection membership means the page inherits its nearest ancestor's
   Collection; a page without any Collection boundary keeps the pre-existing
   Workspace Wiki behaviour.
-
-A direct PageShare source is intentionally absent until WIKI-06 and must be
-layered in here, not in a second implementation.
+* A direct ``PageShare`` (WIKI-06) is the nearest share on the ancestor-or-self
+  chain. It grants its role on the shared page and on the subtree below it, but
+  it can never bypass a private Collection boundary: the boundary check runs
+  first. On a private page the share role caps the granted capability (a member
+  shared ``VIEW`` gets ``VIEW``, not the member baseline).
 """
 
 from __future__ import annotations
@@ -40,12 +42,14 @@ from __future__ import annotations
 from enum import IntEnum
 
 from django.conf import settings
+from django.db.models import Q
 
 from plane.db.models import (
     Page,
     PageCollection,
     PageCollectionMember,
     PageCollectionPage,
+    PageShare,
     WorkspaceMember,
 )
 
@@ -70,6 +74,12 @@ _COLLECTION_ROLE_TO_CAPABILITY = {
     PageCollection.ROLE_VIEW: Capability.VIEW,
     PageCollection.ROLE_COMMENT: Capability.COMMENT,
     PageCollection.ROLE_EDIT: Capability.EDIT,
+}
+
+_SHARE_ROLE_TO_CAPABILITY = {
+    PageShare.ROLE_VIEW: Capability.VIEW,
+    PageShare.ROLE_COMMENT: Capability.COMMENT,
+    PageShare.ROLE_EDIT: Capability.EDIT,
 }
 
 _UNSET = object()
@@ -178,6 +188,49 @@ def collection_capability(user, collection, workspace=None, *, workspace_role=_U
     return Capability.NONE
 
 
+def direct_share_capability(user, page):
+    """Capability granted by an explicit ``PageShare`` on ``page`` itself."""
+    if not _is_active_user(user) or page is None or page.pk is None:
+        return Capability.NONE
+    role = (
+        PageShare.objects.filter(
+            page_id=page.pk,
+            member=user,
+            deleted_at__isnull=True,
+        )
+        .values_list("role", flat=True)
+        .first()
+    )
+    return _SHARE_ROLE_TO_CAPABILITY.get(role, Capability.NONE)
+
+
+def nearest_page_share(page, user, *, resolver=None):
+    """Capability from the nearest ancestor-or-self explicit share.
+
+    A share is inheritable: sharing a page also shares its subtree, so the walk
+    is the exact counterpart of ``nearest_collection``. The closest ancestor
+    with a share wins (most specific grant), and ``NONE`` means "no share on
+    the chain".
+    """
+    if not _is_active_user(user) or page is None:
+        return Capability.NONE
+    if resolver is not None:
+        return resolver.resolve_share(page, user)
+    visited = set()
+    current = page
+    while current is not None:
+        if current.pk in visited:
+            return Capability.NONE
+        visited.add(current.pk)
+        capability = direct_share_capability(user, current)
+        if capability != Capability.NONE:
+            return capability
+        if current.parent_id is None:
+            return Capability.NONE
+        current = Page.objects.filter(pk=current.parent_id).only("id", "parent_id").first()
+    return Capability.NONE
+
+
 def nearest_collection(page, *, resolver=None):
     """Resolve the nearest ancestor-or-self Collection boundary for ``page``.
 
@@ -207,8 +260,16 @@ def nearest_collection(page, *, resolver=None):
     return None
 
 
-def effective_capability(user, page, workspace, *, workspace_role=_UNSET, open_read=_UNSET, resolver=None):
-    """The single effective-capability algorithm (plan §8.4, spec §19.1)."""
+def get_page_capabilities(
+    user, page, workspace=None, *, workspace_role=_UNSET, open_read=_UNSET, resolver=None
+):
+    """The single effective-capability algorithm (plan §8.4/§9.2, spec §19.1).
+
+    Returns the strongest ``Capability`` the user holds on ``page``. Prefer the
+    ``can_view_page`` / ``can_comment_page`` / ``can_edit_page`` /
+    ``can_manage_page`` predicates at call sites: they name the intended action
+    and keep a single policy in one place.
+    """
     if not _is_active_user(user):
         return Capability.NONE
     if workspace is None:
@@ -232,15 +293,36 @@ def effective_capability(user, page, workspace, *, workspace_role=_UNSET, open_r
             open_read=open_read,
         )
 
-    # 1. Private Collection is a mandatory boundary for the whole subtree.
+    # A share only exists between an active workspace member and the page
+    # (spec §5.3); the workspace-membership gate in spec §6.3 therefore applies
+    # before the share source is even consulted. The page owner keeps access
+    # without a share row (spec §5.3).
+    if workspace_role is not None or is_owner:
+        share_cap = nearest_page_share(page, user, resolver=resolver)
+    else:
+        share_cap = Capability.NONE
+
+    # 1. Private Collection is a mandatory boundary for the whole subtree. A
+    #    direct share can never bypass it (spec §19.1).
     if collection is not None and collection.is_private and not is_admin and collection_cap == Capability.NONE:
         return Capability.NONE
 
-    # 2. Page-level privacy still requires ownership (direct PageShare: WIKI-06).
-    if page.access == Page.PRIVATE_ACCESS and not is_owner and not is_admin:
-        return Capability.NONE
+    # 2. Page-level privacy: the owner/admin always passes; otherwise an
+    #    inherited direct share is the only way in, and its role caps the
+    #    capability (a member shared VIEW gets VIEW, not the member baseline).
+    if page.access == Page.PRIVATE_ACCESS:
+        if is_owner or is_admin:
+            granted = Capability.EDIT
+        elif share_cap >= Capability.VIEW:
+            granted = share_cap
+        else:
+            return Capability.NONE
+        if collection is not None and collection.is_private and not is_admin:
+            # Most restrictive wins inside the boundary.
+            granted = Capability(min(int(granted), int(collection_cap)))
+        return granted
 
-    # 3. Workspace baseline.
+    # 3. Workspace baseline for a public page.
     if is_admin:
         base = Capability.EDIT
     elif workspace_role in WORKSPACE_WRITE_ROLES:
@@ -251,23 +333,100 @@ def effective_capability(user, page, workspace, *, workspace_role=_UNSET, open_r
         base = Capability.NONE
 
     if collection is None:
-        if base == Capability.NONE and open_read:
+        result = Capability(max(int(base), int(share_cap)))
+        if result == Capability.NONE and open_read:
             return Capability.VIEW
-        return base
+        return result
 
     if collection.is_private:
         if collection_cap == Capability.NONE:
             return Capability.NONE
-        if base == Capability.NONE:
+        inner = Capability(max(int(base), int(share_cap)))
+        if inner == Capability.NONE:
             return collection_cap
         # Most restrictive wins inside the boundary.
-        return Capability(min(int(base), int(collection_cap)))
+        return Capability(min(int(inner), int(collection_cap)))
 
-    # Public Collection: grouping only, but an explicit role may raise COMMENTS.
-    result = Capability(max(int(base), int(collection_cap)))
+    # Public Collection: grouping only, but an explicit share/role may raise
+    # the capability up to COMMENTS/EDIT.
+    result = Capability(max(int(base), int(collection_cap), int(share_cap)))
     if result == Capability.NONE and open_read:
         return Capability.VIEW
     return result
+
+
+def effective_capability(user, page, workspace=None, *, workspace_role=_UNSET, open_read=_UNSET, resolver=None):
+    """Backwards-compatible alias for :func:`get_page_capabilities`."""
+    return get_page_capabilities(
+        user,
+        page,
+        workspace,
+        workspace_role=workspace_role,
+        open_read=open_read,
+        resolver=resolver,
+    )
+
+
+def _capability(user, page, workspace, threshold, *, workspace_role=_UNSET, open_read=_UNSET, resolver=None):
+    return (
+        get_page_capabilities(
+            user,
+            page,
+            workspace,
+            workspace_role=workspace_role,
+            open_read=open_read,
+            resolver=resolver,
+        )
+        >= threshold
+    )
+
+
+def can_view_page(user, page, workspace=None, *, workspace_role=_UNSET, open_read=_UNSET, resolver=None):
+    """Whether ``user`` may read ``page`` (spec §6.4)."""
+    return _capability(
+        user, page, workspace, Capability.VIEW, workspace_role=workspace_role, open_read=open_read, resolver=resolver
+    )
+
+
+def can_comment_page(user, page, workspace=None, *, workspace_role=_UNSET, open_read=_UNSET, resolver=None):
+    """Whether ``user`` may comment on ``page`` (spec §6.4)."""
+    return _capability(
+        user,
+        page,
+        workspace,
+        Capability.COMMENT,
+        workspace_role=workspace_role,
+        open_read=open_read,
+        resolver=resolver,
+    )
+
+
+def can_edit_page(user, page, workspace=None, *, workspace_role=_UNSET, open_read=_UNSET, resolver=None):
+    """Whether ``user`` may edit ``page`` content/metadata (spec §6.4)."""
+    return _capability(
+        user, page, workspace, Capability.EDIT, workspace_role=workspace_role, open_read=open_read, resolver=resolver
+    )
+
+
+def can_manage_page(user, page, workspace=None, *, workspace_role=_UNSET, open_read=_UNSET, resolver=None):
+    """Whether ``user`` may manage ``page`` (share / access / lifecycle).
+
+    Management is reserved for the page owner and the workspace admin/owner.
+    A user who cannot even see the page (private Collection boundary, private
+    page without a share) can never manage it, so a boundary the owner falls
+    outside of stays authoritative.
+    """
+    if not _is_active_user(user):
+        return False
+    if workspace is None:
+        workspace = page.workspace
+    if not can_view_page(
+        user, page, workspace, workspace_role=workspace_role, open_read=open_read, resolver=resolver
+    ):
+        return False
+    if page.owned_by_id == user.id:
+        return True
+    return is_workspace_admin(workspace, user, workspace_role=workspace_role)
 
 
 class PageAccessResolver:
@@ -282,7 +441,9 @@ class PageAccessResolver:
         self.workspace_id = workspace_id
         self._explicit = None
         self._parents = None
+        self._shares = None
         self._cache = {}
+        self._share_cache = {}
 
     def _load(self):
         if self._explicit is not None:
@@ -307,6 +468,41 @@ class PageAccessResolver:
     def resolve_id(self, page_id):
         self._load()
         return self._resolve_id(page_id, set())
+
+    def _load_shares(self):
+        """Load every explicit share in the workspace, grouped by page+member."""
+        if self._shares is not None:
+            return
+        shares = {}
+        for row in PageShare.objects.filter(
+            workspace_id=self.workspace_id, deleted_at__isnull=True
+        ).values("page_id", "member_id", "role"):
+            capability = _SHARE_ROLE_TO_CAPABILITY.get(row["role"])
+            if capability:
+                shares.setdefault(row["page_id"], {})[row["member_id"]] = capability
+        self._shares = shares
+
+    def resolve_share(self, page, user):
+        """Nearest ancestor-or-self explicit-share capability for ``user``."""
+        if page is None or not _is_active_user(user):
+            return Capability.NONE
+        cache_key = (page.pk, user.id)
+        if cache_key in self._share_cache:
+            return self._share_cache[cache_key]
+        self._load()
+        self._load_shares()
+        seen = set()
+        current_id = page.pk
+        result = Capability.NONE
+        while current_id is not None and current_id not in seen:
+            seen.add(current_id)
+            capability = self._shares.get(current_id, {}).get(user.id)
+            if capability is not None:
+                result = capability
+                break
+            current_id = self._parents.get(current_id)
+        self._share_cache[cache_key] = result
+        return result
 
     def _resolve_id(self, page_id, seen):
         if page_id is None or page_id in seen:
@@ -373,3 +569,74 @@ def hidden_page_ids(workspace, user, *, workspace_role=None):
         if collection is not None and collection.is_private and collection.id not in accessible:
             hidden.add(page_id)
     return hidden
+
+
+def shared_page_ids(workspace, user):
+    """Page ids ``user`` may discover through a direct (inherited) share.
+
+    A share is inherited by the whole subtree, so the visible set is the union
+    of every explicitly shared page's descendants. Short-circuits to an empty
+    set (no extra query) when the user has no share, which keeps the common
+    Wiki list path on its pre-WIKI-06 query plan.
+    """
+    if not _is_active_user(user) or workspace is None:
+        return set()
+
+    explicit = list(
+        PageShare.objects.filter(
+            workspace=workspace,
+            member=user,
+            deleted_at__isnull=True,
+        ).values_list("page_id", flat=True)
+    )
+    if not explicit:
+        return set()
+
+    resolver = PageAccessResolver(workspace.id)
+    ids = set()
+    for page_id in explicit:
+        ids.update(resolver.descendants(page_id))
+    return ids
+
+
+def page_visibility_q(user, workspace):
+    """``Q`` selecting pages the user may view (capability >= VIEW).
+
+    Mirrors :func:`get_page_capabilities` for the non-shared, non-Collection
+    part of the algorithm: owned pages, public pages, and pages reached through
+    a direct share. Callers still drop private-Collection subtrees with
+    :func:`hidden_page_ids`.
+    """
+    q = Q(owned_by=user) | Q(access=Page.PUBLIC_ACCESS)
+    shared = shared_page_ids(workspace, user)
+    if shared:
+        q |= Q(id__in=shared)
+    return q
+
+
+def filter_visible_pages(queryset, user, workspace, *, workspace_role=None):
+    """Filter a ``Page`` queryset through the centralized visibility policy."""
+    if workspace is None:
+        return queryset.none()
+    if workspace_role is None:
+        workspace_role = resolve_workspace_role(workspace.id, getattr(user, "id", None))
+    hidden = hidden_page_ids(workspace, user, workspace_role=workspace_role)
+    queryset = queryset.filter(page_visibility_q(user, workspace))
+    if hidden:
+        queryset = queryset.exclude(id__in=hidden)
+    return queryset
+
+
+def searchable_page_q(user, workspace):
+    """Visibility ``Q`` for workspace Wiki search.
+
+    Search keeps private pages out of the result set even for their owner
+    (pinned by the WIKI-04a contract tests); the direct-share source adds the
+    private pages an explicit share grants, so an unshared user still cannot
+    discover them.
+    """
+    q = Q(access=Page.PUBLIC_ACCESS)
+    shared = shared_page_ids(workspace, user)
+    if shared:
+        q |= Q(id__in=shared)
+    return q

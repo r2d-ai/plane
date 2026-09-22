@@ -91,6 +91,18 @@ urlpatterns = [
         WorkspacePageViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}),
         name="workspace-page",
     ),
+    # Direct named-user sharing (WIKI-06). Names are sensitive access metadata,
+    # so both endpoints require the MANAGE capability (page owner / admin).
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/shares/",
+        WorkspacePageViewSet.as_view({"get": "share_list", "post": "share_add"}),
+        name="workspace-page-shares",
+    ),
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/shares/<uuid:share_id>/",
+        WorkspacePageViewSet.as_view({"patch": "share_update", "delete": "share_remove"}),
+        name="workspace-page-share",
+    ),
     path(
         "workspaces/<str:slug>/favorite-pages/<uuid:page_id>/",
         WorkspacePageFavoriteViewSet.as_view({"post": "favorite_create", "delete": "favorite_destroy"}),

@@ -366,6 +366,85 @@ class PageCollectionPage(BaseModel):
         return f"{self.collection_id} {self.page_id}"
 
 
+class PageShare(BaseModel):
+    """Direct named-user share of a Workspace/Company Wiki page (spec §5.3).
+
+    A share grants a ``VIEW`` / ``COMMENT`` / ``EDIT`` capability on one page to
+    one workspace member and is folded into the centralized effective-capability
+    algorithm in ``plane.utils.page_access``. It never bypasses a private
+    Collection boundary (spec §19.1).
+
+    Constraints (spec §5.3):
+    - at most one active share per ``(page, member)``;
+    - the shared member must belong to the page's workspace (validated in
+      ``clean`` and re-checked by the API);
+    - the page must be a workspace Wiki page (``is_global=True``);
+    - the owner does not need a share row to see the page.
+    """
+
+    ROLE_VIEW = PageCollection.ROLE_VIEW
+    ROLE_COMMENT = PageCollection.ROLE_COMMENT
+    ROLE_EDIT = PageCollection.ROLE_EDIT
+    VIEW = ROLE_VIEW
+    COMMENT = ROLE_COMMENT
+    EDIT = ROLE_EDIT
+    ROLE_CHOICES = PageCollection.ROLE_CHOICES
+
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_shares")
+    page = models.ForeignKey(Page, on_delete=models.CASCADE, related_name="shares")
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="page_shares",
+    )
+    role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=VIEW)
+
+    class Meta:
+        verbose_name = "Page Share"
+        verbose_name_plural = "Page Shares"
+        db_table = "page_shares"
+        ordering = ("-created_at",)
+        constraints = [
+            # One active share per (page, member); a removed share can be
+            # re-created without leaving dangling rows behind.
+            models.UniqueConstraint(
+                fields=["page", "member"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="page_share_unique_page_member",
+            ),
+        ]
+        indexes = [
+            # Spec §21 candidate `(page_id, member_id)` for shares.
+            models.Index(fields=["page", "member"], name="page_share_page_member_idx"),
+            models.Index(fields=["workspace", "member"], name="page_share_ws_member_idx"),
+        ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        if self.page_id and self.workspace_id and self.page.workspace_id != self.workspace_id:
+            raise DjangoValidationError("Page share must belong to the page's workspace.")
+        if self.page_id and not self.page.is_global:
+            raise DjangoValidationError("Page share must target a workspace Wiki page.")
+        if self.workspace_id and self.member_id:
+            from .workspace import WorkspaceMember
+
+            if not WorkspaceMember.objects.filter(
+                workspace_id=self.workspace_id, member_id=self.member_id, is_active=True
+            ).exists():
+                raise DjangoValidationError("Shared member must be an active member of the page's workspace.")
+
+    def save(self, *args, **kwargs):
+        # The page (and its workspace) are the source of truth, exactly like
+        # PageCollectionMember: a share can never point at another workspace.
+        if self.page_id:
+            self.workspace_id = self.page.workspace_id
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.page_id} {self.member_id} {self.role}"
+
+
 class PageVersion(BaseModel):
     workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_versions")
     page = models.ForeignKey("db.Page", on_delete=models.CASCADE, related_name="page_versions")

@@ -12,8 +12,15 @@ mandatory boundary.
 
 import pytest
 
-from plane.db.models import Page, PageCollection, PageCollectionMember, User, WorkspaceMember
-from plane.utils.page_access import Capability, effective_capability
+from plane.db.models import Page, PageCollection, PageCollectionMember, PageShare, User, WorkspaceMember
+from plane.utils.page_access import (
+    Capability,
+    can_edit_page,
+    can_manage_page,
+    can_view_page,
+    effective_capability,
+    get_page_capabilities,
+)
 
 
 def _user(email):
@@ -146,3 +153,148 @@ class TestEffectiveCapabilityTruthTable:
         grouped = _wiki_page(workspace, create_user)
         _add_page(public_collection, grouped)
         assert effective_capability(outsider, grouped, workspace) == Capability.VIEW
+
+
+@pytest.mark.unit
+class TestPageShareTruthTable:
+    """WIKI-06 direct-share source (plan §9.2, spec §5.3 / §6.3 / §19.1)."""
+
+    @staticmethod
+    def _share(page, member, role):
+        return PageShare.objects.create(
+            workspace=page.workspace,
+            page=page,
+            member=member,
+            role=role,
+        )
+
+    @pytest.mark.django_db
+    def test_private_page_shared_role_is_granted(self, workspace, create_user):
+        viewer = _user("viewer@plane.so")
+        commenter = _user("commenter@plane.so")
+        editor = _user("editor@plane.so")
+        for index, user in enumerate((viewer, commenter, editor)):
+            WorkspaceMember.objects.create(workspace=workspace, member=user, role=15)
+        page = _wiki_page(workspace, create_user, access=Page.PRIVATE_ACCESS)
+
+        self._share(page, viewer, PageShare.ROLE_VIEW)
+        self._share(page, commenter, PageShare.ROLE_COMMENT)
+        self._share(page, editor, PageShare.ROLE_EDIT)
+
+        assert get_page_capabilities(viewer, page, workspace) == Capability.VIEW
+        assert get_page_capabilities(commenter, page, workspace) == Capability.COMMENT
+        assert get_page_capabilities(editor, page, workspace) == Capability.EDIT
+
+    @pytest.mark.django_db
+    def test_private_share_role_caps_member_baseline(self, workspace, create_user):
+        # A member baseline is EDIT/COMMENT, but on a private page reached only
+        # through a share the granted role is the ceiling.
+        viewer = _user("viewer@plane.so")
+        WorkspaceMember.objects.create(workspace=workspace, member=viewer, role=15)
+        page = _wiki_page(workspace, create_user, access=Page.PRIVATE_ACCESS)
+        self._share(page, viewer, PageShare.ROLE_VIEW)
+
+        assert get_page_capabilities(viewer, page, workspace) == Capability.VIEW
+        assert can_view_page(viewer, page, workspace) is True
+        assert can_edit_page(viewer, page, workspace) is False
+
+    @pytest.mark.django_db
+    def test_unshared_member_and_guest_cannot_see_private_page(self, workspace, create_user):
+        member = _user("member@plane.so")
+        guest = _user("guest@plane.so")
+        WorkspaceMember.objects.create(workspace=workspace, member=member, role=15)
+        WorkspaceMember.objects.create(workspace=workspace, member=guest, role=5)
+        page = _wiki_page(workspace, create_user, access=Page.PRIVATE_ACCESS)
+
+        assert get_page_capabilities(member, page, workspace) == Capability.NONE
+        assert get_page_capabilities(guest, page, workspace) == Capability.NONE
+
+    @pytest.mark.django_db
+    def test_share_is_inherited_by_descendants(self, workspace, create_user):
+        member = _user("member@plane.so")
+        WorkspaceMember.objects.create(workspace=workspace, member=member, role=15)
+        parent = _wiki_page(workspace, create_user, name="Parent", access=Page.PRIVATE_ACCESS)
+        child = _wiki_page(workspace, create_user, name="Child", access=Page.PRIVATE_ACCESS, parent=parent)
+        grandchild = _wiki_page(workspace, create_user, name="Grand", access=Page.PRIVATE_ACCESS, parent=child)
+        self._share(parent, member, PageShare.ROLE_COMMENT)
+
+        assert get_page_capabilities(member, parent, workspace) == Capability.COMMENT
+        assert get_page_capabilities(member, child, workspace) == Capability.COMMENT
+        assert get_page_capabilities(member, grandchild, workspace) == Capability.COMMENT
+
+    @pytest.mark.django_db
+    def test_nearest_share_wins_over_ancestor(self, workspace, create_user):
+        member = _user("member@plane.so")
+        WorkspaceMember.objects.create(workspace=workspace, member=member, role=15)
+        parent = _wiki_page(workspace, create_user, name="Parent", access=Page.PRIVATE_ACCESS)
+        child = _wiki_page(workspace, create_user, name="Child", access=Page.PRIVATE_ACCESS, parent=parent)
+        self._share(parent, member, PageShare.ROLE_EDIT)
+        self._share(child, member, PageShare.ROLE_VIEW)
+
+        assert get_page_capabilities(member, child, workspace) == Capability.VIEW
+        # The sibling inherits the ancestor share unchanged.
+        assert get_page_capabilities(member, parent, workspace) == Capability.EDIT
+
+    @pytest.mark.django_db
+    def test_share_cannot_bypass_private_collection(self, workspace, create_user):
+        member = _user("member@plane.so")
+        WorkspaceMember.objects.create(workspace=workspace, member=member, role=15)
+        collection = _collection(workspace, "Private", PageCollection.ACCESS_PRIVATE)
+        page = _wiki_page(workspace, create_user, access=Page.PRIVATE_ACCESS)
+        _add_page(collection, page)
+        self._share(page, member, PageShare.ROLE_EDIT)
+
+        # Boundary is authoritative (spec §19.1).
+        assert get_page_capabilities(member, page, workspace) == Capability.NONE
+
+    @pytest.mark.django_db
+    def test_private_collection_role_caps_share(self, workspace, create_user):
+        member = _user("member@plane.so")
+        WorkspaceMember.objects.create(workspace=workspace, member=member, role=15)
+        collection = _collection(workspace, "Private", PageCollection.ACCESS_PRIVATE)
+        page = _wiki_page(workspace, create_user, access=Page.PRIVATE_ACCESS)
+        _add_page(collection, page)
+        PageCollectionMember.objects.create(collection=collection, member=member, role=PageCollection.ROLE_VIEW)
+        self._share(page, member, PageShare.ROLE_EDIT)
+
+        # Most restrictive inside the boundary.
+        assert get_page_capabilities(member, page, workspace) == Capability.VIEW
+
+    @pytest.mark.django_db
+    def test_share_requires_workspace_membership(self, workspace, create_user):
+        outsider = _user("outsider@plane.so")
+        page = _wiki_page(workspace, create_user, access=Page.PRIVATE_ACCESS)
+        # A stray share row must not grant a non-member access (spec §6.3).
+        self._share(page, outsider, PageShare.ROLE_EDIT)
+
+        assert get_page_capabilities(outsider, page, workspace) == Capability.NONE
+
+    @pytest.mark.django_db
+    def test_public_page_share_does_not_lower_workspace_baseline(self, workspace, create_user):
+        member = _user("member@plane.so")
+        WorkspaceMember.objects.create(workspace=workspace, member=member, role=15)
+        page = _wiki_page(workspace, create_user, access=Page.PUBLIC_ACCESS)
+        self._share(page, member, PageShare.ROLE_VIEW)
+
+        assert get_page_capabilities(member, page, workspace) == Capability.EDIT
+
+    @pytest.mark.django_db
+    def test_manage_is_owner_or_admin_only(self, workspace, create_user):
+        member = _user("member@plane.so")
+        admin = _user("admin@plane.so")
+        WorkspaceMember.objects.create(workspace=workspace, member=member, role=15)
+        WorkspaceMember.objects.create(workspace=workspace, member=admin, role=20)
+        page = _wiki_page(workspace, create_user, access=Page.PUBLIC_ACCESS)
+
+        assert can_manage_page(create_user, page, workspace) is True
+        assert can_manage_page(member, page, workspace) is False
+        assert can_manage_page(admin, page, workspace) is True
+
+    @pytest.mark.django_db
+    def test_manage_requires_visibility(self, workspace, create_user):
+        member = _user("member@plane.so")
+        WorkspaceMember.objects.create(workspace=workspace, member=member, role=15)
+        page = _wiki_page(workspace, create_user, name="Private", access=Page.PRIVATE_ACCESS)
+
+        # Not visible -> not manageable, even for a workspace member.
+        assert can_manage_page(member, page, workspace) is False

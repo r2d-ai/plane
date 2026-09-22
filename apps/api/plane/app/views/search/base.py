@@ -29,6 +29,11 @@ from rest_framework.response import Response
 # Module imports
 from plane.app.views.base import BaseAPIView
 from plane.app.permissions import WorkspaceUserPermission
+from plane.utils.page_access import (
+    hidden_page_ids,
+    resolve_workspace_role,
+    searchable_page_q,
+)
 from plane.db.models import (
     Workspace,
     Project,
@@ -709,18 +714,36 @@ class SearchEndpoint(BaseAPIView):
 
                     # Wiki pages live in the workspace without a ProjectPage link
                     # (WIKI-01 / WIKI-04a). They are searchable by active
-                    # WorkspaceMembers; `access=0` keeps private pages out of the
-                    # result set so titles/content never leak. The endpoint is
-                    # gated by WorkspaceUserPermission, so Company Wiki search
-                    # follows the same membership rule as the rest of this API.
+                    # WorkspaceMembers through the single page-visibility path
+                    # (WIKI-06, plan §9.2): public pages plus private pages an
+                    # explicit share grants, minus whole subtrees behind a
+                    # private Collection boundary. Unshared private pages never
+                    # appear, so titles/content cannot leak (spec §6.5).
+                    workspace = Workspace.objects.filter(slug=slug, deleted_at__isnull=True).first()
+                    wiki_visibility = (
+                        searchable_page_q(self.request.user, workspace)
+                        if workspace is not None
+                        else Q(pk__in=[])
+                    )
+                    hidden = (
+                        hidden_page_ids(
+                            workspace,
+                            self.request.user,
+                            workspace_role=resolve_workspace_role(workspace.id, self.request.user.id),
+                        )
+                        if workspace is not None
+                        else set()
+                    )
+
                     wiki_member_filter = Q(
                         is_global=True,
-                        access=Page.PUBLIC_ACCESS,
                         archived_at__isnull=True,
                         workspace__slug=slug,
                         workspace__workspace_member__member=self.request.user,
                         workspace__workspace_member__is_active=True,
-                    )
+                    ) & wiki_visibility
+                    if hidden:
+                        wiki_member_filter &= ~Q(id__in=hidden)
 
                     project_filter = Q(
                         archived_at__isnull=True,
