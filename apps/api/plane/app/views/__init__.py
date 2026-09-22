@@ -181,6 +181,7 @@ from .page.workspace import (
     WorkspacePageDuplicateEndpoint,
 )
 from .page.workspace_version import WorkspacePageVersionEndpoint
+from .page.collection import PageCollectionViewSet
 
 from .search.base import GlobalSearchEndpoint, SearchEndpoint
 from .search.issue import IssueSearchEndpoint

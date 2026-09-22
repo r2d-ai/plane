@@ -106,6 +106,12 @@ from .page import (
     WorkspacePageSerializer,
 )
 
+from .page_collection import (
+    PageCollectionSerializer,
+    PageCollectionMemberSerializer,
+    PageCollectionPageSerializer,
+)
+
 from .estimate import (
     EstimateSerializer,
     EstimatePointSerializer,

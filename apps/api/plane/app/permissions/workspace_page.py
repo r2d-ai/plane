@@ -24,6 +24,7 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 from plane.db.models import Page, Workspace, WorkspaceMember
 
 from plane.app.permissions import ROLE
+from plane.utils.page_access import Capability, effective_capability
 
 
 ADMIN = ROLE.ADMIN.value
@@ -113,7 +114,7 @@ class WorkspacePagePermission(BasePermission):
 
         page_id = view.kwargs.get("page_id")
         if page_id:
-            return self._check_page_scope(request, workspace, page_id)
+            return self._check_page_scope(request, workspace, page_id, role)
         return True
 
     @staticmethod
@@ -123,12 +124,14 @@ class WorkspacePagePermission(BasePermission):
         )
 
     @staticmethod
-    def _check_page_scope(request, workspace, page_id):
-        """Resolve the page inside the URL workspace and apply private-page rules.
+    def _check_page_scope(request, workspace, page_id, role=None):
+        """Resolve the page inside the URL workspace and apply effective access.
 
         A page that is not a Wiki page of the URL workspace is reported as
-        not-found so a foreign UUID cannot be probed. A private page not owned
-        by the requesting user is treated as nonexistent (spec §6.5).
+        not-found so a foreign UUID cannot be probed. Access is then decided by
+        the centralized effective-capability algorithm, which folds in page
+        privacy and private Collection boundaries; anything below VIEW is
+        reported as not-found (spec §6.5).
         """
         page = Page.objects.filter(
             id=page_id,
@@ -139,7 +142,7 @@ class WorkspacePagePermission(BasePermission):
         if page is None:
             raise NotFound("Page not found")
 
-        if page.access == Page.PRIVATE_ACCESS and page.owned_by_id != request.user.id:
+        if effective_capability(request.user, page, workspace, workspace_role=role) < Capability.VIEW:
             raise NotFound("Page not found")
 
         return True
