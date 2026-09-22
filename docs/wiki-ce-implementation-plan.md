@@ -252,7 +252,7 @@ Tasks:
 
 Do not infer Company Wiki edit permission from Workspace Admin role.
 
-## 3.1 Add workspace-specific serializer path
+## 4.1 Add workspace-specific serializer path
 
 Current issue:
 
@@ -282,7 +282,7 @@ apps/api/plane/app/views/page/
 
 Prefer adding workspace-specific classes/files over branching every existing project Page code path.
 
-## 3.2 Add WorkspacePagePermission
+## 4.2 Add WorkspacePagePermission
 
 Tasks:
 
@@ -318,7 +318,7 @@ If adding a separate module improves isolation:
 apps/api/plane/app/permissions/workspace_page.py
 ```
 
-## 3.3 Add workspace Page queryset/service
+## 4.3 Add workspace Page queryset/service
 
 Tasks:
 
@@ -336,7 +336,7 @@ Tasks:
 - [ ] Add strict order-by allowlist.
 - [ ] Preserve `description_stripped` for search.
 
-## 3.4 Add workspace Page endpoints
+## 4.4 Add workspace Page endpoints
 
 Target internal endpoints:
 
@@ -378,7 +378,7 @@ apps/api/plane/app/views/page/workspace.py
 apps/api/plane/app/views/page/workspace_version.py
 ```
 
-## 3.5 Hierarchy validator
+## 4.5 Hierarchy validator
 
 Create one server-side validator reusable by workspace Wiki and eventually Project Pages.
 
@@ -399,7 +399,7 @@ Implementation options:
 
 Do not trust frontend-only validation.
 
-## 3.6 Recursive archive/restore
+## 4.6 Recursive archive/restore
 
 Tasks:
 
@@ -408,7 +408,7 @@ Tasks:
 - [ ] Ensure only Wiki descendants in same workspace are affected.
 - [ ] Test deep trees.
 
-## 3.7 Favorites
+## 4.7 Favorites
 
 Current project favorites are project-scoped.
 
@@ -419,7 +419,7 @@ Tasks:
 - [ ] If no, extend model minimally.
 - [ ] List favorites permission-safely.
 
-## 3.8 Search
+## 4.8 Search
 
 Tasks:
 
@@ -430,7 +430,7 @@ Tasks:
 - [ ] Use existing search service if it can safely index global pages.
 - [ ] Do not introduce vector search.
 
-## 3.9 External API compatibility
+## 4.9 External API compatibility
 
 Plane Commercial documents:
 
@@ -447,7 +447,7 @@ Tasks:
 - [ ] Keep project page endpoint unchanged.
 - [ ] Add API contract tests.
 
-## 3.10 Backend tests
+## 4.10 Backend tests
 
 Add tests before merge.
 
@@ -488,13 +488,13 @@ apps/api/plane/tests/unit/
 
 ---
 
-# 4. WIKI-02 — Workspace Page realtime collaboration
+# 5. WIKI-02 — Workspace + Instance Page realtime collaboration
 
 ## Goal
 
 Support commercial-like realtime collaborative editing for Wiki using the existing Hocuspocus/Yjs service.
 
-## 4.1 Extend document types
+## 5.1 Extend document types
 
 Current:
 
@@ -534,7 +534,7 @@ Responsibilities:
 - update title/properties;
 - resolve assets.
 
-## 4.3 Extend service handler
+## 5.3 Extend service handler
 
 File:
 
@@ -549,7 +549,7 @@ Tasks:
 - [ ] dispatch `instance_page`;
 - [ ] reject unknown document types.
 
-## 4.4 Authentication/authorization
+## 5.4 Authentication/authorization
 
 File areas:
 
@@ -568,7 +568,7 @@ Tasks:
 - [ ] title sync respects effective Page permission.
 - [ ] lock prevents writes.
 
-## 4.5 Revocation behavior
+## 5.5 Revocation behavior
 
 At minimum:
 
@@ -577,7 +577,7 @@ At minimum:
 
 Later optimization can actively disconnect sessions when ACL changes.
 
-## 4.6 Tests
+## 5.6 Tests
 
 Add live tests for:
 
@@ -597,7 +597,7 @@ Wiki and Project Pages can use the same live service concurrently with separate 
 
 ---
 
-# 5. WIKI-03 — Web Wiki shell, store and editor
+# 6. WIKI-03 — Web Wiki surfaces, stores and editor
 
 ## Goal
 
@@ -606,7 +606,7 @@ Expose two first-class Wiki surfaces using existing Page components:
 - Workspace Wiki: `/:workspaceSlug/wiki`;
 - Company Wiki: `/company-wiki`, independent of workspace context.
 
-## 5.1 Routes through existing extension seam
+## 6.1 Routes through existing extension seam
 
 Use:
 
@@ -664,7 +664,7 @@ Methods:
 - versions;
 - restore version if supported.
 
-## 5.3 Workspace Page entity
+## 6.3 Workspace Page entity
 
 Create:
 
@@ -680,7 +680,7 @@ Implement:
 - URL redirection: `/{workspaceSlug}/wiki/{pageId}`;
 - workspace service callbacks.
 
-## 5.4 Workspace Page store
+## 6.4 Workspace Page store
 
 Create:
 
@@ -720,7 +720,7 @@ Tasks:
 
 This is one of the unavoidable compile-time integration points unless a store registry is introduced later.
 
-## 5.6 Store hook
+## 6.6 Store hook
 
 File:
 
@@ -736,7 +736,7 @@ EPageStoreType.WORKSPACE
 
 Return `context.workspacePages`.
 
-## 5.7 Editor setup
+## 6.7 Editor setup
 
 Reuse:
 
@@ -762,7 +762,7 @@ webhookConnectionParams: {
 
 No `projectId`.
 
-## 5.8 Sidebar navigation
+## 6.8 Sidebar navigation
 
 Current workspace sidebar is driven from constants.
 
@@ -782,7 +782,7 @@ RESTRICTED_URLS
 
 Prefer putting Wiki under the workspace section near Projects/Work according to current Commercial UX.
 
-## 5.9 i18n
+## 6.9 i18n
 
 Add keys according to current i18n policy.
 
@@ -801,7 +801,7 @@ At minimum:
 
 Follow repository rule: new keys must exist in all language files; English placeholder is acceptable where translations are unavailable.
 
-## 5.10 Existing Wiki assets
+## 6.10 Existing Wiki assets
 
 Reuse:
 
@@ -837,13 +837,13 @@ Required behavior:
 
 ---
 
-# 6. WIKI-04 — Core Wiki UX, hierarchy and hardening
+# 7. WIKI-04 — Core Wiki UX, hierarchy and hardening
 
 ## Goal
 
 Finish the production-usable Wiki milestone for **both Workspace Wiki and Company Wiki**.
 
-## 6.1 Wiki navigation sections
+## 7.1 Wiki navigation sections
 
 Implement:
 
@@ -860,7 +860,7 @@ Behavior:
 - filters persist appropriately;
 - search applies within effective visibility.
 
-## 6.2 Nested tree
+## 7.2 Nested tree
 
 Features:
 
@@ -874,7 +874,7 @@ Features:
 - [ ] optimistic UI only if rollback is robust;
 - [ ] server error restores prior UI order.
 
-## 6.3 Parent/child URLs and breadcrumbs
+## 7.3 Parent/child URLs and breadcrumbs
 
 Add:
 
@@ -882,14 +882,14 @@ Add:
 - parent navigation;
 - child listing where Commercial UX exposes it.
 
-## 6.4 Archive
+## 7.4 Archive
 
 - [ ] archive parent and descendants according to agreed semantics;
 - [ ] restore behavior explicit;
 - [ ] archived tree separate;
 - [ ] no active navigation to archived child accidentally.
 
-## 6.5 Version history
+## 7.5 Version history
 
 Reuse existing pane.
 
@@ -900,7 +900,7 @@ Add/verify:
 - restore;
 - actor/timestamp.
 
-## 6.6 Export
+## 7.6 Export
 
 Wire existing export modal/pipeline to workspace Page.
 
@@ -913,7 +913,7 @@ Verify:
 
 Nested ZIP export belongs to WIKI-07.
 
-## 6.7 Search integration
+## 7.7 Search integration
 
 - [ ] top-level Wiki search;
 - [ ] title/content;
@@ -924,7 +924,7 @@ Optional in this PR if current workspace global search can be safely extended:
 
 - include Wiki Pages in command/search palette.
 
-## 6.8 Performance
+## 7.8 Performance
 
 Test with generated data:
 
@@ -943,7 +943,7 @@ Measure:
 
 Add indexes only from measured query plans.
 
-## 6.9 Security regression suite
+## 7.9 Security regression suite
 
 Mandatory test matrix:
 
@@ -987,13 +987,13 @@ WIKI-01..04 merge only when:
 
 ---
 
-# 7. WIKI-05 — Shared pages and comments
+# 8. WIKI-05 — Shared pages and comments
 
 ## Goal
 
 Implement Commercial-style named-user sharing and review collaboration.
 
-## 7.1 Migration: PageShare
+## 8.1 Migration: PageShare
 
 Add share model per spec.
 
@@ -1007,7 +1007,7 @@ Tasks:
 - [ ] serializer/API;
 - [ ] activity events.
 
-## 7.2 Effective permission service
+## 8.2 Effective permission service
 
 Before adding multiple ACL sources, extract a centralized service:
 
@@ -1023,7 +1023,7 @@ All REST, search, realtime, comments, export, assets must call the same permissi
 
 Avoid duplicated permission policy in UI/backend/live.
 
-## 7.3 Sharing UI
+## 8.3 Sharing UI
 
 Add:
 
@@ -1039,7 +1039,7 @@ Private Page behavior target:
 - explicitly shared users see according to role;
 - unshared users cannot discover it.
 
-## 7.4 Page comments
+## 8.4 Page comments
 
 Add PageComment storage/API.
 
@@ -1056,7 +1056,7 @@ UI:
 
 - navigation pane or Page side panel consistent with current commercial layout.
 
-## 7.5 Realtime permission matrix
+## 8.5 Realtime permission matrix
 
 Tests:
 
@@ -1071,13 +1071,13 @@ Private pages can be safely shared with specific members using View/Comment/Edit
 
 ---
 
-# 8. WIKI-06 — Collections
+# 9. WIKI-06 — Collections
 
 ## Goal
 
 Implement current Commercial Wiki Collections including privacy and permission inheritance.
 
-## 8.1 Observe/confirm commercial semantics before schema lock
+## 9.1 Observe/confirm commercial semantics before schema lock
 
 Resolve:
 
@@ -1088,7 +1088,7 @@ Resolve:
 
 Document the results in `wiki-ce-spec.md` before migration merge.
 
-## 8.2 Models/migrations
+## 9.2 Models/migrations
 
 Implement selected models:
 
@@ -1102,7 +1102,7 @@ Add:
 - indexes;
 - same-workspace validation.
 
-## 8.3 APIs
+## 9.3 APIs
 
 Target:
 
@@ -1117,7 +1117,7 @@ PATCH reorder collections/pages
 
 Exact endpoint names should follow public Plane External API naming if documented before implementation.
 
-## 8.4 Effective ACL inheritance
+## 9.4 Effective ACL inheritance
 
 Centralize:
 
@@ -1137,7 +1137,7 @@ effective capabilities
 
 Add test truth table before implementation.
 
-## 8.5 Atomic subtree moves
+## 9.5 Atomic subtree moves
 
 Moving a parent page must not temporarily expose private descendants.
 
@@ -1145,7 +1145,7 @@ Use transaction.
 
 Invalidate search/cache entries.
 
-## 8.6 UI
+## 9.6 UI
 
 Add:
 
@@ -1165,11 +1165,11 @@ Private Collections are invisible outside ACL and permissions propagate consiste
 
 ---
 
-# 9. WIKI-07 — Templates, publishing, nested export
+# 10. WIKI-07 — Templates, publishing, nested export
 
 These features share document cloning/rendering concepts but should still be separate commits inside the PR if practical.
 
-## 9.1 Templates
+## 10.1 Templates
 
 Backend:
 
@@ -1184,7 +1184,7 @@ Frontend:
 - save as template;
 - template management.
 
-## 9.2 External publishing
+## 10.2 External publishing
 
 Backend:
 
@@ -1211,7 +1211,7 @@ Frontend:
 
 Space/public app may be the appropriate rendering surface; evaluate before implementation.
 
-## 9.3 Nested export
+## 10.3 Nested export
 
 Implement:
 
@@ -1231,7 +1231,7 @@ Commercial-like document reuse/distribution exists without bypassing Wiki ACL.
 
 ---
 
-# 10. WIKI-08 — Editor parity
+# 11. WIKI-08 — Editor parity
 
 ## Goal
 
@@ -1246,28 +1246,28 @@ apps/web/core/hooks/pages/use-extended-editor-extensions.ts
 
 Implement as independent sub-features with tests.
 
-## 10.1 Toggle block
+## 11.1 Toggle block
 
 - collapsible content;
 - serialization;
 - collaborative compatibility;
 - export rendering.
 
-## 10.2 Tabs block
+## 11.2 Tabs block
 
 - horizontal/vertical;
 - nested block content;
 - Yjs compatibility;
 - export fallback.
 
-## 10.3 Mermaid
+## 11.3 Mermaid
 
 - fenced or dedicated block;
 - safe rendering;
 - no arbitrary script execution;
 - export behavior.
 
-## 10.4 Wiki Page hierarchy embed
+## 11.4 Wiki Page hierarchy embed
 
 Support commercial-like dynamic embeds:
 
@@ -1279,18 +1279,18 @@ Support commercial-like dynamic embeds:
 
 Must permission-filter every rendered page.
 
-## 10.5 Media embeds
+## 11.5 Media embeds
 
 - image URL;
 - video URL;
 - safe allowed origins/protocols;
 - responsive rendering.
 
-## 10.6 LaTeX
+## 11.6 LaTeX
 
 Add only using a safe renderer with no arbitrary code execution.
 
-## 10.7 Draw.io
+## 11.7 Draw.io
 
 Treat as integration/extension.
 
@@ -1302,9 +1302,9 @@ Core editor remains shared by Project Pages and Wiki and new blocks do not regre
 
 ---
 
-# 11. WIKI-09 — Advanced commercial parity
+# 12. WIKI-09 — Advanced commercial parity
 
-## 11.1 Version comparison
+## 12.1 Version comparison
 
 Implement document diff.
 
@@ -1315,7 +1315,7 @@ Requirements:
 - permission-scoped version retrieval;
 - large-page performance.
 
-## 11.2 Page labels UX
+## 12.2 Page labels UX
 
 Model already exists.
 
@@ -1326,7 +1326,7 @@ Add:
 - label search;
 - list/tree indicators where useful.
 
-## 11.3 Page/Collection analytics
+## 12.3 Page/Collection analytics
 
 Track:
 
@@ -1340,11 +1340,11 @@ Avoid counting background preload as a view.
 
 Privacy/admin policy must be explicit.
 
-## 11.4 Favorites dedicated view
+## 12.4 Favorites dedicated view
 
 If not already complete in WIKI-04, align with current commercial dedicated favorites UX.
 
-## 11.5 Comment moderation
+## 12.5 Comment moderation
 
 If matching current Commercial:
 
@@ -1355,11 +1355,11 @@ If matching current Commercial:
 
 ---
 
-# 12. WIKI-10 — Optional integrations: AI and importers
+# 13. WIKI-10 — Optional integrations: AI and importers
 
 Not part of Wiki core.
 
-## 12.1 Plane AI/provider work
+## 13.1 Plane AI/provider work
 
 Later capabilities:
 
@@ -1373,7 +1373,7 @@ Architecture requirement:
 
 Wiki should expose stable APIs/events so AI can consume it without direct DB coupling.
 
-## 12.2 Notion import
+## 13.2 Notion import
 
 Import HTML ZIP:
 
@@ -1384,7 +1384,7 @@ Import HTML ZIP:
 - links;
 - mapping report.
 
-## 12.3 Confluence import
+## 13.3 Confluence import
 
 Import supported XML ZIP:
 
@@ -1396,7 +1396,7 @@ Import supported XML ZIP:
 
 ---
 
-# 13. Suggested file layout
+# 14. Suggested file layout
 
 This is a target, not a mandatory exact structure.
 
@@ -1460,7 +1460,7 @@ packages/types/src/page/
 
 ---
 
-# 14. Shared-core patch budget
+# 15. Shared-core patch budget
 
 To keep upstream updates manageable, target as few edits as possible to generic CE files.
 
@@ -1488,7 +1488,7 @@ If a PR begins modifying many unrelated Page/project files, stop and refactor to
 
 ---
 
-# 15. Database migration policy
+# 16. Database migration policy
 
 - one logical schema change per feature PR;
 - reversible migrations;
@@ -1511,7 +1511,7 @@ Run under repository-supported test stack.
 
 ---
 
-# 16. Required validation commands
+# 17. Required validation commands
 
 Follow `AGENTS.md`.
 
@@ -1541,7 +1541,7 @@ Targeted subsets are acceptable during development, but Core milestone must run 
 
 ---
 
-# 17. Review checklist for every implementation PR
+# 18. Review checklist for every implementation PR
 
 ## Architecture
 
@@ -1577,7 +1577,7 @@ Targeted subsets are acceptable during development, but Core milestone must run 
 
 ---
 
-# 18. Suggested implementation order for coding agents
+# 19. Suggested implementation order for coding agents
 
 Do not parallelize tasks that modify the same core file unless branches are carefully coordinated.
 
@@ -1609,7 +1609,7 @@ For parity phase:
 
 ---
 
-# 19. Proposed PR naming
+# 20. Proposed PR naming
 
 ```text
 feat(wiki): add workspace page backend
@@ -1627,7 +1627,7 @@ Keep commits similarly scoped.
 
 ---
 
-# 20. Review gates before implementation starts
+# 21. Review gates before implementation starts
 
 Before WIKI-01 code begins, reviewer should approve these architecture decisions:
 
