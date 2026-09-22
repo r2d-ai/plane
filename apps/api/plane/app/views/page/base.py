@@ -46,6 +46,7 @@ from plane.db.models import (
     UserRecentVisit,
 )
 from plane.utils.error_codes import ERROR_CODES
+from plane.utils.page_hierarchy import PageHierarchyError, validate_page_parent
 
 # Local imports
 from ..base import BaseAPIView, BaseViewSet
@@ -58,11 +59,17 @@ from plane.app.permissions import ProjectPagePermission
 
 def unarchive_archive_page_and_descendants(page_id, archived_at):
     # Your SQL query
+    # The path column plus the `NOT ... = ANY(path)` guard keeps the recursive
+    # walk finite if the tree ever contains a cycle, while producing the same
+    # descendant set for a well-formed tree.
     sql = """
     WITH RECURSIVE descendants AS (
-        SELECT id FROM pages WHERE id = %s
+        SELECT id, ARRAY[id] AS path FROM pages WHERE id = %s
         UNION ALL
-        SELECT pages.id FROM pages, descendants WHERE pages.parent_id = descendants.id
+        SELECT pages.id, descendants.path || pages.id
+        FROM pages, descendants
+        WHERE pages.parent_id = descendants.id
+          AND NOT pages.id = ANY(descendants.path)
     )
     UPDATE pages SET archived_at = %s WHERE id IN (SELECT id FROM descendants);
     """
@@ -163,14 +170,24 @@ class PageViewSet(BaseViewSet):
             if page.is_locked:
                 return Response({"error": "Page is locked"}, status=status.HTTP_400_BAD_REQUEST)
 
-            parent = request.data.get("parent", None)
-            if parent:
-                _ = Page.objects.get(
-                    pk=parent,
+            parent_id = request.data.get("parent", None)
+            if parent_id:
+                # Resolve the candidate parent within this project, then run the
+                # shared hierarchy guard so cross-project, cross-scope and cyclic
+                # parent assignments are rejected consistently.
+                parent = Page.objects.get(
+                    pk=parent_id,
                     workspace__slug=slug,
                     projects__id=project_id,
                     project_pages__deleted_at__isnull=True,
                 )
+                try:
+                    validate_page_parent(page, parent)
+                except PageHierarchyError as exc:
+                    return Response(
+                        {"error": exc.message, "error_code": exc.code},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
             # Only update access if the page owner is the requesting  user
             if page.access != request.data.get("access", page.access) and page.owned_by_id != request.user.id:
