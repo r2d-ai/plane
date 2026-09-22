@@ -12,8 +12,16 @@ import { cn } from "@plane/utils";
 
 type TPageTabNavigation = {
   workspaceSlug: string;
-  projectId: string;
+  projectId?: string;
   pageType: TPageNavigationTabs;
+  /**
+   * Optional workspace-scoped tab href builder. When provided, tabs render at
+   * the returned path with `?type=...` instead of the project-scoped
+   * `/projects/:projectId/pages?type=...`. Use this for company wiki tabs
+   * (`() => "/company-wiki"`) and workspace wiki tabs
+   * (`() => `/${workspaceSlug}/wiki``).
+   */
+  buildTabHref?: (params: { workspaceSlug: string; tabKey: TPageNavigationTabs }) => string;
 };
 
 // pages tab options
@@ -33,10 +41,15 @@ const pageTabs: { key: TPageNavigationTabs; label: string }[] = [
 ];
 
 export function PageTabNavigation(props: TPageTabNavigation) {
-  const { workspaceSlug, projectId, pageType } = props;
+  const { workspaceSlug, projectId, pageType, buildTabHref } = props;
 
   const handleTabClick = (e: React.MouseEvent<HTMLAnchorElement>, tabKey: TPageNavigationTabs) => {
     if (tabKey === pageType) e.preventDefault();
+  };
+
+  const tabHref = (tabKey: TPageNavigationTabs): string => {
+    if (buildTabHref) return buildTabHref({ workspaceSlug, tabKey });
+    return `/${workspaceSlug}/projects/${projectId}/pages?type=${tabKey}`;
   };
 
   return (
@@ -44,7 +57,7 @@ export function PageTabNavigation(props: TPageTabNavigation) {
       {pageTabs.map((tab) => (
         <Link
           key={tab.key}
-          href={`/${workspaceSlug}/projects/${projectId}/pages?type=${tab.key}`}
+          href={tabHref(tab.key)}
           onClick={(e) => handleTabClick(e, tab.key)}
           className="flex h-full flex-col"
         >

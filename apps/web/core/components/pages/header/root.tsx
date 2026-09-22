@@ -17,7 +17,7 @@ import { FiltersDropdown } from "@/components/issues/issue-layouts/filters";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { usePageStore } from "@/hooks/store";
-import type { EPageStoreType } from "@/hooks/store";
+import type { EPageStoreType as EPageStoreTypeType } from "@/hooks/store";
 // local imports
 import { PageAppliedFiltersList } from "../list/applied-filters";
 import { PageFiltersSelection } from "../list/filters";
@@ -27,13 +27,20 @@ import { PageTabNavigation } from "../list/tab-navigation";
 
 type Props = {
   pageType: TPageNavigationTabs;
-  projectId: string;
-  storeType: EPageStoreType;
+  projectId?: string;
+  storeType: EPageStoreTypeType;
   workspaceSlug: string;
+  /**
+   * Optional scope override for the tab nav. When unset the header renders
+   * the project tabs at `/projects/:projectId/pages?type=...`. Use this for
+   * workspace wiki tabs (`/${workspaceSlug}/wiki?type=...`) and company wiki
+   * tabs (`/company-wiki?type=...`).
+   */
+  buildTabHref?: (params: { workspaceSlug: string; tabKey: TPageNavigationTabs }) => string;
 };
 
 export const PagesListHeaderRoot = observer(function PagesListHeaderRoot(props: Props) {
-  const { pageType, projectId, storeType, workspaceSlug } = props;
+  const { pageType, projectId, storeType, workspaceSlug, buildTabHref } = props;
   const { t } = useTranslation();
   // store hooks
   const { filters, updateFilters, clearAllFilters } = usePageStore(storeType);
@@ -62,7 +69,12 @@ export const PagesListHeaderRoot = observer(function PagesListHeaderRoot(props: 
     <>
       <Header variant={EHeaderVariant.SECONDARY}>
         <Header.LeftItem>
-          <PageTabNavigation workspaceSlug={workspaceSlug} projectId={projectId} pageType={pageType} />
+          <PageTabNavigation
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            pageType={pageType}
+            buildTabHref={buildTabHref}
+          />
         </Header.LeftItem>
         <Header.RightItem className="items-center">
           <PageSearchInput
