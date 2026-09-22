@@ -48,18 +48,27 @@ Workspace Wiki Page
   Page.workspace = workspace
   no ProjectPage relation required
 
-Instance / Company Wiki Page
+Company Wiki Page
   Page.is_global = true
-  Page.workspace = NULL
+  Page.workspace = the designated Company Wiki workspace
+                              (resolved from COMPANY_WIKI_WORKSPACE_SLUG)
   no ProjectPage relation
-  readable by every active authenticated user in the instance
+  read: every authenticated active user when COMPANY_WIKI_OPEN_READ=true
+  write: admin/owner of the designated workspace (via WorkspacePagePermission)
 ```
 
 This keeps all three surfaces on the same editor, versioning, asset, activity, export, and realtime primitives.
 
-The Instance / Company Wiki is a fork-specific extension. Plane's public Commercial documentation currently describes Wiki as **workspace-level**, even when it is positioned as company-wide knowledge. Because this deployment intentionally uses multiple workspaces for separate departments, a true instance scope is required above Plane's commercial workspace scope.
+The **Company Wiki** is a fork-specific extension. Plane's public Commercial documentation describes Wiki as **workspace-level**, even when it is positioned as company-wide knowledge. Because this deployment intentionally uses multiple workspaces for separate departments, a single canonical knowledge surface above any one department workspace is required.
 
-Do **not** implement Instance Wiki with a fake/hidden workspace. A synthetic workspace would pollute workspace membership, search, labels, assets, navigation, deletion semantics, and could become visible through unrelated workspace APIs. Instead, allow `Page.workspace=NULL` only for instance-level global pages and explicitly support that scope in Page-adjacent models/services.
+Company Wiki is implemented as **Workspace Wiki on a designated real workspace** rather than as a separate `workspace=NULL` scope. The designated workspace is fixed by the `COMPANY_WIKI_WORKSPACE_SLUG` configuration value and is not user-selectable. The canonical route `/company-wiki` maps to that workspace and never contains a workspace slug.
+
+Rationale for the designated-workspace model (decision D1, revised 2026-09-22):
+
+- `Page.workspace` stays **non-null**. No nullable-workspace migration, no `CHECK (workspace_id IS NOT NULL OR is_global = true)` invariant, no Page-adjacent nullable audit (PageVersion/PageLog/PageFavorite/FileAsset) for a null-workspace scope.
+- Company Wiki reuses the **entire Workspace Wiki backend**: `WorkspacePagePermission`, workspace queryset, workspace endpoints, `workspace_page` realtime document type, workspace asset routes. No `InstancePagePermission`, no `/api/instance/wiki/...`, no `instance_page` document type, no instance asset route.
+- Read access for non-members is controlled by `COMPANY_WIKI_OPEN_READ` (see §29.4). Write/manage stays on `WorkspacePagePermission` for admin/owner of the designated workspace.
+- A fake/hidden workspace is still forbidden: the designated workspace is a real, visible workspace used solely as the Company Wiki container.
 
 ### 1.2 Do not implement Wiki as a Plane App / external plugin
 
@@ -1227,9 +1236,9 @@ None of these questions block the core Wiki milestone; the architecture above in
 
 ---
 
-## 29. Instance-wide Company Wiki (fork extension)
+## 29. Company Wiki (fork extension, designated-workspace model)
 
-This section is normative and supersedes workspace-only assumptions elsewhere in this document where instance-scoped Pages are concerned.
+This section is normative and supersedes earlier workspace-only assumptions in this document wherever Company Wiki is concerned. It was revised on 2026-09-22 to replace the prior `workspace=NULL` instance-scope model with a designated-workspace model (decision D1).
 
 ### 29.1 Product requirement
 
@@ -1254,12 +1263,12 @@ Add a separate **Company Wiki** surface with canonical routes:
 /company-wiki/:pageId
 ```
 
-The same Company Wiki is reachable from every workspace, but the URL must not contain a workspace slug. This prevents the same instance-level document from acquiring different canonical URLs depending on which workspace the user happened to enter from.
+The same Company Wiki is reachable from every workspace, and the URL never contains a workspace slug. This prevents the same company document from acquiring different canonical URLs depending on which workspace the user happened to enter from.
 
 Recommended navigation:
 
 ```text
-Company Wiki        <- instance-wide
+Company Wiki        <- company-wide (designated workspace)
 Wiki                <- current workspace
 Projects
 ...
@@ -1267,7 +1276,9 @@ Projects
 
 A later navigation redesign may group both under a single Knowledge/Wiki entry, but the two scopes must remain visually distinguishable.
 
-### 29.2 Scope semantics
+### 29.2 Scope semantics — designated workspace
+
+Company Wiki is **Workspace Wiki on a designated real workspace**, not a separate `workspace=NULL` scope. The designated workspace is fixed by the `COMPANY_WIKI_WORKSPACE_SLUG` configuration value and is not user-selectable at runtime.
 
 Use the existing Page model with these invariants:
 
@@ -1282,224 +1293,166 @@ WORKSPACE WIKI
   workspace_id IS NOT NULL
   no ProjectPage relation required
 
-INSTANCE / COMPANY WIKI
+COMPANY WIKI
   is_global = true
-  workspace_id IS NULL
+  workspace_id = the designated Company Wiki workspace
+                  (resolved from COMPANY_WIKI_WORKSPACE_SLUG)
   no ProjectPage relation
 ```
 
-Recommended DB invariant:
+`Page.workspace` stays **non-null**. There is no nullable-workspace migration and no `CHECK (workspace_id IS NOT NULL OR is_global = true)` DB invariant.
 
-```text
-workspace_id IS NOT NULL OR is_global = true
-```
+Do not create `WikiPage` or `InstanceWikiPage` content tables. The default design is one Page engine with two storage scopes (project vs wiki) and Company Wiki expressed as Workspace Wiki on the designated workspace.
 
-In other words, a Project Page may never have a null workspace.
+Do not allow the designated workspace to be repurposed as a normal department workspace. It is a real workspace used solely as the Company Wiki container; its slug is fixed by configuration and reserved (see §29.13).
 
-Do not create `WikiPage` or `InstanceWikiPage` content tables unless implementation evidence shows that nullable workspace breaks too many existing Page assumptions. The default design is one Page engine with three scopes.
+### 29.3 No schema changes for Company Wiki
 
-### 29.3 Required schema changes
+The designated-workspace model requires **no** nullable-workspace migration. `Page.workspace` stays non-null. `PageVersion`, `PageLog`, `PageFavorite`, `FileAsset` keep their existing workspace semantics; Company Wiki pages live in the designated workspace like any other Workspace Wiki page.
 
-Current `Page.workspace` is non-null. Change it to nullable.
+The only schema-affecting work for Company Wiki is the standard Workspace Wiki schema (which WIKI-00/WIKI-01 own): none of it is Company-Wiki-specific.
 
-Audit every Page-adjacent model that currently assumes a workspace:
-
-- `PageVersion.workspace` — make nullable for instance Page versions, or derive scope solely from `page`;
-- `PageLog.workspace` — make nullable for instance Page activity, or derive from `page`;
-- `PageLabel.workspace` — existing labels are workspace-owned, so **do not reuse workspace Labels for Company Wiki in Core V1**;
-- `FileAsset.workspace` is already nullable, but Page asset routes currently assume workspace/project URL shapes and require a dedicated instance-Page asset route;
-- favorites/recents/search must accept instance scope without inventing workspace membership.
-
-Migration requirements:
-
-- existing rows retain their current workspace IDs;
-- existing Project Pages and Workspace Wiki semantics remain unchanged;
-- no bulk rewrite of `is_global`;
-- null workspace is accepted only through instance-Wiki APIs;
-- add contract tests proving ordinary Page APIs cannot accidentally create a null-workspace Project/Workspace Page.
+WIKI-00 still owns a Page-adjacent audit and hierarchy scope helper (project vs wiki within a workspace), but no nullable-workspace changes.
 
 ### 29.4 Read/write permission model
 
-**Company-public means instance-authenticated, not Internet-public.**
+**Company-public means authenticated-and-open-read, not Internet-public.**
 
-Core V1:
+Company Wiki reuses `WorkspacePagePermission` for write/manage. Read for non-members is controlled by the `COMPANY_WIKI_OPEN_READ` flag.
 
-| Actor | Read | Create/Edit | Lock/Archive/Delete | Manage editors |
-| --- | --- | --- | --- | --- |
-| Anonymous | No | No | No | No |
-| Active normal instance user | Yes | No | No | No |
-| Instance Admin | Yes | Yes | Yes | Yes |
+When `COMPANY_WIKI_OPEN_READ=true`:
 
-Active instance user means an authenticated `User` with `is_active=True`. Bots/service identities should be excluded from default human-read semantics unless explicitly required.
+- **Read**: every authenticated active user (`User` with `is_active=True`), regardless of whether they are a member of the designated workspace. Bots/service identities are excluded from default human-read semantics unless explicitly required.
+- **Create/Edit/Lock/Archive/Delete/Manage**: admin/owner of the designated workspace, enforced by `WorkspacePagePermission` exactly as for any Workspace Wiki.
 
-A later delegated-authoring phase should add an explicit instance Wiki role such as:
+When `COMPANY_WIKI_OPEN_READ=false`:
 
-```text
-InstanceWikiMember
-  instance
-  user
-  role = EDITOR | MANAGER
-```
+- Company Wiki behaves as ordinary Workspace Wiki on the designated workspace: read and write both require active membership of that workspace via `WorkspacePagePermission`.
 
-Suggested semantics:
+Two entrypoints must be controlled and tested (WIKI-01 verification task):
 
-- EDITOR: create/edit pages, create children, attach files;
-- MANAGER: EDITOR + lock/archive/reorder/manage Company Wiki structure;
-- InstanceAdmin: implicit MANAGER and can manage delegated roles.
+1. `/company-wiki` — the open-read path. When `COMPANY_WIKI_OPEN_READ=true`, an authenticated active user who is **not** a member of the designated workspace may read Company Wiki pages but must not write, lock, archive, or manage them.
+2. `/api/workspaces/<slug>/pages/` — the ordinary member path for the designated workspace. Members interact through this path with full `WorkspacePagePermission` semantics. Non-members must not reach write operations through this path even when `COMPANY_WIKI_OPEN_READ=true`.
 
-Do not infer instance-wide edit permission from being Admin of any single workspace.
+The open-read path is a **read-only override** layered on top of `WorkspacePagePermission`; it never grants write. `WorkspacePagePermission` is not weakened for the member path.
 
-### 29.5 Instance hierarchy
+A later delegated-authoring phase may add an explicit Company Wiki editor role (e.g. `CompanyWikiEditor` / `CompanyWikiManager`) for non-admin authors. That phase is out of Core V1 scope. Do not infer Company Wiki edit permission from being Admin of any other workspace.
 
-Instance Page parent rules:
+### 29.5 Hierarchy
 
-- parent must also have `workspace_id=NULL`;
-- parent must have `is_global=True`;
-- workspace Wiki cannot parent an instance Page;
-- instance Page cannot parent a workspace/project Page;
+Company Wiki pages live in the designated workspace and follow the standard Workspace Wiki hierarchy rules:
+
+- parent must be a Wiki page (`is_global=true`) in the **same** designated workspace;
+- parent must exist and not be deleted;
+- workspace Wiki cannot parent a project Page and vice versa (enforced by the WIKI-00 hierarchy scope helper);
 - all cycle-prevention rules apply unchanged.
 
-This ensures the hierarchy never crosses security scopes.
+There is no cross-scope hierarchy because Company Wiki is not a separate scope.
 
-### 29.6 Instance API
+### 29.6 API — reuses Workspace Wiki API
 
-Preferred internal API shape:
+Company Wiki uses the **existing Workspace Wiki REST API** on the designated workspace. There is no `/api/instance/wiki/...` path.
 
 ```text
-GET/POST /api/instance/wiki/pages/
-GET/PATCH/DELETE /api/instance/wiki/pages/:page_id/
-
-GET/PATCH /api/instance/wiki/pages/:page_id/description/
-POST/DELETE /api/instance/wiki/pages/:page_id/lock/
-POST/DELETE /api/instance/wiki/pages/:page_id/archive/
-
-GET /api/instance/wiki/pages/:page_id/versions/
-GET /api/instance/wiki/pages/:page_id/versions/:version_id/
-POST /api/instance/wiki/pages/:page_id/duplicate/
+GET/POST   /api/workspaces/<COMPANY_WIKI_WORKSPACE_SLUG>/pages/
+GET/PATCH/DELETE /api/workspaces/<COMPANY_WIKI_WORKSPACE_SLUG>/pages/<page_id>/
+GET/PATCH  /api/workspaces/<COMPANY_WIKI_WORKSPACE_SLUG>/pages/<page_id>/description/
+POST/DELETE /api/workspaces/<COMPANY_WIKI_WORKSPACE_SLUG>/pages/<page_id>/archive/
+POST/DELETE /api/workspaces/<COMPANY_WIKI_WORKSPACE_SLUG>/pages/<page_id>/lock/
+GET        /api/workspaces/<COMPANY_WIKI_WORKSPACE_SLUG>/pages/<page_id>/versions/
+GET        /api/workspaces/<COMPANY_WIKI_WORKSPACE_SLUG>/pages/<page_id>/versions/<version_id>/
+POST       /api/workspaces/<COMPANY_WIKI_WORKSPACE_SLUG>/pages/<page_id>/duplicate/
 ```
 
-The exact prefix may be adjusted to repository conventions during implementation. Plane already exposes instance administration under `/api/instances/`; Company Wiki does not need to live in the license app merely because its scope is instance-wide.
-
-Every lookup must enforce:
+Every lookup enforces the standard Workspace Wiki invariant:
 
 ```text
-page.workspace_id IS NULL
+page.workspace_id = designated workspace
 page.is_global = true
 page.deleted_at IS NULL
 ```
 
-No workspace slug or workspace membership check is involved.
+The open-read override (§29.4) is applied on top of `WorkspacePagePermission` for the read path only when `COMPANY_WIKI_OPEN_READ=true`; write/manage always require membership + admin/owner role.
 
 ### 29.7 External API
 
-Instance Wiki is fork-specific and has no current Plane Commercial External API equivalent.
+Company Wiki has no separate external API contract in Core V1. The existing Plane Commercial external API for workspace Wiki pages (`/api/v1/workspaces/{workspace_slug}/pages/`) applies with `workspace_slug = COMPANY_WIKI_WORKSPACE_SLUG`. PAT authorization follows the same workspace Wiki semantics plus the open-read override for read-only PATs when `COMPANY_WIKI_OPEN_READ=true`.
 
-Do not pretend it is a commercial endpoint.
+### 29.8 Realtime collaboration — reuses `workspace_page`
 
-If exposed later, use a clearly separate contract, for example:
-
-```text
-/api/v1/instance/wiki/pages/
-```
-
-PAT authorization must distinguish:
-
-- normal user read;
-- delegated editor write;
-- instance admin manage.
-
-### 29.8 Realtime collaboration
-
-Add a third live document type:
+Company Wiki uses the **`workspace_page`** live document type. There is no `instance_page` document type.
 
 ```ts
-type TDocumentTypes =
-  | "project_page"
-  | "workspace_page"
-  | "instance_page";
+type TDocumentTypes = "project_page" | "workspace_page";
 ```
 
-Add `InstancePageService` using the instance Wiki REST path.
+The live service is `WorkspacePageService` with `workspaceSlug = COMPANY_WIKI_WORKSPACE_SLUG`.
 
 Connection params:
 
 ```text
-documentType = instance_page
-workspaceSlug = null
+documentType = workspace_page
+workspaceSlug = COMPANY_WIKI_WORKSPACE_SLUG
 projectId = null
 ```
 
 Authorization requirements:
 
-- user must be authenticated and active to load document state;
-- writer must be InstanceAdmin/delegated editor;
+- to load document state: authenticated active user when `COMPANY_WIKI_OPEN_READ=true`, otherwise active workspace member;
+- to persist updates / title sync: admin/owner of the designated workspace via `WorkspacePagePermission`;
 - page lock rejects writes;
-- access revocation/editor-role revocation rejects later writes;
+- access revocation / role revocation rejects later writes;
 - document bytes must never be returned to anonymous connections.
 
-### 29.9 Assets
+### 29.9 Assets — reuses workspace asset routes
 
-Current `FileAsset.workspace` is nullable, which is useful, but current Page-description asset URLs assume workspace/project paths.
-
-Add explicit instance Wiki asset endpoints rather than fabricating a workspace:
-
-```text
-/api/assets/v2/instance/pages/:page_id/:asset_id/
-```
-
-Exact route can follow asset-service conventions.
+Company Wiki assets use the **existing workspace Page asset routes** with the designated workspace slug. There is no `/api/assets/v2/instance/pages/...` route.
 
 Rules:
 
-- asset must belong to requested Page;
-- Page must be an instance Page;
-- authenticated active user may read;
-- only a user with Page edit capability may upload/delete/restore;
+- asset must belong to a Page in the designated workspace;
+- read access follows the open-read override (§29.4): authenticated active user may read when `COMPANY_WIKI_OPEN_READ=true`;
+- upload/delete/restore requires Page edit capability (admin/owner of the designated workspace);
 - signed/storage URLs must not make Company Wiki assets anonymously public.
 
 ### 29.10 Search
 
-Company Wiki search is instance-wide.
+Company Wiki search is scoped to the designated workspace and reuses the Workspace Wiki search path.
 
 Core behavior:
 
 - title + stripped content;
 - hierarchy-aware;
-- same result regardless of current workspace;
-- available from Company Wiki surface;
+- available from the `/company-wiki` surface;
+- when `COMPANY_WIKI_OPEN_READ=true`, results are visible to every authenticated active user regardless of current workspace context;
 - optionally merged into global search later.
 
-Search results must be tagged by scope so UI can distinguish:
+Search results must be tagged by surface so the UI can distinguish:
 
 ```text
-Company Wiki
-Workspace Wiki
+Company Wiki   (designated workspace, open-read)
+Workspace Wiki  (current workspace)
 Project Page
 ```
 
-No workspace filter should accidentally hide instance Pages.
+No workspace filter should accidentally hide Company Wiki results when `COMPANY_WIKI_OPEN_READ=true`.
 
 ### 29.11 Favorites and recents
 
-Favorites/recents should be user-global for Company Wiki.
+Favorites/recents for Company Wiki are user-global: a user favoriting a Company Wiki page from Workspace A must see the same favorite when browsing Workspace B.
 
-A user favoriting a Company Wiki page from Workspace A must see the same favorite when currently browsing Workspace B.
-
-Do not store a fake workspace ID solely to support favorites.
+Because Company Wiki pages live in a real workspace, the existing favorite/recent models are reused. The user-global behavior is achieved by keying the favorite on the Page (which belongs to the designated workspace) rather than on the user's current workspace. No fake workspace ID is stored.
 
 ### 29.12 Labels and Collections
 
-Core Company Wiki does **not** require labels because current Plane Labels are workspace-scoped.
+**Labels** (decision D11): Company Wiki uses the **workspace-scoped labels of the designated workspace**. Labels are not deferred. There is no instance-level label scope and no need to generalize Label scope for Core V1.
 
-For parity/extensions later:
+**Collections** (decision D6): Collections are a **Core milestone** deliverable (WIKI-05), not a parity-after feature. Collections apply to Workspace Wiki and Company Wiki alike.
 
-- introduce instance-level labels or generalize Label scope;
-- allow Collections at instance scope;
-- Collection scope must never mix instance and workspace Pages;
-- Company Wiki Collections remain readable by all active users by default;
-- optional private instance Collections can be added only if there is a real company use case.
-
-Do not block Company Wiki V1 on generalized labels/Collections.
+- Collection scope never mixes the designated Company Wiki workspace with other workspaces; a Collection belongs to exactly one workspace.
+- Company Wiki Collections are readable by every authenticated active user when `COMPANY_WIKI_OPEN_READ=true`, and manageable by admin/owner of the designated workspace.
+- Private Collections follow the same ACL inheritance rules as Workspace Wiki Collections (§19).
+- The default Collection behavior for legacy/uncollected pages must be confirmed against Commercial behavior before WIKI-05 schema lock (open question Q8).
 
 ### 29.13 UI behavior
 
@@ -1509,50 +1462,51 @@ Distinct UI cues are required:
 
 - header/breadcrumb says **Company Wiki**;
 - workspace switcher does not change the loaded Company Wiki Page;
-- copied links use `/company-wiki/:pageId`;
-- create-page controls are hidden for users without instance Wiki write capability;
+- copied links use `/company-wiki/:pageId` (no workspace slug);
+- create-page controls are hidden for users without Company Wiki write capability (non-admin/owner of the designated workspace, or any non-member when `COMPANY_WIKI_OPEN_READ=true`);
 - read-only users still get search, outline, version browsing, copy link, export where permitted.
+
+The designated workspace slug must be added to `RESTRICTED_URLS` (`packages/constants/src/workspace.ts`) so no user can create a workspace that squats the `company-wiki` route or the configured Company Wiki slug. The `/company-wiki` route is a standalone route under the authenticated app shell, not nested under `:workspaceSlug`; internally it resolves `COMPANY_WIKI_WORKSPACE_SLUG` and renders the Workspace Wiki UI against that workspace.
 
 ### 29.14 Company Wiki Core definition of done
 
-- [ ] Canonical `/company-wiki` route exists outside workspace scope.
+- [ ] Canonical `/company-wiki` route exists outside workspace scope and resolves `COMPANY_WIKI_WORKSPACE_SLUG`.
 - [ ] Link is reachable from every workspace.
-- [ ] All active authenticated users can read Company Wiki.
-- [ ] Anonymous access is denied.
-- [ ] InstanceAdmin can create/edit/lock/archive/delete.
-- [ ] Instance pages store `workspace_id=NULL`, `is_global=True`.
-- [ ] Workspace/Project APIs cannot create or mutate instance Pages accidentally.
-- [ ] Nested instance Pages work and cannot cross into workspace/project hierarchy.
-- [ ] Realtime editing supports `instance_page`.
-- [ ] Instance Page assets use an explicit non-workspace route.
-- [ ] Version history works with null workspace.
-- [ ] Search/favorites/recents work independently of current workspace.
+- [ ] When `COMPANY_WIKI_OPEN_READ=true`, every authenticated active user can read Company Wiki; anonymous access is denied.
+- [ ] Write/manage (create/edit/lock/archive/delete) is restricted to admin/owner of the designated workspace via `WorkspacePagePermission`.
+- [ ] Company Wiki pages store `workspace_id = designated workspace`, `is_global = true`.
+- [ ] The open-read path (`/company-wiki`) and the member path (`/api/workspaces/<slug>/pages/`) are both controlled and tested; non-members cannot write through either path.
+- [ ] Nested Company Wiki pages work and cannot cross into project Page hierarchy.
+- [ ] Realtime editing supports Company Wiki via the `workspace_page` document type with `workspaceSlug = COMPANY_WIKI_WORKSPACE_SLUG`.
+- [ ] Company Wiki assets use the existing workspace asset routes with the designated slug.
+- [ ] Version history works for Company Wiki pages.
+- [ ] Search/favorites/recents work user-globally for Company Wiki.
+- [ ] Labels use the designated workspace's workspace-scoped labels.
+- [ ] Collections (WIKI-05) work for Company Wiki with the same ACL inheritance as Workspace Wiki.
 - [ ] Existing Project Pages and Workspace Wiki remain regression-safe.
-- [ ] Security tests cover cross-scope UUID attempts in both directions.
+- [ ] Security tests cover cross-workspace UUID attempts against the designated workspace's pages.
 
 ### 29.15 Core architecture consequence
 
-Because Instance Wiki is now a required feature, the first implementation PR must establish Page scope compatibility **before** Workspace Wiki APIs are treated as final.
+Because Company Wiki is implemented as Workspace Wiki on a designated workspace, the first implementation PR no longer needs to establish a nullable-workspace scope. It only needs the project-vs-wiki hierarchy guard and a Page-adjacent audit.
 
-Recommended implementation order becomes:
+Recommended implementation order:
 
 ```text
-WIKI-00 Page scope foundation
-   ├─ nullable Page.workspace for instance scope
-   ├─ PageVersion/PageLog compatibility
-   ├─ scope helpers/invariants
-   └─ asset scope design
+WIKI-00 Page-adjacent audit + hierarchy scope guard + regression
         ↓
-WIKI-01 Workspace + Instance Wiki backend
+WIKI-01 Workspace Wiki backend core (with COMPANY_WIKI_WORKSPACE_SLUG + open-read override)
         ↓
-WIKI-02 workspace_page + instance_page realtime
+WIKI-02 workspace_page realtime collaboration
         ↓
-WIKI-03 Workspace Wiki + Company Wiki web surfaces
+WIKI-03 Workspace Wiki + Company Wiki web surfaces (/company-wiki route alias)
         ↓
 WIKI-04 hierarchy/search/export/security hardening
+        ↓
+WIKI-05 Collections (Core milestone)
 ```
 
-This avoids building a workspace-only abstraction and immediately refactoring it when Company Wiki is added.
+Core Wiki production milestone = WIKI-00..05. Parity/advanced track (sharing & comments, templates/publishing/nested export, editor parity, advanced parity, AI/importers) follows.
 
 
 ---

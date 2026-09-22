@@ -7,6 +7,17 @@
 > Implementation baseline: create feature branches from pinned `r2d-ai/plane:preview` SHA `02c19e1341d93141e8ad7b3278298adce208bafc` after this plan is approved. Do not automatically follow a moving `preview` branch.
 >
 > Planning principle: small reviewable PRs, no large “Wiki mega-PR”.
+>
+> **⚠️ Company Wiki architecture revised 2026-09-22 (decisions D1/D9/D10/D11/D6).** Company Wiki is now **Workspace Wiki on a designated real workspace** fixed by `COMPANY_WIKI_WORKSPACE_SLUG`, not a `workspace=NULL` instance scope. The normative reference is [wiki-ce-spec.md §29](./wiki-ce-spec.md#29-company-wiki-fork-extension-designated-workspace-model). The following sections of this plan still describe the **superseded** `workspace=NULL` / `instance_page` / `InstancePagePermission` model and must be read against the revised spec:
+> - §1.1 architecture diagram (`Company Wiki … workspace=NULL`, `Instance RBAC`);
+> - §2 dependency graph (WIKI-00 "workspace + instance semantics", WIKI-01 "Workspace + Instance Wiki backend", WIKI-02 "workspace_page + instance_page");
+> - §3 WIKI-00 (nullable `Page.workspace`, instance scope, `InstancePagePermission`);
+> - §4.0 Instance Wiki API path (`/api/instance/wiki/...`);
+> - §5.1/§5.2 (`instance_page` document type, `InstancePageService`);
+> - §6.1/§6.11 (instance-scoped store, `instance_page` connection params);
+> - §21 review gates (instance-scope decisions).
+>
+> Revised execution: WIKI-00 = Page-adjacent audit + hierarchy scope guard + regression (no nullable migration); WIKI-01 = Workspace Wiki backend with `COMPANY_WIKI_WORKSPACE_SLUG` + `COMPANY_WIKI_OPEN_READ` open-read override; WIKI-02 = `workspace_page` realtime only; WIKI-03 = `/company-wiki` route alias to the designated workspace; WIKI-05 Collections is part of the Core milestone. See the revised spec §29.15 for the canonical ordering.
 
 ---
 
