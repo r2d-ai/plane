@@ -65,6 +65,20 @@ class Page(BaseModel):
         verbose_name_plural = "Pages"
         db_table = "pages"
         ordering = ("-created_at",)
+        indexes = [
+            # WIKI-04b: measured index for the Workspace/Company Wiki access
+            # paths (spec §21 candidate `(workspace_id, is_global, archived_at)`).
+            # `EXPLAIN (ANALYZE)` on the 1k/5k/deep/wide fixtures shows the
+            # planner using this index for the permission-filtered Wiki list
+            # (`archived_at IS NULL`) and the Archived section
+            # (`archived_at IS NOT NULL`, ~4x); the other §21 candidates were
+            # either not selected or measured slower. See
+            # docs/wiki-ce-performance-report.md.
+            models.Index(
+                fields=["workspace", "is_global", "archived_at"],
+                name="pages_wiki_scope_idx",
+            ),
+        ]
 
     def __str__(self):
         """Return owner email and page name"""
