@@ -4,7 +4,7 @@
 >
 > Target repository: `r2d-ai/plane`
 >
-> Baseline branch: `preview`
+> Baseline: `r2d-ai/plane:preview` pinned at `02c19e1341d93141e8ad7b3278298adce208bafc` for implementation review. Stable fallback: upstream `makeplane/plane:master` release `v1.4.2` at `5f7d92784c403f76284f0f16718f320221dc7fec`.
 >
 > Research baseline: **2026-09-22**
 >
@@ -1553,3 +1553,503 @@ WIKI-04 hierarchy/search/export/security hardening
 ```
 
 This avoids building a workspace-only abstraction and immediately refactoring it when Company Wiki is added.
+
+
+---
+
+## 30. UI/UX conformity with Plane
+
+This section is normative. Wiki must look and behave like a native Plane feature. Commercial feature parity does **not** justify introducing a parallel visual language.
+
+### 30.1 UI source of truth
+
+For implementation based on the approved preview baseline, the visual/component source of truth is the existing Plane UI on:
+
+```text
+r2d-ai/plane:preview
+SHA 02c19e1341d93141e8ad7b3278298adce208bafc
+```
+
+When commercial screenshots or public product pages differ from the CE/preview shell, follow this precedence:
+
+```text
+1. Current local Plane shell/layout/design system
+2. Current existing Page UX/components
+3. Commercial Wiki information architecture and behavior
+4. Commercial pixels/styling
+```
+
+The goal is **Commercial Wiki behavior inside current Plane UI**, not a visually copied island that looks like another Plane version.
+
+### 30.2 Reuse existing Page surfaces
+
+Workspace Wiki and Company Wiki must reuse the same Page primitives currently used by Project Pages wherever the interaction is equivalent.
+
+Required reuse targets include:
+
+- `PageRoot`;
+- `PageEditorBody`;
+- `PageEditorHeaderRoot`;
+- `PageEditorToolbarRoot`;
+- `PageNavigationPaneRoot`;
+- `PageVersionsOverlay`;
+- `PagesVersionEditor`;
+- `PageHeaderActions`;
+- `PageSyncingBadge`;
+- `PageAccessIcon`;
+- `PagesListRoot`;
+- `PagesListView`;
+- `PageSearchInput`;
+- `PageOrderByDropdown`;
+- `PageFiltersSelection`;
+- `PageAppliedFiltersList`;
+- existing Page loaders and empty-state components.
+
+Do not fork these components solely to change labels, URLs, permission sources, or page scope. Add parameters/adapters instead.
+
+New Wiki-specific components should be limited mainly to:
+
+- nested Wiki tree;
+- Company-vs-Workspace scope indicator;
+- sharing UI;
+- Collections;
+- collection/page hierarchy controls;
+- commercial-parity blocks that do not already exist.
+
+### 30.3 Header and breadcrumb rules
+
+List screens should follow the existing Project Pages header pattern:
+
+- use Plane `Header`;
+- use `Header.LeftItem` and `Header.RightItem`;
+- use existing `Breadcrumbs`;
+- use `BreadcrumbLink`;
+- primary create action belongs on the right;
+- use the current Page/Wiki icon set from Plane's existing icon packages.
+
+Workspace Wiki breadcrumb target:
+
+```text
+Workspace / Wiki
+Workspace / Wiki / <Page>
+```
+
+Company Wiki breadcrumb target:
+
+```text
+Company Wiki
+Company Wiki / <Page>
+```
+
+Do not place a fake workspace in Company Wiki breadcrumbs.
+
+Detail screens must keep:
+
+- sync indicator in the header;
+- Page actions in the same location/order conventions as existing Pages;
+- Page access icon where access state is meaningful;
+- title editing in the existing Page editor header, not duplicated into app header.
+
+### 30.4 List and empty-state behavior
+
+Wiki list screens should visually derive from existing Pages list screens.
+
+Requirements:
+
+- use the existing page list shell, loader, search, filters and order controls;
+- use current `EmptyStateDetailed` / existing Wiki empty-state assets;
+- reuse existing assets under `apps/web/app/assets/empty-state/wiki/`;
+- support light and dark themes with the matching provided asset;
+- do not create custom card systems for basic page lists if Plane's existing list row pattern is sufficient.
+
+The nested tree may introduce a dedicated row component, but it must use the same:
+
+- typography scale;
+- hover state;
+- selected state;
+- icon sizing;
+- padding rhythm;
+- menu/action affordances;
+- semantic colors.
+
+### 30.5 Editor layout
+
+Do not create a Wiki-specific editor shell.
+
+The current Page editor layout is authoritative:
+
+- document body remains centered/width-controlled by existing Page width logic;
+- full-width option uses existing `view_props.full_width`;
+- content horizontal spacing uses existing `px-page-x` behavior;
+- outline/summary follows existing Page content browser;
+- right navigation pane uses existing Page navigation pane;
+- version history opens through the same pane/overlay mechanisms;
+- readonly state must be implemented through the shared editor configuration.
+
+Company Wiki normal users should see the same editor surface in readonly mode rather than a separate document renderer.
+
+### 30.6 Navigation pane
+
+Continue using `PageNavigationPaneRoot`.
+
+Current Plane preview already uses Propel Tabs/Tooltip in this pane. Wiki extensions such as Comments or additional commercial panels should register via the Page pane extension seam when possible.
+
+Do not add a second right sidebar.
+
+Recommended panels over time:
+
+```text
+Outline
+Assets
+Info
+Versions
+Comments        # parity phase
+```
+
+Collection management belongs outside the document navigation pane unless current Commercial behavior clearly places it there.
+
+### 30.7 Design-system dependency policy
+
+Preview is actively migrating to `@makeplane/propel`.
+
+Rules for new Wiki code:
+
+1. If an equivalent component already exists in `@makeplane/propel` and adjacent preview code uses it, use it.
+2. If current Page code still uses a Plane wrapper such as `@plane/ui` or `@plane/propel`, reuse that existing primitive rather than replacing it only for Wiki.
+3. Do not perform broad UI-library migrations as part of Wiki PRs.
+4. Do not introduce a fourth component library.
+5. Icons should prefer the same Propel icon source used by adjacent current Plane components.
+
+Examples from current preview Page UI:
+
+- icons: `@makeplane/propel/icons`;
+- navigation pane tabs/tooltips: `@makeplane/propel/components/*`;
+- some Page buttons/toasts remain through `@plane/propel/*`;
+- `Header` and `Breadcrumbs` currently remain in `@plane/ui`.
+
+Wiki should follow the adjacent component being extended, not an arbitrary global migration rule.
+
+### 30.8 Styling rules
+
+Use Plane semantic tokens/classes.
+
+Preferred existing patterns include:
+
+```text
+bg-surface-1
+bg-surface-2
+bg-layer-1
+border-subtle
+text-primary
+text-secondary
+text-tertiary
+text-placeholder
+rounded-sm
+text-13
+text-16
+px-page-x
+```
+
+Requirements:
+
+- no hard-coded hex/RGB colors for application UI;
+- no custom shadow/radius system;
+- no one-off spacing scale when existing tokens/utilities fit;
+- no fixed light-theme colors;
+- loading, hover, disabled, selected and error states must work in both themes.
+
+### 30.9 Typography and density
+
+Match existing Plane density.
+
+Default UI text should follow adjacent Plane components, commonly:
+
+- 13px class for controls/list/sidebar text;
+- 16px class for small headings where existing Plane screens use it;
+- existing editor typography for document content.
+
+Do not make Wiki resemble a marketing/documentation website with oversized headings, wide cards, or excessive whitespace.
+
+### 30.10 Buttons, menus and dialogs
+
+Reuse existing Plane button/menu/modal patterns.
+
+Rules:
+
+- one primary action per header where possible;
+- destructive actions use current danger/destructive conventions;
+- context actions belong in the existing Page action menu pattern;
+- creation dialogs should follow current Page modal/form density;
+- permission-disabled actions should be hidden or disabled according to existing Plane conventions, not custom tooltips/messages.
+
+### 30.11 Workspace sidebar
+
+Workspace Wiki should appear through the existing sidebar navigation model and `SidebarItemBase`.
+
+Company Wiki must be reachable from every workspace but remain instance-scoped.
+
+UI requirements:
+
+- use the same Sidebar navigation row height, icon size and `text-13` label style;
+- do not add a separate oversized Knowledge navigation panel to the main sidebar;
+- active state must use the standard `SidebarNavItem`;
+- current workspace Wiki and Company Wiki must have labels/icons clear enough to prevent scope confusion.
+
+Recommended labels:
+
+```text
+Company Wiki
+Wiki
+```
+
+Avoid ambiguous duplicate labels such as two entries both named `Wiki`.
+
+### 30.12 Responsive/mobile behavior
+
+Wiki must inherit Plane's existing responsive shell behavior.
+
+Core requirements:
+
+- no horizontal overflow introduced by tree/list/header controls;
+- action groups collapse using existing Plane responsive patterns;
+- navigation pane behavior must match existing Page behavior;
+- editor remains usable at tablet/mobile widths supported by the web app;
+- tree nesting must not consume unlimited horizontal space on narrow screens.
+
+Do not invent a separate mobile design in Wiki PRs. Native/mobile support is a separate project, but Wiki web UI must not block later reuse.
+
+### 30.13 Loading, error and permission states
+
+Use current Plane states:
+
+- `PageLoader` for list/page shell where applicable;
+- `PageContentLoader` for editor loading;
+- existing LogoSpinner patterns where current Page route uses them;
+- existing not-found/unauthorized screen components;
+- existing toast infrastructure for mutations.
+
+Do not render raw API error text in the document surface.
+
+Unauthorized private pages should follow security semantics first; if policy is “not found”, UI must not reveal that a hidden page exists.
+
+### 30.14 Theme compatibility
+
+Every Wiki screen must be manually checked in:
+
+- light theme;
+- dark theme.
+
+No feature is accepted if only the editor content works in dark mode while tree, collection, dialog, or empty-state surfaces break.
+
+Use existing dark/light Wiki empty-state artwork rather than recoloring assets in CSS.
+
+### 30.15 UI review matrix
+
+Before each Wiki UI PR is accepted, compare it side by side with the nearest native Plane surface.
+
+| Wiki surface | Native Plane reference |
+| --- | --- |
+| Workspace Wiki list | Project Pages list |
+| Wiki page detail | Project Page detail |
+| Header/breadcrumb | Project Page list/detail headers |
+| Search/filter/order | Existing Page list controls |
+| Document editor | Existing Project Page editor |
+| Navigation pane | Existing Page navigation pane |
+| Empty state | Existing Page/Wiki empty states |
+| Sidebar item | Existing Projects/Views sidebar items |
+| Share dialog | Closest current Plane member/access dialog |
+| Collection list/tree | Existing Plane list/sidebar/tree density and Propel controls |
+
+Any visual deviation must be justified by a Wiki-specific interaction requirement.
+
+### 30.16 UI acceptance criteria
+
+A Wiki UI PR fails review if it:
+
+- duplicates an existing Plane component without a technical reason;
+- introduces hard-coded design tokens;
+- has a standalone visual language;
+- uses different Page editor behavior for Workspace and Company Wiki without a scope-specific reason;
+- creates inconsistent header/sidebar/breadcrumb patterns;
+- fails light/dark theme;
+- ignores existing loading/error/empty states;
+- introduces avoidable new dependencies.
+
+Recommended review captures:
+
+```text
+1440px light
+1440px dark
+1024px light
+768px / narrow viewport
+```
+
+For the same PR, capture the nearest native Plane reference screen at the same viewport and theme.
+
+---
+
+## 31. Baseline review: preview vs stable v1.4.2
+
+### 31.1 Repository facts
+
+As of 2026-09-22:
+
+```text
+r2d-ai/plane:preview
+  02c19e1341d93141e8ad7b3278298adce208bafc
+
+makeplane/plane:preview
+  02c19e1341d93141e8ad7b3278298adce208bafc
+
+makeplane/plane:master
+  5f7d92784c403f76284f0f16718f320221dc7fec
+  release commit: v1.4.2
+```
+
+Therefore the fork's `preview` is currently an **exact copy of upstream preview**, not a locally diverged development branch.
+
+Upstream calls its release branch `master`, not `main`.
+
+Git topology reports:
+
+```text
+preview ahead of master: 63 commits
+preview behind master: 5 commits
+```
+
+The five master-only commits are release commits for v1.3.0, v1.3.1, v1.4.0, v1.4.1 and v1.4.2. This topology is consistent with upstream maintaining a moving preview line and separate release commits; “behind by 5” must not be interpreted as five ordinary fixes missing from preview.
+
+### 31.2 Relevant preview changes
+
+Preview after v1.4.2 includes several changes beneficial to Wiki development:
+
+#### UI/design system
+
+- migration toward `@makeplane/propel` 0.3.0;
+- migration of icons and multiple primitives to Propel;
+- React upgraded from 18.3.1 to 19.2.8;
+- React Router upgraded from v7 to v8;
+- Page editor shell updated to use newer Propel Banner and icon primitives;
+- root route/app shell structure updated.
+
+#### Editor/tooling
+
+- editor package folder structure flattened/refactored;
+- Node minimum raised from 22.18 to 22.22;
+- pnpm raised from 11.3 to 11.10.
+
+#### Security/hardening directly relevant to this fork
+
+Preview contains post-v1.4.2 fixes including:
+
+- authentication rate limiting;
+- webhook HMAC secret no longer leaked on reads;
+- Page `order_by` sanitized through an allowlist;
+- Spaces board object project scoping;
+- SubIssue cross-project scoping;
+- sanitize-html dependency update;
+- nightly Trivy/dependency security fixes;
+- draft-to-issue owner scoping.
+
+The Page order-by fix is directly relevant to new Wiki list endpoints and should not be discarded.
+
+#### Deployment
+
+Preview changes web/admin static serving from nginx to Caddy and updates several Dockerfiles.
+
+However, comparison of the root and community CLI compose files shows no broad service-topology rewrite; the visible compose-level production change is primarily the MinIO image moving from Docker Hub to a pinned Quay release. Web still serves through its existing container contract while the internal static server changes.
+
+### 31.3 Core Wiki seam comparison
+
+Important Wiki foundations are identical between v1.4.2 master and current preview:
+
+- `Page` model;
+- `BasePage` frontend store;
+- `ProjectPageStore`;
+- `usePageStore`;
+- live `PageService` extension seam;
+- live Page service handler;
+- workspace navigation constants;
+- Page list root.
+
+Changed but compatible areas include:
+
+- Page API view: preview adds safe `order_by` handling;
+- Page editor root/header: minor design-system migration;
+- app router shell: React Router v8-compatible shell change;
+- package/editor dependencies and structure.
+
+This means the proposed Wiki architecture does not depend on preview-only experimental data models.
+
+### 31.4 Baseline decision
+
+**Use preview as the implementation baseline.**
+
+Reasons:
+
+1. fork preview exactly matches upstream preview;
+2. no fork-specific divergence must be reconciled;
+3. Wiki is UI-heavy and preview already represents the UI/design-system direction after v1.4.2;
+4. building Wiki on v1.4.2 would intentionally target React 18 / Router 7 / older component usage and then require immediate migration;
+5. preview contains security fixes useful to Wiki;
+6. the key Page/store/live extension seams remain stable.
+
+### 31.5 Pin, do not chase preview
+
+Implementation branches must be created from the reviewed SHA:
+
+```text
+02c19e1341d93141e8ad7b3278298adce208bafc
+```
+
+Do not continuously rebase onto whatever `preview` becomes during a multi-PR Wiki implementation.
+
+Instead:
+
+1. branch the Wiki stack from the pinned baseline;
+2. finish/test each dependent Wiki PR;
+3. periodically evaluate upstream preview in a dedicated sync PR;
+4. rebase/cherry-pick only after CI and UI regression checks.
+
+This prevents an upstream design-system migration from changing underneath coding agents mid-feature.
+
+### 31.6 Stable fallback
+
+Fallback to `makeplane/plane:master` / v1.4.2 only if the pinned preview baseline fails the project's actual self-host deployment gate.
+
+Fallback triggers include:
+
+- preview images cannot build reproducibly;
+- current deployment/reverse-proxy assumptions are incompatible with Caddy changes;
+- required production integration fails smoke tests;
+- React 19/Router 8 introduces a blocker in a required existing feature.
+
+If fallback is triggered:
+
+- establish a new fork `main`/stable branch from upstream master v1.4.2;
+- update this spec baseline;
+- selectively backport security fixes relevant to Wiki, especially Page ordering/scoping fixes;
+- implement Wiki against stable UI primitives;
+- do not mix preview-only Propel migration into Wiki PRs.
+
+### 31.7 Baseline validation gate before WIKI-00
+
+Before feature implementation begins on preview, run at least:
+
+```text
+pnpm check
+pnpm build
+backend contract/unit test stack
+build self-host images used by current deployment
+start the deployment stack
+authenticate
+open workspace/project/page
+create/edit a Project Page
+verify live collaboration
+upload/render a Page asset
+verify reverse-proxy routes
+```
+
+This gate validates the baseline itself, not Wiki code.
+
+Record the result in the first implementation PR so later Wiki regressions are not confused with pre-existing preview issues.
