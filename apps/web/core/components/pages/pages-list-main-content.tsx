@@ -24,6 +24,8 @@ import type { EPageStoreType as EPageStoreTypeType } from "@/hooks/store";
 import type { IProjectPageStore } from "@/store/pages/project-page.store";
 import type { IWorkspacePageStore } from "@/store/pages/workspace-page.store";
 
+type TEmptyStateVariant = "project" | "workspace_wiki" | "company_wiki";
+
 type Props = {
   children: React.ReactNode;
   pageType: TPageNavigationTabs;
@@ -40,10 +42,16 @@ type Props = {
    * Defaults to project ADMIN/MEMBER at the project level.
    */
   canCreatePage?: boolean;
+  /**
+   * Empty-state copy variant. Defaults to `project`. Wiki surfaces pick the
+   * matching wiki variant so the title/description/cta labels stay accurate
+   * without forking the layout.
+   */
+  emptyStateVariant?: TEmptyStateVariant;
 };
 
 export const PagesListMainContent = observer(function PagesListMainContent(props: Props) {
-  const { children, pageType, storeType, buildPageHref, canCreatePage } = props;
+  const { children, pageType, storeType, buildPageHref, canCreatePage, emptyStateVariant = "project" } = props;
   // plane hooks
   const { t } = useTranslation();
   // store hooks
@@ -92,79 +100,106 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
       .catch((err) => {
         setToast({
           type: TOAST_TYPE.ERROR,
-          title: "Error!",
-          message: err?.data?.error || "Page could not be created. Please try again.",
+          title: t("common.error"),
+          message: err?.data?.error || t("page_not_found.description"),
         });
       })
       .finally(() => setIsCreatingPage(false));
   };
 
+  // resolve empty-state copy for the active variant + tab
+  const resolveEmptyStateCopy = (tab: TPageNavigationTabs): { title: string; description: string; cta?: string } => {
+    if (emptyStateVariant === "workspace_wiki") {
+      if (tab === "archived") {
+        return {
+          title: t("settings_empty_state.wiki.archived.title"),
+          description: t("settings_empty_state.wiki.archived.description"),
+        };
+      }
+      const bucket = tab === "private" ? "private" : "public";
+      return {
+        title: t(`settings_empty_state.wiki.${bucket}.title`),
+        description: t(`settings_empty_state.wiki.${bucket}.description`),
+        cta: t(`settings_empty_state.wiki.${bucket}.cta_primary`),
+      };
+    }
+    if (emptyStateVariant === "company_wiki") {
+      if (tab === "archived") {
+        return {
+          title: t("settings_empty_state.wiki.company_wiki.archived.title"),
+          description: t("settings_empty_state.wiki.company_wiki.archived.description"),
+        };
+      }
+      const bucket = tab === "private" ? "private" : "public";
+      return {
+        title: t(`settings_empty_state.wiki.company_wiki.${bucket}.title`),
+        description: t(`settings_empty_state.wiki.company_wiki.${bucket}.description`),
+        cta: t(`settings_empty_state.wiki.company_wiki.${bucket}.cta_primary`),
+      };
+    }
+    // project (default)
+    if (tab === "archived") {
+      return {
+        title: t("project_empty_state.archive_pages.title"),
+        description: t("project_empty_state.archive_pages.description"),
+      };
+    }
+    return {
+      title: t("project_empty_state.pages.title"),
+      description: t("project_empty_state.pages.description"),
+      cta: t("project_empty_state.pages.cta_primary"),
+    };
+  };
+
   if (loader === "init-loader") return <PageLoader />;
   // if no pages exist in the active page type
   if (!isAnyPageAvailable || pageIds?.length === 0) {
+    const initialCopy = resolveEmptyStateCopy("public");
     if (!isAnyPageAvailable) {
       return (
         <EmptyStateDetailed
           assetKey="page"
-          title={t("project_empty_state.pages.title")}
-          description={t("project_empty_state.pages.description")}
-          actions={[
-            {
-              label: t("project_empty_state.pages.cta_primary"),
-              onClick: () => {
-                handleCreatePage();
-              },
-              variant: "primary",
-              disabled: !canPerformEmptyStateActions || isCreatingPage,
-            },
-          ]}
+          title={initialCopy.title}
+          description={initialCopy.description}
+          actions={
+            initialCopy.cta
+              ? [
+                  {
+                    label: initialCopy.cta,
+                    onClick: () => {
+                      handleCreatePage();
+                    },
+                    variant: "primary",
+                    disabled: !canPerformEmptyStateActions || isCreatingPage,
+                  },
+                ]
+              : undefined
+          }
         />
       );
     }
-    if (pageType === "public")
-      return (
-        <EmptyStateDetailed
-          assetKey="page"
-          title={t("project_empty_state.pages.title")}
-          description={t("project_empty_state.pages.description")}
-          actions={[
-            {
-              label: t("project_empty_state.pages.cta_primary"),
-              onClick: () => {
-                handleCreatePage();
-              },
-              variant: "primary",
-              disabled: !canPerformEmptyStateActions || isCreatingPage,
-            },
-          ]}
-        />
-      );
-    if (pageType === "private")
-      return (
-        <EmptyStateDetailed
-          assetKey="page"
-          title={t("project_empty_state.pages.title")}
-          description={t("project_empty_state.pages.description")}
-          actions={[
-            {
-              label: t("project_empty_state.pages.cta_primary"),
-              onClick: () => {
-                handleCreatePage();
-              },
-              variant: "primary",
-              disabled: !canPerformEmptyStateActions || isCreatingPage,
-            },
-          ]}
-        />
-      );
-    if (pageType === "archived")
-      return (
-        <EmptyStateDetailed
-          assetKey="page"
-          title={t("project_empty_state.archive_pages.title")}
-          description={t("project_empty_state.archive_pages.description")}
-        />
-      );
+    const tabCopy = resolveEmptyStateCopy(pageType);
+    return (
+      <EmptyStateDetailed
+        assetKey="page"
+        title={tabCopy.title}
+        description={tabCopy.description}
+        actions={
+          tabCopy.cta
+            ? [
+                {
+                  label: tabCopy.cta,
+                  onClick: () => {
+                    handleCreatePage();
+                  },
+                  variant: "primary",
+                  disabled: !canPerformEmptyStateActions || isCreatingPage,
+                },
+              ]
+            : undefined
+        }
+      />
+    );
   }
   // if no pages match the filter criteria
   if (filteredPageIds?.length === 0)

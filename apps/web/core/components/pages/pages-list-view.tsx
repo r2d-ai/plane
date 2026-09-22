@@ -32,10 +32,22 @@ type TPageView = {
   buildPageHref?: (params: { workspaceSlug: string; pageId: string }) => string;
   /** Optional permission predicate for the empty-state create CTA. */
   canCreatePage?: boolean;
+  /** Optional empty-state copy variant (defaults to `project`). */
+  emptyStateVariant?: "project" | "workspace_wiki" | "company_wiki";
 };
 
 export const PagesListView = observer(function PagesListView(props: TPageView) {
-  const { children, pageType, projectId, storeType, workspaceSlug, buildTabHref, buildPageHref, canCreatePage } = props;
+  const {
+    children,
+    pageType,
+    projectId,
+    storeType,
+    workspaceSlug,
+    buildTabHref,
+    buildPageHref,
+    canCreatePage,
+    emptyStateVariant,
+  } = props;
   // store hooks
   const isWorkspaceStore = storeType === EPageStoreType.WORKSPACE;
   const pageStore: IProjectPageStore | IWorkspacePageStore = usePageStore(storeType);
@@ -69,6 +81,7 @@ export const PagesListView = observer(function PagesListView(props: TPageView) {
         storeType={storeType}
         buildPageHref={buildPageHref}
         canCreatePage={canCreatePage}
+        emptyStateVariant={emptyStateVariant}
       >
         {children}
       </PagesListMainContent>

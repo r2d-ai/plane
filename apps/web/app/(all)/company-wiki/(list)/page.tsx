@@ -8,9 +8,11 @@ import { observer } from "mobx-react";
 import { useSearchParams } from "next/navigation";
 // plane imports
 import { COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 import type { TPageNavigationTabs } from "@plane/types";
 // components
 import { PageHead } from "@/components/core/page-title";
+import { CompanyWikiRouteScope } from "@/components/pages/company-wiki-route-scope";
 import { PagesListRoot } from "@/components/pages/list/root";
 import { PagesListView } from "@/components/pages/pages-list-view";
 // plane web hooks
@@ -34,13 +36,16 @@ const CompanyWikiListPage = observer(function CompanyWikiListPage() {
   const searchParams = useSearchParams();
   const type = searchParams.get("type");
   const pageType = getPageType(type);
+  // i18n
+  const { t } = useTranslation();
   // store hooks
   const { canCurrentUserCreatePage } = usePageStore(EPageStoreType.WORKSPACE);
   const workspaceSlug = COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG;
 
   return (
     <>
-      <PageHead title="Company Wiki" />
+      <PageHead title={t("sidebar.company_wiki")} />
+      <CompanyWikiRouteScope />
       <PagesListView
         pageType={pageType}
         storeType={EPageStoreType.WORKSPACE}
@@ -48,6 +53,7 @@ const CompanyWikiListPage = observer(function CompanyWikiListPage() {
         buildTabHref={({ tabKey }) => `/company-wiki?type=${tabKey}`}
         buildPageHref={({ pageId }) => `/company-wiki/${pageId}`}
         canCreatePage={canCurrentUserCreatePage}
+        emptyStateVariant="company_wiki"
       >
         <PagesListRoot pageType={pageType} storeType={EPageStoreType.WORKSPACE} />
       </PagesListView>

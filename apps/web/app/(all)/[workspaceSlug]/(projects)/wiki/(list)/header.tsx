@@ -9,6 +9,7 @@ import { observer } from "mobx-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 // constants
 import { EPageAccess } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 // plane types
 import { Button } from "@plane/propel/button";
 import { PageIcon } from "@plane/propel/icons";
@@ -29,6 +30,8 @@ const storeType = EPageStoreType.WORKSPACE;
 export const WikiListHeader = observer(function WikiListHeader() {
   // states
   const [isCreatingPage, setIsCreatingPage] = useState(false);
+  // i18n
+  const { t } = useTranslation();
   // router
   const router = useRouter();
   const { workspaceSlug } = useParams();
@@ -53,8 +56,8 @@ export const WikiListHeader = observer(function WikiListHeader() {
       .catch((err) => {
         setToast({
           type: TOAST_TYPE.ERROR,
-          title: "Error!",
-          message: err?.data?.error || "Page could not be created. Please try again.",
+          title: t("common.error"),
+          message: err?.data?.error || t("page_not_found.description"),
         });
       })
       .finally(() => setIsCreatingPage(false));
@@ -68,7 +71,7 @@ export const WikiListHeader = observer(function WikiListHeader() {
           <Breadcrumbs.Item
             component={
               <BreadcrumbLink
-                label="Wiki"
+                label={t("sidebar.wiki")}
                 href={`/${workspaceSlug}/wiki/`}
                 icon={<PageIcon className="h-4 w-4 text-tertiary" />}
                 isLast
@@ -81,7 +84,7 @@ export const WikiListHeader = observer(function WikiListHeader() {
       {canCurrentUserCreatePage && workspace && (
         <Header.RightItem>
           <Button variant="primary" size="lg" onClick={handleCreatePage} loading={isCreatingPage}>
-            {isCreatingPage ? "Adding" : "Add page"}
+            {isCreatingPage ? t("common.adding") : t("wiki.actions.add_page")}
           </Button>
         </Header.RightItem>
       )}

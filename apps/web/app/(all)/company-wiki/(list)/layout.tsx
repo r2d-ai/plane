@@ -8,12 +8,14 @@ import { Outlet } from "react-router";
 // components
 import { AppHeader } from "@/components/core/app-header";
 import { ContentWrapper } from "@/components/core/content-wrapper";
+import { CompanyWikiRouteScope } from "@/components/pages/company-wiki-route-scope";
 // local components
 import { CompanyWikiListHeader } from "./header";
 
 export default function CompanyWikiLayout() {
   return (
     <>
+      <CompanyWikiRouteScope />
       <AppHeader header={<CompanyWikiListHeader />} />
       <ContentWrapper>
         <Outlet />

@@ -68,6 +68,13 @@
   "created": "생성됨",
   "subscribed": "구독됨",
   "you_do_not_have_the_permission_to_access_this_page": "이 페이지에 접근할 권한이 없습니다.",
+  "page_not_found": {
+    "title": "Page not found",
+    "description": "The page you are trying to access doesn't exist or you don't have permission to view it.",
+    "cta_other_wiki": "View other Wiki pages",
+    "cta_other_company_wiki": "View other Company Wiki pages",
+    "cta_other_project_pages": "View other Pages"
+  },
   "something_went_wrong_please_try_again": "문제가 발생했습니다. 다시 시도해주세요.",
   "load_more": "더 보기",
   "select_or_customize_your_interface_color_scheme": "인터페이스 색상 구성표를 선택하거나 사용자 지정하세요.",

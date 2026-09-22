@@ -108,6 +108,24 @@
     },
     "nested_pages_download_banner": {
       "title": "Nested pages require a paid plan. Upgrade to unlock."
+    },
+    "tabs": {
+      "public": "Public",
+      "private": "Private",
+      "archived": "Archived",
+      "favorites": "Favorites"
+    },
+    "actions": {
+      "create_page": "Create page",
+      "create_sub_page": "Create sub-page",
+      "move": "Move",
+      "add_page": "Add page"
+    },
+    "errors": {
+      "no_designated_workspace": "Company Wiki is not configured. Set COMPANY_WIKI_WORKSPACE_SLUG on the API to enable it.",
+      "read_only": "You only have read access to this page.",
+      "permission_denied": "You don't have permission to perform this action.",
+      "load_failed": "Wiki page could not be loaded. Please try again."
     }
   }
 }

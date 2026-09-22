@@ -68,6 +68,13 @@
   "created": "Створено",
   "subscribed": "Підписано",
   "you_do_not_have_the_permission_to_access_this_page": "Ви не маєте прав доступу до цієї сторінки.",
+  "page_not_found": {
+    "title": "Page not found",
+    "description": "The page you are trying to access doesn't exist or you don't have permission to view it.",
+    "cta_other_wiki": "View other Wiki pages",
+    "cta_other_company_wiki": "View other Company Wiki pages",
+    "cta_other_project_pages": "View other Pages"
+  },
   "something_went_wrong_please_try_again": "Щось пішло не так. Будь ласка, спробуйте ще раз.",
   "load_more": "Завантажити ще",
   "select_or_customize_your_interface_color_scheme": "Виберіть або налаштуйте колірну схему інтерфейсу.",

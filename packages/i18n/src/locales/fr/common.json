@@ -68,6 +68,13 @@
   "created": "Créé",
   "subscribed": "Abonné",
   "you_do_not_have_the_permission_to_access_this_page": "Vous n’avez pas la permission d’accéder à cette page.",
+  "page_not_found": {
+    "title": "Page not found",
+    "description": "The page you are trying to access doesn't exist or you don't have permission to view it.",
+    "cta_other_wiki": "View other Wiki pages",
+    "cta_other_company_wiki": "View other Company Wiki pages",
+    "cta_other_project_pages": "View other Pages"
+  },
   "something_went_wrong_please_try_again": "Une erreur s’est produite. Veuillez réessayer.",
   "load_more": "Charger davantage",
   "select_or_customize_your_interface_color_scheme": "Sélectionnez ou personnalisez votre palette de couleurs de l’interface.",
