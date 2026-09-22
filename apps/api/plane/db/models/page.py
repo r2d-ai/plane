@@ -25,6 +25,9 @@ class Page(BaseModel):
     PUBLIC_ACCESS = 0
     DEFAULT_SORT_ORDER = 65535
 
+    PROJECT_SCOPE = "project"
+    WIKI_SCOPE = "wiki"
+
     ACCESS_CHOICES = ((PRIVATE_ACCESS, "Private"), (PUBLIC_ACCESS, "Public"))
 
     workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="pages")
@@ -66,6 +69,29 @@ class Page(BaseModel):
     def __str__(self):
         """Return owner email and page name"""
         return f"{self.owned_by.email} <{self.name}>"
+
+    @property
+    def scope(self):
+        """Storage scope of the page.
+
+        ``project`` for Project Pages (``is_global=False``) and ``wiki`` for
+        Workspace/Company Wiki pages (``is_global=True``). Company Wiki is
+        Workspace Wiki on the designated workspace, so it also reports ``wiki``.
+        """
+        return self.WIKI_SCOPE if self.is_global else self.PROJECT_SCOPE
+
+    @property
+    def is_project_page(self):
+        """True for Project Pages, which must have an active ProjectPage link."""
+        return not self.is_global
+
+    @property
+    def is_workspace_page(self):
+        """True for Wiki pages (Workspace Wiki and Company Wiki).
+
+        Wiki pages belong to a real workspace but require no ProjectPage link.
+        """
+        return self.is_global
 
     def save(self, *args, **kwargs):
         # Strip the html tags using html parser
