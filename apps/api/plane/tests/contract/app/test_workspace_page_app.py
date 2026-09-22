@@ -53,6 +53,10 @@ def _duplicate_url(slug, page_id):
     return f"/api/workspaces/{slug}/pages/{page_id}/duplicate/"
 
 
+def _entity_search_url(slug):
+    return f"/api/workspaces/{slug}/entity-search/"
+
+
 def _make_wiki_page(workspace, owner, name="Wiki page", access=Page.PUBLIC_ACCESS, parent=None):
     return Page.objects.create(
         workspace=workspace,
@@ -439,3 +443,72 @@ class TestCompanyWikiOpenRead:
         anonymous = APIClient()
         assert anonymous.get(_pages_url(workspace.slug)).status_code in (401, 403)
         assert anonymous.get(_page_url(workspace.slug, page.id)).status_code in (401, 403)
+
+
+@pytest.mark.contract
+class TestWorkspaceEntitySearch:
+    """WIKI-04a §7.7: Wiki pages are searchable by title and content.
+
+    The workspace entity-search endpoint is member-gated; within a workspace it
+    must return public Wiki pages (which have no ProjectPage link) and must
+    never expose private pages or pages from another workspace.
+    """
+
+    def _search(self, client, slug, query):
+        return client.get(
+            _entity_search_url(slug),
+            {"query": query, "query_type": "page", "count": 20},
+        )
+
+    @staticmethod
+    def _ids(response):
+        return {row["id"] for row in response.json().get("page", [])}
+
+    @pytest.mark.django_db
+    def test_search_returns_wiki_page_by_name(self, session_client, workspace, create_user):
+        page = _make_wiki_page(workspace, create_user, name="Onboarding Guide")
+
+        response = self._search(session_client, workspace.slug, "Onboarding")
+
+        assert response.status_code == 200
+        assert str(page.id) in self._ids(response)
+
+    @pytest.mark.django_db
+    def test_search_matches_content_without_html(self, session_client, workspace, create_user):
+        page = _make_wiki_page(workspace, create_user, name="Handbook")
+        page.description_html = "<p>The quarterly pipeline keyword</p>"
+        page.save()
+
+        response = self._search(session_client, workspace.slug, "quarterly")
+
+        rows = {row["id"]: row for row in response.json().get("page", [])}
+        assert str(page.id) in rows
+        assert "quarterly" in rows[str(page.id)]["description_stripped"]
+        assert "<p>" not in rows[str(page.id)]["description_stripped"]
+
+    @pytest.mark.django_db
+    def test_search_excludes_private_pages(self, session_client, workspace, create_user):
+        private_page = _make_wiki_page(workspace, create_user, name="Secret Notes", access=Page.PRIVATE_ACCESS)
+
+        response = self._search(session_client, workspace.slug, "Secret")
+
+        assert str(private_page.id) not in self._ids(response)
+
+    @pytest.mark.django_db
+    def test_search_scoped_to_workspace(self, session_client, workspace, create_user):
+        other_workspace = Workspace.objects.create(name="Other Workspace", slug="other-search", owner=create_user)
+        other_page = _make_wiki_page(other_workspace, create_user, name="Onboarding Elsewhere")
+
+        response = self._search(session_client, workspace.slug, "Onboarding")
+
+        assert str(other_page.id) not in self._ids(response)
+
+    @pytest.mark.django_db
+    def test_search_denied_for_non_member(self, api_client, workspace, create_user):
+        _make_wiki_page(workspace, create_user, name="Onboarding Guide")
+        outsider = _make_user("search-outsider@plane.so")
+
+        api_client.force_authenticate(user=outsider)
+        response = self._search(api_client, workspace.slug, "Onboarding")
+
+        assert response.status_code in (403, 404)

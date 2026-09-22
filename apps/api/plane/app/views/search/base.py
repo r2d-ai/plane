@@ -700,22 +700,36 @@ class SearchEndpoint(BaseAPIView):
                     response_data["module"] = list(modules)
 
                 elif query_type == "page":
-                    fields = ["name"]
+                    fields = ["name", "description_stripped"]
                     q = Q()
 
                     if query:
                         for field in fields:
                             q |= Q(**{f"{field}__icontains": query})
 
+                    # Wiki pages live in the workspace without a ProjectPage link
+                    # (WIKI-01 / WIKI-04a). They are searchable by active
+                    # WorkspaceMembers; `access=0` keeps private pages out of the
+                    # result set so titles/content never leak. The endpoint is
+                    # gated by WorkspaceUserPermission, so Company Wiki search
+                    # follows the same membership rule as the rest of this API.
+                    wiki_member_filter = Q(
+                        is_global=True,
+                        access=Page.PUBLIC_ACCESS,
+                        workspace__slug=slug,
+                        workspace__workspace_member__member=self.request.user,
+                        workspace__workspace_member__is_active=True,
+                    )
+
+                    project_filter = Q(
+                        projects__project_projectmember__member=self.request.user,
+                        projects__project_projectmember__is_active=True,
+                        workspace__slug=slug,
+                    )
+
                     pages = (
-                        Page.objects.filter(
-                            q,
-                            projects__project_projectmember__member=self.request.user,
-                            projects__project_projectmember__is_active=True,
-                            workspace__slug=slug,
-                            access=0,
-                            is_global=True,
-                        )
+                        Page.objects.filter(q)
+                        .filter(wiki_member_filter | project_filter)
                         .order_by("-created_at")
                         .distinct()
                         .values(
@@ -724,6 +738,7 @@ class SearchEndpoint(BaseAPIView):
                             "logo_props",
                             "projects__id",
                             "workspace__slug",
+                            "description_stripped",
                         )[:count]
                     )
                     response_data["page"] = list(pages)

@@ -281,6 +281,11 @@
         "title": "No archived pages yet",
         "description": "Archived pages are stored here for future reference. Archive a page from its options menu."
       },
+      "favorites": {
+        "title": "No favorite pages yet",
+        "description": "Star a page to keep it pinned here for quick access.",
+        "cta_primary": "Browse pages"
+      },
       "search": {
         "title": "No matching pages",
         "description": "Try adjusting your search or filters."
@@ -299,6 +304,10 @@
         "archived": {
           "title": "No archived Company Wiki pages yet",
           "description": "Archived pages are stored here for future reference."
+        },
+        "favorites": {
+          "title": "No favorite Company Wiki pages yet",
+          "description": "Star a Company Wiki page to keep it pinned here for quick access."
         },
         "search": {
           "title": "No matching Company Wiki pages",

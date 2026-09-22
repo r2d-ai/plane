@@ -52,6 +52,27 @@ export class WorkspacePageService extends APIService {
       });
   }
 
+  /**
+   * @description Move a Wiki page in the hierarchy (WIKI-04a §7.2).
+   *
+   * `parent === null` detaches the page from its current parent. `sort_order`
+   * is optional and only sent when the caller needs a sibling reorder. The
+   * hierarchy guard on the server returns a structured `error_code`
+   * (`PAGE_PARENT_CYCLE`, `PAGE_PARENT_CROSS_SCOPE`, ...) which the UI surfaces
+   * as a toast and rolls back the optimistic move.
+   */
+  async move(
+    workspaceSlug: string,
+    pageId: string,
+    payload: { parent: string | null; sort_order?: number }
+  ): Promise<TPage> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/pages/${pageId}/`, payload)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
   async updateAccess(workspaceSlug: string, pageId: string, data: Pick<TPage, "access">): Promise<void> {
     return this.post(`/api/workspaces/${workspaceSlug}/pages/${pageId}/access/`, data)
       .then((response) => response?.data)

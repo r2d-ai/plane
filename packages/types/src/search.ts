@@ -63,6 +63,8 @@ export type TPageSearchResponse = {
   logo_props: TPage["logo_props"];
   projects__id: TPage["project_ids"];
   workspace__slug: IWorkspace["slug"];
+  /** Plain-text page content used for the Wiki search preview (no HTML). */
+  description_stripped?: string | null;
 };
 
 export type TSearchResponse = {

@@ -20,6 +20,9 @@ export type TBasePage = TPage & {
   // observables
   isSubmitting: TNameDescriptionLoader;
   isSyncingWithServer: "syncing" | "synced" | "error";
+  // hierarchy
+  parent_id?: string | null;
+  sort_order?: number;
   // computed
   asJSON: TPage | undefined;
   isCurrentUserOwner: boolean;
@@ -102,6 +105,9 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
   created_at: Date | undefined;
   updated_at: Date | undefined;
   deleted_at: Date | undefined;
+  // hierarchy
+  parent_id: string | null | undefined;
+  sort_order: number | undefined;
   // helpers
   oldName: string = "";
   // services
@@ -140,6 +146,9 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
     this.updated_at = page?.updated_at || undefined;
     this.oldName = page?.name || "";
     this.deleted_at = page?.deleted_at || undefined;
+    // hierarchy
+    this.parent_id = (page as any)?.parent ?? null;
+    this.sort_order = (page as any)?.sort_order ?? undefined;
 
     makeObservable(this, {
       // loaders
@@ -164,6 +173,9 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       created_at: observable.ref,
       updated_at: observable.ref,
       deleted_at: observable.ref,
+      // hierarchy
+      parent_id: observable.ref,
+      sort_order: observable.ref,
       isSyncingWithServer: observable.ref,
       // helpers
       oldName: observable.ref,
@@ -240,6 +252,8 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       created_at: this.created_at,
       updated_at: this.updated_at,
       deleted_at: this.deleted_at,
+      parent: this.parent_id,
+      sort_order: this.sort_order,
       ...this.asJSONExtended,
     };
   }

@@ -13,7 +13,7 @@ import type { TPageNavigationTabs } from "@plane/types";
 // components
 import { PageHead } from "@/components/core/page-title";
 import { CompanyWikiRouteScope } from "@/components/pages/company-wiki-route-scope";
-import { PagesListRoot } from "@/components/pages/list/root";
+import { WikiPagesListRoot } from "@/components/pages/list/wiki-pages-root";
 import { PagesListView } from "@/components/pages/pages-list-view";
 // plane web hooks
 import { EPageStoreType, usePageStore } from "@/hooks/store";
@@ -21,6 +21,7 @@ import { EPageStoreType, usePageStore } from "@/hooks/store";
 const getPageType = (pageType?: string | null): TPageNavigationTabs => {
   if (pageType === "private") return "private";
   if (pageType === "archived") return "archived";
+  if (pageType === "favorites") return "favorites";
   return "public";
 };
 
@@ -55,7 +56,13 @@ const CompanyWikiListPage = observer(function CompanyWikiListPage() {
         canCreatePage={canCurrentUserCreatePage}
         emptyStateVariant="company_wiki"
       >
-        <PagesListRoot pageType={pageType} storeType={EPageStoreType.WORKSPACE} />
+        <WikiPagesListRoot
+          pageType={pageType}
+          storeType={EPageStoreType.WORKSPACE}
+          workspaceSlug={workspaceSlug ?? ""}
+          buildPageHref={({ pageId }) => `/company-wiki/${pageId}`}
+          canCreatePage={canCurrentUserCreatePage}
+        />
       </PagesListView>
     </>
   );

@@ -17,6 +17,7 @@ import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { PageAccessIcon } from "@/components/common/page-access-icon";
 import { SwitcherIcon, SwitcherLabel } from "@/components/common/switcher-label";
 import { CommonWorkspaceBreadcrumbs } from "@/components/breadcrumbs/common";
+import { WikiHierarchyBreadcrumb } from "@/components/pages/hierarchy-breadcrumb";
 import { PageHeaderActions } from "@/components/pages/header/actions";
 import { PageSyncingBadge } from "@/components/pages/header/syncing-badge";
 // hooks
@@ -74,6 +75,12 @@ export const WikiDetailsHeader = observer(function WikiDetailsHeader() {
                   icon={<PageIcon className="h-4 w-4 text-tertiary" />}
                 />
               }
+            />
+
+            <WikiHierarchyBreadcrumb
+              workspaceSlug={workspaceSlug?.toString() ?? ""}
+              pageId={pageId?.toString() ?? ""}
+              buildPageHref={({ workspaceSlug: slug, pageId: id }) => `/${slug}/wiki/${id}`}
             />
 
             <Breadcrumbs.Item

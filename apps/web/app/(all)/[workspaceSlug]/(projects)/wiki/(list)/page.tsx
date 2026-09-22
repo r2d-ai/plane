@@ -11,7 +11,7 @@ import { useTranslation } from "@plane/i18n";
 import type { TPageNavigationTabs } from "@plane/types";
 // components
 import { PageHead } from "@/components/core/page-title";
-import { PagesListRoot } from "@/components/pages/list/root";
+import { WikiPagesListRoot } from "@/components/pages/list/wiki-pages-root";
 import { PagesListView } from "@/components/pages/pages-list-view";
 // plane web hooks
 import { EPageStoreType, usePageStore } from "@/hooks/store";
@@ -20,6 +20,7 @@ import type { Route } from "./+types/page";
 const getPageType = (pageType?: string | null): TPageNavigationTabs => {
   if (pageType === "private") return "private";
   if (pageType === "archived") return "archived";
+  if (pageType === "favorites") return "favorites";
   return "public";
 };
 
@@ -45,7 +46,13 @@ function WorkspaceWikiListPage({ params }: Route.ComponentProps) {
         canCreatePage={canCurrentUserCreatePage}
         emptyStateVariant="workspace_wiki"
       >
-        <PagesListRoot pageType={pageType} storeType={EPageStoreType.WORKSPACE} />
+        <WikiPagesListRoot
+          pageType={pageType}
+          storeType={EPageStoreType.WORKSPACE}
+          workspaceSlug={workspaceSlug}
+          buildPageHref={({ workspaceSlug: slug, pageId }) => `/${slug}/wiki/${pageId}`}
+          canCreatePage={canCurrentUserCreatePage}
+        />
       </PagesListView>
     </>
   );

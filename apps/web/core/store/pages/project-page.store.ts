@@ -39,6 +39,8 @@ export interface IProjectPageStore extends IBasePageStore<TProjectPage> {
   getCurrentProjectPageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
   getCurrentProjectPageIds: (projectId: string) => string[];
   getCurrentProjectFilteredPageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
+  /** Returns the parent chain of a Project Page from root → immediate parent. */
+  getPageParentChain: (pageId: string) => TProjectPage[];
   // actions
   fetchPagesList: (
     workspaceSlug: string,
@@ -175,6 +177,27 @@ export class ProjectPageStore implements IProjectPageStore {
    * @param {string} pageId
    */
   getPageById = computedFn((pageId: string) => this.data?.[pageId] || undefined);
+
+  /**
+   * @description walk the parent chain of a Project Page from root to immediate parent.
+   * Malformed cycles are detected with a visited set and broken by ignoring the
+   * offending link — this matches the server-side hierarchy guard so the UI
+   * never renders a corrupt breadcrumb.
+   */
+  getPageParentChain = computedFn((pageId: string): TProjectPage[] => {
+    const chain: TProjectPage[] = [];
+    const seen = new Set<string>();
+    let cursor = this.getPageById(pageId);
+    while (cursor?.parent_id) {
+      if (seen.has(cursor.parent_id)) break;
+      seen.add(cursor.parent_id);
+      const parent = this.getPageById(cursor.parent_id);
+      if (!parent) break;
+      chain.unshift(parent);
+      cursor = parent;
+    }
+    return chain;
+  });
 
   updateFilters = <T extends keyof TPageFilters>(filterKey: T, filterValue: TPageFilters[T]) => {
     runInAction(() => {
