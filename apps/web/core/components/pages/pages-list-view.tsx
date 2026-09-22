@@ -21,6 +21,7 @@ type TWorkspaceFetchPagesList = IWorkspacePageStore["fetchPagesList"];
 
 type TPageView = {
   children: React.ReactNode;
+  collectionsSection?: React.ReactNode;
   pageType: TPageNavigationTabs;
   storeType: EPageStoreTypeType;
   workspaceSlug: string;
@@ -39,6 +40,7 @@ type TPageView = {
 export const PagesListView = observer(function PagesListView(props: TPageView) {
   const {
     children,
+    collectionsSection,
     pageType,
     projectId,
     storeType,
@@ -76,6 +78,8 @@ export const PagesListView = observer(function PagesListView(props: TPageView) {
           buildTabHref={buildTabHref}
         />
       )}
+      {/* collections section */}
+      {collectionsSection && <div className="border-b border-subtle px-3 py-2">{collectionsSection}</div>}
       <PagesListMainContent
         pageType={pageType}
         storeType={storeType}

@@ -10,6 +10,7 @@ import { useSearchParams } from "next/navigation";
 import { useTranslation } from "@plane/i18n";
 import type { TPageNavigationTabs } from "@plane/types";
 // components
+import { CollectionsSection } from "@/components/pages/collections";
 import { PageHead } from "@/components/core/page-title";
 import { WikiPagesListRoot } from "@/components/pages/list/wiki-pages-root";
 import { PagesListView } from "@/components/pages/pages-list-view";
@@ -45,6 +46,13 @@ function WorkspaceWikiListPage({ params }: Route.ComponentProps) {
         buildPageHref={({ workspaceSlug: slug, pageId }) => `/${slug}/wiki/${pageId}`}
         canCreatePage={canCurrentUserCreatePage}
         emptyStateVariant="workspace_wiki"
+        collectionsSection={
+          <CollectionsSection
+            workspaceSlug={workspaceSlug}
+            buildPageHref={({ workspaceSlug: slug, pageId }) => `/${slug}/wiki/${pageId}`}
+            canCreatePage={canCurrentUserCreatePage}
+          />
+        }
       >
         <WikiPagesListRoot
           pageType={pageType}
