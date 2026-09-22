@@ -357,6 +357,14 @@ UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY")
 # Github Access Token
 GITHUB_ACCESS_TOKEN = os.environ.get("GITHUB_ACCESS_TOKEN", False)
 
+# Company Wiki (spec §29): Company Wiki is Workspace Wiki on a designated real
+# workspace resolved from this slug. Page.workspace stays non-null, so this is a
+# configuration pointer, not a storage scope.
+COMPANY_WIKI_WORKSPACE_SLUG = os.environ.get("COMPANY_WIKI_WORKSPACE_SLUG", "")
+# COMPANY_WIKI_OPEN_READ=true grants authenticated active users read-only access
+# to the designated workspace's Wiki pages. It never grants write/manage.
+COMPANY_WIKI_OPEN_READ = os.environ.get("COMPANY_WIKI_OPEN_READ", "0") == "1"
+
 # Analytics
 ANALYTICS_SECRET_KEY = os.environ.get("ANALYTICS_SECRET_KEY", False)
 ANALYTICS_BASE_API = os.environ.get("ANALYTICS_BASE_API", False)

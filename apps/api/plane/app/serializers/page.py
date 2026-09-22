@@ -133,6 +133,61 @@ class PageDetailSerializer(PageSerializer):
         fields = PageSerializer.Meta.fields + ["description_html"]
 
 
+class WorkspacePageSerializer(PageSerializer):
+    """Create/update a Workspace Wiki page (Company Wiki included).
+
+    A Wiki page is an ordinary ``Page`` row with ``is_global=True`` in a real
+    workspace and no ``ProjectPage`` relation. The workspace and owner are taken
+    from the request context so a caller can never create a page in another
+    workspace (spec §4.1).
+    """
+
+    sort_order = serializers.FloatField(required=False)
+    description_html = serializers.CharField(required=False, allow_blank=True)
+
+    class Meta(PageSerializer.Meta):
+        fields = [field for field in PageSerializer.Meta.fields if field != "project_ids"] + [
+            "description_html",
+            "sort_order",
+            "is_global",
+        ]
+        read_only_fields = ["workspace", "owned_by", "is_global", "label_ids"]
+
+    def create(self, validated_data):
+        labels = validated_data.pop("labels", None)
+        description_html = validated_data.pop("description_html", None)
+        workspace_id = self.context["workspace_id"]
+        owned_by_id = self.context["owned_by_id"]
+
+        page = Page.objects.create(
+            **validated_data,
+            description_json=self.context.get("description_json", {}),
+            description_binary=self.context.get("description_binary", None),
+            description_html=(
+                description_html if description_html is not None else self.context.get("description_html", "<p></p>")
+            ),
+            owned_by_id=owned_by_id,
+            workspace_id=workspace_id,
+            is_global=True,
+        )
+
+        if labels is not None:
+            PageLabel.objects.bulk_create(
+                [
+                    PageLabel(
+                        label=label,
+                        page=page,
+                        workspace_id=page.workspace_id,
+                        created_by_id=page.created_by_id,
+                        updated_by_id=page.updated_by_id,
+                    )
+                    for label in labels
+                ],
+                batch_size=10,
+            )
+        return page
+
+
 class PageVersionSerializer(BaseSerializer):
     class Meta:
         model = PageVersion
