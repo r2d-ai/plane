@@ -73,15 +73,22 @@ Do not:
 # 2. PR dependency graph
 
 ```text
-WIKI-01 Backend workspace-page core
+WIKI-00 Page scope foundation
+(workspace + instance semantics)
+          │
+          ▼
+WIKI-01 Wiki backend core
+(workspace + instance APIs)
           │
           ├──────────────┐
           ▼              ▼
-WIKI-02 Live         WIKI-03 Web shell/store
-collaboration             │
+WIKI-02 Live         WIKI-03 Web surfaces
+workspace_page       Workspace Wiki
+instance_page        Company Wiki
           └──────┬────────┘
                  ▼
         WIKI-04 Core UX + hardening
+        across all Page scopes
                  │
        ┌─────────┼──────────┐
        ▼         ▼          ▼
@@ -99,17 +106,151 @@ collaboration             │
        WIKI-10 AI/importers optional
 ```
 
-WIKI-01 through WIKI-04 form the **Core Wiki production milestone**.
+WIKI-00 through WIKI-04 form the **Core Wiki production milestone**.
 
-WIKI-05 onward form the **Commercial parity track**.
+Workspace Wiki follows Plane Commercial behavior as closely as practical. Company Wiki is a fork-specific instance-wide extension.
+
+WIKI-05 onward form the **Commercial parity / advanced extension track**.
 
 ---
 
-# 3. WIKI-01 — Workspace Page backend core
+# 3. WIKI-00 — Page scope foundation
 
 ## Goal
 
-Provide secure workspace-level Page APIs without changing Project Page behavior.
+Make the existing Page engine safely support three scopes before either Wiki API is considered stable:
+
+```text
+Project Page      = is_global=false, workspace!=NULL, ProjectPage relation
+Workspace Wiki    = is_global=true,  workspace!=NULL
+Company Wiki      = is_global=true,  workspace=NULL
+```
+
+This PR is deliberately schema/invariant focused. It should not ship a broad new Wiki UI.
+
+## 3.1 Make Page.workspace nullable
+
+Current:
+
+```python
+workspace = models.ForeignKey("db.Workspace", ..., null=False)
+```
+
+Target:
+
+- [ ] allow `workspace=NULL`;
+- [ ] only instance Pages may use null workspace;
+- [ ] retain all existing workspace IDs unchanged;
+- [ ] add/check invariant preventing null-workspace Project Pages;
+- [ ] add scope helper(s) rather than scattering `workspace_id is None` checks everywhere.
+
+Recommended helpers:
+
+```text
+page.is_project_page
+page.is_workspace_page
+page.is_instance_page
+```
+
+or an equivalent service-level scope resolver.
+
+Do not replace `is_global` across the entire upstream codebase in this PR.
+
+## 3.2 Audit Page-adjacent models
+
+- [ ] `PageVersion.workspace`: permit null or remove hard dependence through page-derived scope.
+- [ ] `PageLog.workspace`: permit instance Page logs.
+- [ ] `PageLabel`: leave workspace-only in Core V1; Company Wiki labels deferred.
+- [ ] favorites: verify they do not require workspace relation.
+- [ ] recent visits: verify instance scope.
+- [ ] export jobs: verify null workspace does not break serialization.
+- [ ] background Page version/log tasks: verify null workspace.
+
+## 3.3 Asset scope
+
+`FileAsset.workspace` is already nullable, but Page asset URL generation currently assumes workspace/project context.
+
+Tasks:
+
+- [ ] define instance Page asset URL contract;
+- [ ] add scope-aware asset authorization helper;
+- [ ] ensure Company Wiki assets never use a fake workspace;
+- [ ] ensure workspace/project asset URLs remain unchanged;
+- [ ] test cross-scope asset UUID access.
+
+Implementation of final route may land in WIKI-01, but the design must be fixed here.
+
+## 3.4 Hierarchy scope helper
+
+Common server-side validator must understand all three scopes.
+
+Reject:
+
+- instance parent -> workspace child;
+- workspace parent -> instance child;
+- project parent -> Wiki child;
+- Wiki parent -> project child;
+- different workspace parents;
+- self/descendant cycles.
+
+## 3.5 Scope regression tests
+
+Before feature APIs:
+
+- [ ] existing Project Page remains non-null workspace;
+- [ ] existing project page tests pass;
+- [ ] workspace Wiki fixture can exist with non-null workspace;
+- [ ] instance Page fixture can exist with null workspace;
+- [ ] invalid `workspace=NULL,is_global=false` rejected;
+- [ ] version/log creation works for instance Page;
+- [ ] model/service helpers classify all scopes correctly.
+
+## WIKI-00 acceptance
+
+The data layer can represent Company Wiki without synthetic workspaces and without changing existing Project Page behavior.
+
+---
+
+# 4. WIKI-01 — Workspace + Instance Wiki backend core
+
+## Goal
+
+Provide secure Wiki APIs for both **Workspace Wiki** and **Company Wiki** without changing Project Page behavior.
+
+Workspace Wiki is scoped by workspace membership. Company Wiki is instance-wide: all active authenticated users can read; write/manage is restricted to InstanceAdmin in Core V1.
+
+## 4.0 Add instance Wiki API path
+
+Company Wiki uses the same Page model but no workspace.
+
+Target internal endpoints:
+
+```text
+GET/POST /api/instance/wiki/pages/
+GET/PATCH/DELETE /api/instance/wiki/pages/<page_id>/
+GET/PATCH /api/instance/wiki/pages/<page_id>/description/
+POST/DELETE /api/instance/wiki/pages/<page_id>/archive/
+POST/DELETE /api/instance/wiki/pages/<page_id>/lock/
+GET /api/instance/wiki/pages/<page_id>/versions/
+GET /api/instance/wiki/pages/<page_id>/versions/<version_id>/
+POST /api/instance/wiki/pages/<page_id>/duplicate/
+```
+
+Tasks:
+
+- [ ] add `InstancePagePermission` or equivalent;
+- [ ] read requires authenticated active user;
+- [ ] create/edit/manage requires InstanceAdmin in Core V1;
+- [ ] queryset requires `workspace__isnull=True,is_global=True`;
+- [ ] serializer never accepts a workspace ID from client;
+- [ ] hierarchy only accepts other instance Pages;
+- [ ] use instance-specific asset route;
+- [ ] add title/content search independent of current workspace;
+- [ ] add instance-global favorites/recents behavior;
+- [ ] no workspace membership checks on Company Wiki;
+- [ ] anonymous access denied unless explicit publish feature is later enabled.
+
+Do not infer Company Wiki edit permission from Workspace Admin role.
 
 ## 3.1 Add workspace-specific serializer path
 
@@ -364,7 +505,7 @@ type TDocumentTypes = "project_page";
 Target:
 
 ```ts
-type TDocumentTypes = "project_page" | "workspace_page";
+type TDocumentTypes = "project_page" | "workspace_page" | "instance_page";
 ```
 
 Files:
@@ -375,12 +516,13 @@ apps/live/src/types/index.ts
 
 Shared request types already anticipate `workspace_page`; reuse them.
 
-## 4.2 Add WorkspacePageService
+## 5.2 Add WorkspacePageService and InstancePageService
 
 Create:
 
 ```text
 apps/live/src/services/page/workspace-page.service.ts
+apps/live/src/services/page/instance-page.service.ts
 ```
 
 Responsibilities:
@@ -404,6 +546,7 @@ Tasks:
 
 - [ ] dispatch `project_page`;
 - [ ] dispatch `workspace_page`;
+- [ ] dispatch `instance_page`;
 - [ ] reject unknown document types.
 
 ## 4.4 Authentication/authorization
@@ -458,7 +601,10 @@ Wiki and Project Pages can use the same live service concurrently with separate 
 
 ## Goal
 
-Expose first-class Workspace Wiki UI using existing Page components.
+Expose two first-class Wiki surfaces using existing Page components:
+
+- Workspace Wiki: `/:workspaceSlug/wiki`;
+- Company Wiki: `/company-wiki`, independent of workspace context.
 
 ## 5.1 Routes through existing extension seam
 
@@ -473,7 +619,12 @@ Target:
 ```text
 /:workspaceSlug/wiki
 /:workspaceSlug/wiki/:pageId
+
+/company-wiki
+/company-wiki/:pageId
 ```
+
+`/company-wiki` must be a standalone route under the authenticated app shell, not nested under `:workspaceSlug`. Add `company-wiki` to reserved workspace slugs to avoid route ambiguity.
 
 Create route components in an isolated Wiki area, for example:
 
@@ -486,7 +637,7 @@ apps/web/app/(all)/[workspaceSlug]/wiki/
 
 Actual physical path should follow current React Router conventions and route config constraints.
 
-## 5.2 Workspace page service
+## 6.2 Workspace + instance page services
 
 Create:
 
@@ -551,7 +702,7 @@ Responsibilities:
 
 Keep API surface as parallel to `ProjectPageStore` as reasonable.
 
-## 5.5 Root store registration
+## 6.5 Root store registration
 
 Current core root directly owns `projectPages`.
 
@@ -660,6 +811,22 @@ apps/web/app/assets/empty-state/wiki/
 
 Do not duplicate illustrations.
 
+## 6.11 Company Wiki UI
+
+Add an instance-scoped Page store/service or a shared Wiki store parameterized by scope.
+
+Required behavior:
+
+- [ ] canonical links are `/company-wiki/:pageId`;
+- [ ] workspace switcher does not change loaded Company Wiki content;
+- [ ] Company Wiki link is visible/reachable from every workspace;
+- [ ] normal users get read-only UI;
+- [ ] InstanceAdmin gets create/edit/reorder/lock/archive controls;
+- [ ] editor connects with `documentType: "instance_page"`;
+- [ ] no `workspaceSlug` or `projectId` is sent for instance collaboration;
+- [ ] search/favorites are instance-global;
+- [ ] header/breadcrumb visibly says **Company Wiki** to avoid confusing it with current workspace Wiki.
+
 ## WIKI-03 acceptance
 
 - Wiki route loads natively;
@@ -674,7 +841,7 @@ Do not duplicate illustrations.
 
 ## Goal
 
-Finish the production-usable Wiki milestone.
+Finish the production-usable Wiki milestone for **both Workspace Wiki and Company Wiki**.
 
 ## 6.1 Wiki navigation sections
 
@@ -793,7 +960,7 @@ Archived page
 Locked page
 ```
 
-Exercise all IDs from wrong user/workspace against:
+Exercise all IDs from wrong user/workspace/scope against:
 
 - metadata API;
 - description API;
@@ -814,6 +981,8 @@ WIKI-01..04 merge only when:
 - [ ] web lint/types pass;
 - [ ] project Page regression passes;
 - [ ] no known BOLA leak;
+- [ ] no cross-scope Page/asset/version leak;
+- [ ] Company Wiki is readable across workspaces but not anonymously;
 - [ ] hierarchy cannot cycle.
 
 ---
@@ -1423,6 +1592,7 @@ Agent C: security/contract tests for WIKI-01
 Merge order:
 
 ```text
+WIKI-00
 WIKI-01
 WIKI-02
 WIKI-03
@@ -1461,11 +1631,14 @@ Keep commits similarly scoped.
 
 Before WIKI-01 code begins, reviewer should approve these architecture decisions:
 
-- [ ] Reuse `Page`; no `WikiPage`.
-- [ ] `Page.is_global=True` denotes workspace Wiki.
+- [ ] Reuse `Page`; no duplicate Wiki content table.
+- [ ] Project Page = `is_global=False, workspace!=NULL`.
+- [ ] Workspace Wiki = `is_global=True, workspace!=NULL`.
+- [ ] Company Wiki = `is_global=True, workspace=NULL`.
+- [ ] Do not create a hidden/fake workspace for Company Wiki.
 - [ ] Wiki implemented as native compile-time extension, not external Plane App.
 - [ ] Use existing Page editor/live stack.
-- [ ] Core Wiki milestone = WIKI-01..04.
+- [ ] Core Wiki milestone = WIKI-00..04.
 - [ ] Sharing/Collections added after core, but permission architecture anticipates them.
 - [ ] AI/importers are not Core Wiki blockers.
 - [ ] No generic plugin framework in P0.
