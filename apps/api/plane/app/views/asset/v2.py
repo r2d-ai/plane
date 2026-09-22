@@ -19,9 +19,10 @@ from rest_framework.permissions import AllowAny
 
 # Module imports
 from ..base import BaseAPIView
-from plane.db.models import FileAsset, Workspace, Project, User, WorkspaceMember, ProjectMember
+from plane.db.models import FileAsset, Page, Workspace, Project, User, WorkspaceMember, ProjectMember
 from plane.settings.storage import S3Storage
 from plane.app.permissions import allow_permission, ROLE
+from plane.utils.page_access import can_view_page
 from plane.utils.cache import invalidate_cache_directly
 from plane.utils.path_validator import sanitize_filename
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
@@ -324,6 +325,12 @@ class WorkspaceFileAssetEndpoint(BaseAPIView):
         always allowed.
         """
         if asset.project_id is None:
+            # A Wiki page asset carries a page_id but no project_id, so the
+            # project rule above cannot see it. Enforce the effective page
+            # capability instead: a private page's attachment must not leak
+            # through this workspace-level endpoint (spec §6.5, §22.3).
+            if asset.page_id is not None:
+                return self.has_page_asset_access(request, asset)
             return True
         # Scope the membership lookup to the asset's workspace as well as its
         # project, mirroring allow_permission's PROJECT branch. This prevents a
@@ -336,6 +343,29 @@ class WorkspaceFileAssetEndpoint(BaseAPIView):
             project_id=asset.project_id,
             is_active=True,
         ).exists()
+
+    @staticmethod
+    def has_page_asset_access(request, asset):
+        """Effective page access for a page-bound asset (WIKI-06).
+
+        Only Wiki pages are checked here: project-page assets already carry a
+        project_id and are handled by the project rule. A page outside the
+        caller's capability (private and unshared, or behind a private
+        Collection boundary) is denied.
+        """
+        page = (
+            Page.objects.filter(
+                id=asset.page_id,
+                workspace_id=asset.workspace_id,
+                is_global=True,
+                deleted_at__isnull=True,
+            )
+            .select_related("workspace")
+            .first()
+        )
+        if page is None:
+            return True
+        return can_view_page(request.user, page, page.workspace)
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
     def post(self, request, slug):
@@ -877,6 +907,15 @@ class WorkspaceAssetDownloadEndpoint(BaseAPIView):
                 is_uploaded=True,
             )
         except FileAsset.DoesNotExist:
+            return Response(
+                {"error": "The requested asset could not be found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Page-bound Wiki assets inherit the page's effective access so a
+        # private page's attachment cannot be downloaded by a member without a
+        # share (spec §6.5, §22.3).
+        if asset.page_id is not None and not WorkspaceFileAssetEndpoint.has_page_asset_access(request, asset):
             return Response(
                 {"error": "The requested asset could not be found."},
                 status=status.HTTP_404_NOT_FOUND,

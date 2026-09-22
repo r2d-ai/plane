@@ -55,6 +55,7 @@ from .page import (
     PageCollectionPage,
     PageLabel,
     PageLog,
+    PageShare,
     ProjectPage,
     PageVersion,
 )

@@ -10,21 +10,31 @@ membership is workspace-scoped and every lookup is scoped by workspace slug +
 ``is_global=True`` + not-deleted so a page UUID cannot be resolved outside the
 URL workspace (BOLA/IDOR invariant, spec §6.2).
 
+The action -> capability mapping is the *only* page authorization policy in the
+backend: every decision delegates to :func:`get_page_capabilities` /
+:func:`can_manage_page` (WIKI-06, plan §9.2), so REST, search, realtime (which
+calls REST), comments and assets can never drift apart.
+
 Company Wiki is the same Workspace Wiki on the workspace designated by
 ``COMPANY_WIKI_WORKSPACE_SLUG``. ``COMPANY_WIKI_OPEN_READ`` adds a read-only
 override for authenticated active non-members of that workspace; it never
 grants write, lock, archive or manage.
 """
 
-from django.conf import settings
 
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
-from plane.db.models import Page, Workspace, WorkspaceMember
+from plane.db.models import Page, Workspace
 
 from plane.app.permissions import ROLE
-from plane.utils.page_access import Capability, effective_capability
+from plane.utils.page_access import (
+    Capability,
+    can_manage_page,
+    company_wiki_open_read,
+    get_page_capabilities,
+    resolve_workspace_role,
+)
 
 
 ADMIN = ROLE.ADMIN.value
@@ -42,20 +52,26 @@ READ_ACTIONS = {
     "versions",
     "version_detail",
 }
-# Actions that mutate the page but are allowed to members as well as admins.
-WRITE_ACTIONS = {
-    "create",
+# Actions that change page content/metadata and therefore need EDIT.
+EDIT_ACTIONS = {
     "update",
     "partial_update",
-    "access",
+    "description_update",
+    "duplicate",
     "lock",
     "unlock",
     "archive",
     "unarchive",
-    "duplicate",
-    "description_update",
     "favorite_create",
     "favorite_destroy",
+}
+# Access-management actions reserved for the page owner or workspace admin.
+MANAGE_ACTIONS = {
+    "access",
+    "share_list",
+    "share_add",
+    "share_update",
+    "share_remove",
 }
 # Destructive actions reserved for workspace admins (page owners may still
 # delete their own archived page; enforced in the view).
@@ -68,7 +84,8 @@ class WorkspacePagePermission(BasePermission):
     message = "You don't have the required permissions."
 
     def has_permission(self, request, view):
-        if request.user.is_anonymous or not request.user.is_active:
+        user = request.user
+        if user.is_anonymous or not user.is_active:
             return False
 
         slug = view.kwargs.get("slug")
@@ -79,70 +96,67 @@ class WorkspacePagePermission(BasePermission):
         if workspace is None:
             return False
 
-        role = (
-            WorkspaceMember.objects.filter(
-                workspace=workspace,
-                member=request.user,
-                is_active=True,
-            )
-            .values_list("role", flat=True)
-            .first()
-        )
-
+        role = resolve_workspace_role(workspace.id, user.id)
         action = getattr(view, "action", None)
         method = request.method
+        is_read = action in READ_ACTIONS or (action is None and method in SAFE_METHODS)
 
-        if action in READ_ACTIONS or (action is None and method in SAFE_METHODS):
-            if role in READ_ROLES:
-                allowed = True
-            elif self._is_open_read(slug):
-                # Read-only override for the designated Company Wiki workspace.
-                allowed = True
-            else:
+        if is_read:
+            # Read-only override for the designated Company Wiki workspace.
+            if role is None and not company_wiki_open_read(workspace):
                 return False
         elif action in ADMIN_ACTIONS or (action is None and method == "DELETE"):
             # Deleting an archived Wiki page stays with workspace admins.
-            allowed = role == ADMIN
-        elif action in WRITE_ACTIONS or method not in SAFE_METHODS:
-            # Membership is required for every write; open-read never weakens it.
-            allowed = role in WRITE_ROLES
+            if role != ADMIN:
+                return False
         else:
-            allowed = False
-
-        if not allowed:
-            return False
+            # Membership is required for every write; open-read never weakens
+            # it. A direct EDIT share also requires the member to be in the
+            # workspace, so an anonymous/non-member can never write.
+            if role is None:
+                return False
 
         page_id = view.kwargs.get("page_id")
-        if page_id:
-            return self._check_page_scope(request, workspace, page_id, role)
-        return True
+        if not page_id:
+            # No page to scope (list/create): creation stays member/admin only.
+            if not is_read and role not in WRITE_ROLES:
+                return False
+            return True
+
+        return self._check_page_capability(request, workspace, page_id, role, action, method)
 
     @staticmethod
-    def _is_open_read(slug):
-        return bool(settings.COMPANY_WIKI_OPEN_READ and settings.COMPANY_WIKI_WORKSPACE_SLUG) and (
-            slug == settings.COMPANY_WIKI_WORKSPACE_SLUG
-        )
+    def _check_page_capability(request, workspace, page_id, role, action, method):
+        """Resolve the page in the URL workspace and enforce the action capability.
 
-    @staticmethod
-    def _check_page_scope(request, workspace, page_id, role=None):
-        """Resolve the page inside the URL workspace and apply effective access.
-
-        A page that is not a Wiki page of the URL workspace is reported as
-        not-found so a foreign UUID cannot be probed. Access is then decided by
-        the centralized effective-capability algorithm, which folds in page
-        privacy and private Collection boundaries; anything below VIEW is
-        reported as not-found (spec §6.5).
+        A page outside the workspace/Wiki scope, or below VIEW, is reported as
+        not-found so a foreign UUID cannot be probed (spec §6.2, §6.5). The
+        per-action capability then distinguishes read / edit / manage.
         """
-        page = Page.objects.filter(
-            id=page_id,
-            workspace=workspace,
-            is_global=True,
-            deleted_at__isnull=True,
-        ).first()
+        page = (
+            Page.objects.filter(
+                id=page_id,
+                workspace=workspace,
+                is_global=True,
+                deleted_at__isnull=True,
+            )
+            .select_related("workspace")
+            .first()
+        )
         if page is None:
             raise NotFound("Page not found")
 
-        if effective_capability(request.user, page, workspace, workspace_role=role) < Capability.VIEW:
+        capability = get_page_capabilities(request.user, page, workspace, workspace_role=role)
+        if capability < Capability.VIEW:
             raise NotFound("Page not found")
+
+        if action in ADMIN_ACTIONS or (action is None and method == "DELETE"):
+            return True
+
+        if action in MANAGE_ACTIONS:
+            return can_manage_page(request.user, page, workspace, workspace_role=role)
+
+        if action in EDIT_ACTIONS or (action is None and method not in SAFE_METHODS):
+            return capability >= Capability.EDIT
 
         return True

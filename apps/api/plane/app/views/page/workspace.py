@@ -12,6 +12,7 @@ so there is no separate instance API, permission class or service.
 
 # Python imports
 import json
+import uuid
 from datetime import datetime
 
 from django.core.serializers.json import DjangoJSONEncoder
@@ -38,16 +39,23 @@ from rest_framework.response import Response
 from plane.app.permissions import WorkspacePagePermission
 from plane.app.serializers import (
     PageBinaryUpdateSerializer,
+    PageShareSerializer,
     WorkspacePageSerializer,
 )
 from plane.db.models import (
     Page,
     PageLog,
+    PageShare,
     UserFavorite,
     Workspace,
+    WorkspaceMember,
 )
 from plane.utils.error_codes import ERROR_CODES
-from plane.utils.page_access import hidden_page_ids, resolve_workspace_role
+from plane.utils.page_access import (
+    can_view_page,
+    filter_visible_pages,
+    resolve_workspace_role,
+)
 from plane.utils.page_hierarchy import PageHierarchyError, validate_page_parent
 
 from plane.bgtasks.page_transaction_task import page_transaction
@@ -69,6 +77,8 @@ ORDER_BY_ALLOWLIST = {
     "sort_order",
     "-sort_order",
 }
+
+VALID_SHARE_ROLES = {PageShare.VIEW, PageShare.COMMENT, PageShare.EDIT}
 
 
 def _hierarchy_error_response(exc):
@@ -100,7 +110,6 @@ class WorkspacePageViewSet(BaseViewSet):
                 is_global=True,
                 deleted_at__isnull=True,
             )
-            .filter(Q(owned_by=user) | Q(access=Page.PUBLIC_ACCESS))
             .select_related("workspace")
             .select_related("owned_by")
             .prefetch_related("labels")
@@ -122,18 +131,18 @@ class WorkspacePageViewSet(BaseViewSet):
         if order_by not in ORDER_BY_ALLOWLIST:
             raise ValidationError({"error": "Invalid order_by value", "error_code": "INVALID_ORDER_BY"})
 
-        # Private Collection boundaries hide whole subtrees. The helper is a
-        # no-op (zero extra queries) when the workspace has no private
-        # Collection, so the pre-Collections list path is unchanged.
+        # Single visibility path (plan §9.2): owned + public + direct-share
+        # pages, minus whole subtrees behind a private Collection boundary. Both
+        # helpers are no-ops (zero extra queries) when the workspace has no
+        # private Collection and the user has no share, so the pre-WIKI-06 list
+        # path keeps its query plan.
         workspace = Workspace.objects.filter(slug=self.kwargs.get("slug"), deleted_at__isnull=True).first()
-        if workspace is not None:
-            hidden = hidden_page_ids(
-                workspace,
-                user,
-                workspace_role=resolve_workspace_role(workspace.id, user.id),
-            )
-            if hidden:
-                queryset = queryset.exclude(id__in=hidden)
+        queryset = filter_visible_pages(
+            queryset,
+            user,
+            workspace,
+            workspace_role=resolve_workspace_role(workspace.id, user.id) if workspace is not None else None,
+        )
 
         queryset = queryset.order_by("-is_favorite", order_by)
 
@@ -182,23 +191,29 @@ class WorkspacePageViewSet(BaseViewSet):
             .first()
         )
 
-    def _get_page(self, slug, page_id, *, include_archived=False, include_private=False):
+    def _get_page(self, slug, page_id, *, include_archived=False):
         """Resolve a page inside the URL workspace's Wiki scope.
 
-        The permission class has already asserted the caller may see this page,
-        so this only pins the lookup to the workspace and the Wiki scope.
+        The permission class has already asserted the caller's capability for
+        the action; this pins the lookup to the workspace + Wiki scope and
+        applies the centralized VIEW check so a private page reached without an
+        explicit share stays invisible (spec §6.5).
         """
-        page = Page.objects.filter(
-            id=page_id,
-            workspace__slug=slug,
-            is_global=True,
-            deleted_at__isnull=True,
-        ).first()
+        page = (
+            Page.objects.filter(
+                id=page_id,
+                workspace__slug=slug,
+                is_global=True,
+                deleted_at__isnull=True,
+            )
+            .select_related("workspace")
+            .first()
+        )
         if page is None:
             return None
         if not include_archived and page.archived_at is not None:
             return None
-        if not include_private and page.access == Page.PRIVATE_ACCESS and page.owned_by_id != self.request.user.id:
+        if not can_view_page(self.request.user, page, page.workspace):
             return None
         return page
 
@@ -357,14 +372,109 @@ class WorkspacePageViewSet(BaseViewSet):
         if page is None:
             return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if page.owned_by_id != request.user.id and page.access != request.data.get("access", page.access):
+        # The permission class already required MANAGE (owner/admin).
+        access = request.data.get("access", Page.PUBLIC_ACCESS)
+        if access not in (Page.PUBLIC_ACCESS, Page.PRIVATE_ACCESS):
+            return Response({"error": "Invalid access value"}, status=status.HTTP_400_BAD_REQUEST)
+
+        page.access = access
+        page.save(update_fields=["access"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # -- direct sharing (WIKI-06, plan §9.1) -----------------------------
+    @staticmethod
+    def _log_share_activity(page, actor, action, share):
+        """Record a share change on the Page-adjacent audit log (spec §20).
+
+        ``PageLog`` is Plane's Page audit primitive, so share changes reuse it
+        instead of introducing a second event store.
+        """
+        PageLog.objects.create(
+            transaction=uuid.uuid4(),
+            page=page,
+            entity_name="share",
+            entity_type=action,
+            entity_identifier=share.member_id,
+            workspace=page.workspace,
+            created_by=actor,
+            updated_by=actor,
+        )
+
+    def share_list(self, request, slug, page_id):
+        page = self._get_page(slug, page_id)
+        if page is None:
+            return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        shares = PageShare.objects.filter(page=page, deleted_at__isnull=True).select_related("member")
+        return Response(PageShareSerializer(shares, many=True).data, status=status.HTTP_200_OK)
+
+    def share_add(self, request, slug, page_id):
+        page = self._get_page(slug, page_id)
+        if page is None:
+            return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        workspace = page.workspace
+        member_id = request.data.get("member")
+        role = request.data.get("role", PageShare.VIEW)
+        if role not in VALID_SHARE_ROLES:
+            return Response({"error": "Invalid role"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Same-workspace validation (spec §5.3): only active members of the
+        # page's workspace can be shared with.
+        if not member_id or not WorkspaceMember.objects.filter(
+            workspace=workspace, member_id=member_id, is_active=True
+        ).exists():
             return Response(
-                {"error": "Access cannot be updated since this page is owned by someone else"},
+                {"error": "Member must be an active member of this workspace"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        page.access = request.data.get("access", Page.PUBLIC_ACCESS)
-        page.save()
+        existing = PageShare.all_objects.filter(page=page, member_id=member_id).first()
+        if existing is not None:
+            existing.deleted_at = None
+            existing.workspace = workspace
+            existing.role = role
+            existing.save()
+            share = existing
+        else:
+            share = PageShare.objects.create(
+                page=page,
+                member_id=member_id,
+                workspace=workspace,
+                role=role,
+            )
+        self._log_share_activity(page, request.user, "created", share)
+        return Response(PageShareSerializer(share).data, status=status.HTTP_201_CREATED)
+
+    def share_update(self, request, slug, page_id, share_id):
+        page = self._get_page(slug, page_id)
+        if page is None:
+            return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        share = PageShare.objects.filter(id=share_id, page=page, deleted_at__isnull=True).first()
+        if share is None:
+            return Response({"error": "Share not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        role = request.data.get("role", share.role)
+        if role not in VALID_SHARE_ROLES:
+            return Response({"error": "Invalid role"}, status=status.HTTP_400_BAD_REQUEST)
+
+        share.role = role
+        share.save()
+        self._log_share_activity(page, request.user, "updated", share)
+        return Response(PageShareSerializer(share).data, status=status.HTTP_200_OK)
+
+    def share_remove(self, request, slug, page_id, share_id):
+        page = self._get_page(slug, page_id)
+        if page is None:
+            return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        share = PageShare.objects.filter(id=share_id, page=page, deleted_at__isnull=True).first()
+        if share is None:
+            return Response({"error": "Share not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        share.delete()
+        self._log_share_activity(page, request.user, "removed", share)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def destroy(self, request, slug, page_id):
@@ -396,16 +506,19 @@ class WorkspacePagesDescriptionViewSet(BaseViewSet):
     permission_classes = [WorkspacePagePermission]
 
     def _get_page(self, slug, page_id):
-        return (
+        page = (
             Page.objects.filter(
                 id=page_id,
                 workspace__slug=slug,
                 is_global=True,
                 deleted_at__isnull=True,
             )
-            .filter(Q(owned_by=self.request.user) | Q(access=Page.PUBLIC_ACCESS))
+            .select_related("workspace")
             .first()
         )
+        if page is None or not can_view_page(self.request.user, page, page.workspace):
+            return None
+        return page
 
     def retrieve(self, request, slug, page_id):
         page = self._get_page(slug, page_id)
@@ -502,8 +615,8 @@ class WorkspacePageDuplicateEndpoint(BaseAPIView):
         if page is None:
             return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if page.access == Page.PRIVATE_ACCESS and page.owned_by_id != request.user.id:
-            return Response({"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+        # Authorization is the permission class's job (EDIT on the page); a
+        # private page reached without a share was already reported as missing.
 
         page.pk = None
         page.name = f"{page.name} (Copy)"
