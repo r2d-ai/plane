@@ -4,7 +4,7 @@
 >
 > Depends on: [wiki-ce-spec.md](./wiki-ce-spec.md)
 >
-> Target branch for implementation: create feature branches from `preview` after this plan is approved.
+> Implementation baseline: create feature branches from pinned `r2d-ai/plane:preview` SHA `02c19e1341d93141e8ad7b3278298adce208bafc` after this plan is approved. Do not automatically follow a moving `preview` branch.
 >
 > Planning principle: small reviewable PRs, no large “Wiki mega-PR”.
 
@@ -17,28 +17,27 @@
 Use Plane's existing Page stack as the kernel.
 
 ```text
-                         Page
-                          │
-              ┌───────────┴────────────┐
-              │                        │
-        Project Page               Workspace Wiki
-        is_global=false            is_global=true
-              │                        │
-         ProjectPage                Workspace
-              │                        │
-         Project RBAC              Wiki ACL
-              │                        │
-              └────────────┬───────────┘
-                           │
-                    Shared Page Engine
-                           │
-        ┌──────────────────┼──────────────────┐
-        │                  │                  │
-      Editor            Versions            Assets
-        │
-       Yjs
-        │
-    Hocuspocus
+                                  Page
+                                   │
+                 ┌─────────────────┼─────────────────┐
+                 │                 │                 │
+          Project Page       Workspace Wiki      Company Wiki
+       is_global=false       is_global=true      is_global=true
+       workspace!=NULL      workspace!=NULL     workspace=NULL
+                 │                 │                 │
+           ProjectPage        Workspace RBAC      Instance RBAC
+                 │                 │                 │
+                 └─────────────────┼─────────────────┘
+                                   │
+                            Shared Page Engine
+                                   │
+                 ┌─────────────────┼─────────────────┐
+                 │                 │                 │
+               Editor           Versions           Assets
+                 │
+                Yjs
+                 │
+             Hocuspocus
 ```
 
 ### 1.2 Extension model
@@ -55,7 +54,39 @@ Existing extension seams to prefer:
 
 Core files should only be changed when there is no registration seam.
 
-### 1.3 Anti-goals
+### 1.3 Baseline validation gate
+
+Before WIKI-00 starts, validate the pinned preview baseline **without Wiki changes**.
+
+Required checks:
+
+- [ ] `pnpm check`;
+- [ ] `pnpm build`;
+- [ ] backend contract/unit test stack;
+- [ ] build the self-host images used by the deployment;
+- [ ] start the deployment stack;
+- [ ] authenticate successfully;
+- [ ] open workspace/project routes;
+- [ ] create/open/edit an existing Project Page;
+- [ ] verify Page realtime collaboration;
+- [ ] upload/render a Page asset;
+- [ ] verify reverse-proxy/static-app routes.
+
+Record:
+
+- pinned SHA;
+- test/build result;
+- deployment result;
+- known pre-existing failures.
+
+Baseline decision:
+
+- continue on pinned preview if this gate passes;
+- fallback to upstream `master` v1.4.2 only if preview has a concrete blocker in the actual deployment/runtime.
+
+The fallback must be an explicit architecture decision, not an agent-local workaround.
+
+### 1.4 Anti-goals
 
 Do not:
 
@@ -827,6 +858,64 @@ Required behavior:
 - [ ] search/favorites are instance-global;
 - [ ] header/breadcrumb visibly says **Company Wiki** to avoid confusing it with current workspace Wiki.
 
+## 6.12 UI conformity implementation tasks
+
+This is a required part of WIKI-03, not a later polish task.
+
+### Reuse existing Plane components
+
+- [ ] list shell uses existing `PagesListView` / `PagesListRoot` patterns;
+- [ ] detail uses shared `PageRoot`;
+- [ ] document editor uses shared Page editor body/header/toolbar;
+- [ ] header uses existing `Header` + `Breadcrumbs`;
+- [ ] actions reuse `PageHeaderActions`;
+- [ ] sync status reuses `PageSyncingBadge`;
+- [ ] access indicator reuses `PageAccessIcon` where applicable;
+- [ ] right pane reuses `PageNavigationPaneRoot`;
+- [ ] versions reuse existing Page version UI;
+- [ ] empty/loading/error states reuse existing Plane components/assets.
+
+### Design system rules
+
+- [ ] use `@makeplane/propel` where the adjacent preview code already migrated;
+- [ ] preserve `@plane/ui` / `@plane/propel` wrappers where the reused Page component still uses them;
+- [ ] do not perform broad design-system migration inside Wiki PR;
+- [ ] no new component library;
+- [ ] no hard-coded application colors;
+- [ ] use semantic Plane classes such as `bg-surface-*`, `border-subtle`, `text-primary/secondary/tertiary`, `rounded-sm`, `text-13`, `px-page-x`.
+
+### Scope clarity
+
+- [ ] Workspace Wiki breadcrumb visibly identifies current Workspace + Wiki;
+- [ ] Company Wiki header/breadcrumb says Company Wiki and never inserts fake workspace context;
+- [ ] sidebar labels distinguish `Company Wiki` from `Wiki`;
+- [ ] Company Wiki link remains canonical when switching workspaces.
+
+### Responsive/theme
+
+- [ ] light theme;
+- [ ] dark theme;
+- [ ] 1440px;
+- [ ] 1024px;
+- [ ] 768px/narrow viewport;
+- [ ] no unbounded tree indentation/overflow.
+
+### Visual review
+
+For each new Wiki screen, capture the nearest native Plane reference screen at the same viewport/theme.
+
+Minimum pairs:
+
+```text
+Workspace Wiki list  <-> Project Pages list
+Wiki page detail     <-> Project Page detail
+Wiki header          <-> Page list/detail header
+Wiki sidebar item    <-> existing workspace sidebar item
+Wiki navigation pane <-> existing Page navigation pane
+```
+
+A UI PR must explain any deliberate deviation from the native reference.
+
 ## WIKI-03 acceptance
 
 - Wiki route loads natively;
@@ -971,6 +1060,18 @@ Exercise all IDs from wrong user/workspace/scope against:
 - favorite;
 - search;
 - websocket.
+
+## 7.10 Visual regression gate
+
+Before WIKI-04 is complete:
+
+- [ ] compare Workspace Wiki against Project Pages at matching viewport/theme;
+- [ ] compare Company Wiki against the same Page primitives;
+- [ ] confirm no duplicate editor/header/action implementations were introduced;
+- [ ] confirm all new tree/Collection-specific controls use current Plane density/tokens;
+- [ ] verify light/dark empty states;
+- [ ] verify readonly Company Wiki looks native rather than disabled/broken;
+- [ ] verify current Project Page visual behavior did not change unintentionally.
 
 ## Core milestone gate
 
@@ -1644,3 +1745,65 @@ Before WIKI-01 code begins, reviewer should approve these architecture decisions
 - [ ] No generic plugin framework in P0.
 
 Once these are approved, WIKI-01 can be converted into granular GitHub issues/tasks and implementation can start.
+
+
+---
+
+# 22. Upstream baseline and sync policy
+
+## Current decision
+
+Implementation base:
+
+```text
+r2d-ai/plane:preview
+02c19e1341d93141e8ad7b3278298adce208bafc
+```
+
+This SHA exactly matches `makeplane/plane:preview` as reviewed on 2026-09-22.
+
+Stable comparison point:
+
+```text
+makeplane/plane:master
+5f7d92784c403f76284f0f16718f320221dc7fec
+release v1.4.2
+```
+
+## Why preview is preferred
+
+- current fork has zero baseline divergence from upstream preview;
+- Page model/store/live architecture used by Wiki remains stable relative to v1.4.2;
+- preview includes Page list ordering hardening and other security fixes;
+- preview already uses the next UI stack direction: React 19, React Router 8 and Propel migration;
+- implementing UI on v1.4.2 would create avoidable migration work immediately afterward.
+
+## Preview-specific risk
+
+Preview also includes infrastructure/toolchain movement:
+
+- web/admin static serving nginx -> Caddy;
+- Node/pnpm updates;
+- Docker image hardening;
+- pinned Quay MinIO image.
+
+Root/community compose topology does not show a broad service contract change, but the actual deployment gate is mandatory.
+
+## Sync rule during Wiki development
+
+Do not rebase every Wiki PR onto a moving preview.
+
+Use dedicated upstream-sync PRs:
+
+1. compare pinned baseline with latest upstream preview;
+2. classify changes:
+   - security;
+   - Page/editor;
+   - design system;
+   - migrations;
+   - deployment;
+   - unrelated;
+3. run baseline + Wiki regression suite;
+4. merge the upstream sync only after review.
+
+This keeps coding-agent work deterministic and avoids mixing feature defects with upstream churn.
