@@ -716,12 +716,14 @@ class SearchEndpoint(BaseAPIView):
                     wiki_member_filter = Q(
                         is_global=True,
                         access=Page.PUBLIC_ACCESS,
+                        archived_at__isnull=True,
                         workspace__slug=slug,
                         workspace__workspace_member__member=self.request.user,
                         workspace__workspace_member__is_active=True,
                     )
 
                     project_filter = Q(
+                        archived_at__isnull=True,
                         projects__project_projectmember__member=self.request.user,
                         projects__project_projectmember__is_active=True,
                         workspace__slug=slug,
