@@ -11,6 +11,7 @@ import { COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import type { TPageNavigationTabs } from "@plane/types";
 // components
+import { CollectionsSection } from "@/components/pages/collections";
 import { PageHead } from "@/components/core/page-title";
 import { CompanyWikiRouteScope } from "@/components/pages/company-wiki-route-scope";
 import { WikiPagesListRoot } from "@/components/pages/list/wiki-pages-root";
@@ -55,6 +56,16 @@ const CompanyWikiListPage = observer(function CompanyWikiListPage() {
         buildPageHref={({ pageId }) => `/company-wiki/${pageId}`}
         canCreatePage={canCurrentUserCreatePage}
         emptyStateVariant="company_wiki"
+        collectionsSection={
+          workspaceSlug ? (
+            <CollectionsSection
+              workspaceSlug={workspaceSlug}
+              isCompanyWiki
+              buildPageHref={({ pageId }) => `/company-wiki/${pageId}`}
+              canCreatePage={canCurrentUserCreatePage}
+            />
+          ) : undefined
+        }
       >
         <WikiPagesListRoot
           pageType={pageType}

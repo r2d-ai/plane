@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
-import { ArchiveRestoreIcon, FileOutput, LockKeyhole, LockKeyholeOpen } from "lucide-react";
+import { ArchiveRestoreIcon, FileOutput, FolderInput, LockKeyhole, LockKeyholeOpen } from "lucide-react";
 // constants
 import { EPageAccess } from "@plane/constants";
 // plane editor
@@ -18,6 +18,7 @@ import { ContextMenu, CustomMenu } from "@plane/ui";
 // components
 import { cn } from "@plane/utils";
 import { DeletePageModal } from "@/components/pages/modals/delete-page-modal";
+import { MovePageToCollectionModal } from "@/components/pages/collections";
 // hooks
 import { usePageOperations } from "@/hooks/use-page-operations";
 // plane web hooks
@@ -39,7 +40,8 @@ export type TPageActions =
   | "delete"
   | "version-history"
   | "export"
-  | "move";
+  | "move"
+  | "move-to-collection";
 
 type Props = {
   extraOptions?: (TContextMenuItem & { key: TPageActions })[];
@@ -53,12 +55,13 @@ export const PageActions = observer(function PageActions(props: Props) {
   const { extraOptions, optionsOrder, page, parentRef, storeType } = props;
   // states
   const [deletePageModal, setDeletePageModal] = useState(false);
-  const [movePageModal, setMovePageModal] = useState(false);
+  const [moveToCollectionModal, setMoveToCollectionModal] = useState(false);
   // params
-  const { workspaceSlug } = useParams();
+  const { workspaceSlug: rawWorkspaceSlug } = useParams();
+  const workspaceSlug = rawWorkspaceSlug?.toString() ?? "";
   // page flag
   const { isMovePageEnabled } = usePageFlag({
-    workspaceSlug: workspaceSlug?.toString() ?? "",
+    workspaceSlug,
   });
   // page operations
   const { pageOperations } = usePageOperations({
@@ -146,6 +149,13 @@ export const PageActions = observer(function PageActions(props: Props) {
           icon: FileOutput,
           shouldRender: canCurrentUserMovePage && isMovePageEnabled,
         },
+        {
+          key: "move-to-collection",
+          action: () => setMoveToCollectionModal(true),
+          title: "Move to Collection",
+          icon: FolderInput,
+          shouldRender: !archived_at && canCurrentUserChangeAccess,
+        },
       ];
       if (extraOptions) {
         menuItems.push(...extraOptions);
@@ -184,6 +194,14 @@ export const PageActions = observer(function PageActions(props: Props) {
         page={page}
         storeType={storeType}
       />
+      {workspaceSlug && page.id && (
+        <MovePageToCollectionModal
+          isOpen={moveToCollectionModal}
+          onClose={() => setMoveToCollectionModal(false)}
+          workspaceSlug={workspaceSlug}
+          pageId={page.id}
+        />
+      )}
       {parentRef && <ContextMenu parentRef={parentRef} items={arrangedOptions} />}
       <CustomMenu placement="bottom-end" optionsClassName="max-h-[90vh]" ellipsis closeOnSelect>
         {arrangedOptions.map((item) => {
