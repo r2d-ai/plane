@@ -445,6 +445,57 @@ class PageShare(BaseModel):
         return f"{self.page_id} {self.member_id} {self.role}"
 
 
+class PageComment(BaseModel):
+    """Page-level comment for Workspace/Company Wiki pages (spec §5.4, §14).
+
+    Permissions derive from effective Page access. The owner of a comment may
+    edit or delete it. Replies are supported via ``parent`` self-FK for
+    threaded conversations.
+    """
+
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_comments")
+    page = models.ForeignKey(Page, on_delete=models.CASCADE, related_name="page_comments")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="page_comments",
+    )
+    comment_html = models.TextField(blank=True, default="<p></p>")
+    comment_json = models.JSONField(default=dict, blank=True)
+    comment_stripped = models.TextField(blank=True, null=True)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="parent_page_comment",
+    )
+    edited_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Page Comment"
+        verbose_name_plural = "Page Comments"
+        db_table = "page_comments"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["page", "created_at"], name="page_comment_page_created_idx"),
+            models.Index(fields=["workspace", "page"], name="page_comment_ws_page_idx"),
+        ]
+
+    def save(self, *args, **kwargs):
+        from plane.utils.html_processor import strip_tags
+
+        self.comment_stripped = (
+            None
+            if (self.comment_html == "" or self.comment_html is None)
+            else strip_tags(self.comment_html)
+        )
+        super(PageComment, self).save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.page_id} by {self.actor_id}"
+
+
 class PageVersion(BaseModel):
     workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_versions")
     page = models.ForeignKey("db.Page", on_delete=models.CASCADE, related_name="page_versions")

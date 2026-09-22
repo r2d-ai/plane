@@ -17,6 +17,7 @@ from plane.app.views import (
     WorkspacePageDuplicateEndpoint,
     WorkspacePageVersionEndpoint,
     PageCollectionViewSet,
+    PageCommentViewSet,
 )
 
 urlpatterns = [
@@ -179,5 +180,16 @@ urlpatterns = [
         "workspaces/<str:slug>/page-collections/<uuid:collection_id>/pages/<uuid:page_id>/",
         PageCollectionViewSet.as_view({"post": "page_move", "patch": "page_move", "delete": "page_remove"}),
         name="workspace-page-collection-page",
+    ),
+    # Page comments (WIKI-06b, spec §5.4, §14).
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/comments/",
+        PageCommentViewSet.as_view({"get": "list", "post": "create"}),
+        name="workspace-page-comments",
+    ),
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/comments/<uuid:comment_id>/",
+        PageCommentViewSet.as_view({"patch": "partial_update", "delete": "destroy"}),
+        name="workspace-page-comment",
     ),
 ]

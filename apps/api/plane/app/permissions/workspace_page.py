@@ -25,7 +25,7 @@ grants write, lock, archive or manage.
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
-from plane.db.models import Page, Workspace
+from plane.db.models import Page, PageComment, Workspace
 
 from plane.app.permissions import ROLE
 from plane.utils.page_access import (
@@ -51,6 +51,7 @@ READ_ACTIONS = {
     "summary",
     "versions",
     "version_detail",
+    "comment_list",
 }
 # Actions that change page content/metadata and therefore need EDIT.
 EDIT_ACTIONS = {
@@ -64,6 +65,8 @@ EDIT_ACTIONS = {
     "unarchive",
     "favorite_create",
     "favorite_destroy",
+    "comment_create",
+    "comment_update",
 }
 # Access-management actions reserved for the page owner or workspace admin.
 MANAGE_ACTIONS = {
@@ -72,6 +75,7 @@ MANAGE_ACTIONS = {
     "share_add",
     "share_update",
     "share_remove",
+    "comment_destroy",
 }
 # Destructive actions reserved for workspace admins (page owners may still
 # delete their own archived page; enforced in the view).
@@ -152,6 +156,19 @@ class WorkspacePagePermission(BasePermission):
 
         if action in ADMIN_ACTIONS or (action is None and method == "DELETE"):
             return True
+
+        # Comment authors may edit/delete their own comments even without MANAGE.
+        if action in ("comment_update", "comment_destroy"):
+            comment_id = request.parser_context.kwargs.get("comment_id")
+            if comment_id:
+                is_author = PageComment.objects.filter(
+                    id=comment_id,
+                    page_id=page_id,
+                    actor_id=request.user.id,
+                    deleted_at__isnull=True,
+                ).exists()
+                if is_author:
+                    return True
 
         if action in MANAGE_ACTIONS:
             return can_manage_page(request.user, page, workspace, workspace_role=role)
