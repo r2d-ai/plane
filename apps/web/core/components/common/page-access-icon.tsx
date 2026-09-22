@@ -8,10 +8,11 @@ import { ArchiveIcon, Earth } from "lucide-react";
 import { EPageAccess } from "@plane/constants";
 import { LockIcon } from "@plane/propel/icons";
 import type { TPage } from "@plane/types";
+import { cn } from "@plane/utils";
 
-export function PageAccessIcon(page: TPage) {
+export function PageAccessIcon(page: TPage, className?: string) {
   return (
-    <div>
+    <div className={cn("grid place-items-center", className)}>
       {page.archived_at ? (
         <ArchiveIcon className="h-2.5 w-2.5 text-tertiary" />
       ) : page.access === EPageAccess.PUBLIC ? (

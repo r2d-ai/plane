@@ -32,6 +32,8 @@ export interface IWorkspacePageStore extends IBasePageStore<TWorkspacePage> {
   // helper actions
   getCurrentWorkspacePageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
   getCurrentWorkspaceFilteredPageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
+  /** Returns the parent chain of a Wiki page from root → immediate parent. */
+  getPageParentChain: (pageId: string) => TWorkspacePage[];
   // actions
   fetchPagesList: (workspaceSlug: string, pageType?: TPageNavigationTabs) => Promise<TPage[] | undefined>;
   fetchPageDetails: (
@@ -39,6 +41,13 @@ export interface IWorkspacePageStore extends IBasePageStore<TWorkspacePage> {
     pageId: string,
     options?: { trackVisit?: boolean }
   ) => Promise<TPage | undefined>;
+  /**
+   * Move a Wiki page in the hierarchy. `newParentId === null` detaches the page
+   * from its current parent. `sortOrder` optionally reorders it among its new
+   * siblings. The update is optimistic on the local store, but the server is
+   * the source of truth: any hierarchy violation rolls the UI back.
+   */
+  movePage: (params: { pageId: string; newParentId: string | null; sortOrder?: number }) => Promise<TPage | undefined>;
 }
 
 export class WorkspacePageStore implements IWorkspacePageStore {
@@ -73,6 +82,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
       fetchPageDetails: action,
       createPage: action,
       removePage: action,
+      movePage: action,
     });
     this.rootStore = store;
     // service
@@ -139,6 +149,27 @@ export class WorkspacePageStore implements IWorkspacePageStore {
    * @param {string} pageId
    */
   getPageById = computedFn((pageId: string) => this.data?.[pageId] || undefined);
+
+  /**
+   * @description walk the parent chain of a Wiki page from root to immediate parent.
+   * Malformed cycles are detected with a visited set and broken by ignoring the
+   * offending link — this matches the server-side hierarchy guard so the UI
+   * never renders a corrupt breadcrumb.
+   */
+  getPageParentChain = computedFn((pageId: string): TWorkspacePage[] => {
+    const chain: TWorkspacePage[] = [];
+    const seen = new Set<string>();
+    let cursor = this.getPageById(pageId);
+    while (cursor?.parent_id) {
+      if (seen.has(cursor.parent_id)) break;
+      seen.add(cursor.parent_id);
+      const parent = this.getPageById(cursor.parent_id);
+      if (!parent) break;
+      chain.unshift(parent);
+      cursor = parent;
+    }
+    return chain;
+  });
 
   updateFilters = <T extends keyof TPageFilters>(filterKey: T, filterValue: TPageFilters[T]) => {
     runInAction(() => {
@@ -292,6 +323,58 @@ export class WorkspacePageStore implements IWorkspacePageStore {
         this.error = {
           title: "Failed",
           description: "Failed to delete a page, Please try again later.",
+        };
+      });
+      throw error;
+    }
+  };
+
+  /**
+   * @description Reparent a Wiki page (WIKI-04a §7.2).
+   *
+   * The new parent id is applied optimistically to the in-memory page so the
+   * tree view can re-render before the round-trip completes. The server is
+   * authoritative: any hierarchy violation surfaces here and we roll the
+   * local store back to its previous `parent_id`.
+   */
+  movePage = async (params: {
+    pageId: string;
+    newParentId: string | null;
+    sortOrder?: number;
+  }): Promise<TPage | undefined> => {
+    const { pageId, newParentId, sortOrder } = params;
+    const { workspaceSlug } = this.store.router;
+    if (!workspaceSlug || !pageId) return undefined;
+    const page = this.data?.[pageId];
+    if (!page) return undefined;
+    const previousParentId = page.parent_id ?? null;
+    const previousSortOrder = page.sort_order;
+
+    runInAction(() => {
+      page.parent_id = newParentId;
+      if (sortOrder !== undefined) page.sort_order = sortOrder;
+      this.loader = "mutation-loader";
+    });
+
+    try {
+      const updated = await this.service.move(workspaceSlug, pageId, {
+        parent: newParentId,
+        ...(sortOrder !== undefined ? { sort_order: sortOrder } : {}),
+      });
+      runInAction(() => {
+        if (updated) page.mutateProperties(updated, false);
+        this.loader = undefined;
+      });
+      return updated;
+    } catch (error) {
+      runInAction(() => {
+        // server rejected the move; restore prior position and order
+        page.parent_id = previousParentId;
+        page.sort_order = previousSortOrder;
+        this.loader = undefined;
+        this.error = {
+          title: "Failed",
+          description: "Failed to move the page, Please try again later.",
         };
       });
       throw error;

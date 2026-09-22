@@ -19,6 +19,7 @@ import type { TPage } from "@plane/types";
 import { Breadcrumbs, Header } from "@plane/ui";
 // components
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
+import { WikiSearchInput } from "@/components/pages/list/wiki-search-input";
 // hooks
 // plane web imports
 import { EPageStoreType, usePageStore } from "@/hooks/store";
@@ -48,6 +49,7 @@ export const CompanyWikiListHeader = observer(function CompanyWikiListHeader() {
       .then((res) => {
         const href = `/company-wiki/${res?.id}`;
         router.push(href);
+        return res;
       })
       .catch((err) => {
         setToast({
@@ -76,13 +78,21 @@ export const CompanyWikiListHeader = observer(function CompanyWikiListHeader() {
           />
         </Breadcrumbs>
       </Header.LeftItem>
-      {canCurrentUserCreatePage && designatedWorkspaceSlug && (
-        <Header.RightItem>
-          <Button variant="primary" size="lg" onClick={handleCreatePage} loading={isCreatingPage}>
-            {isCreatingPage ? t("common.adding") : t("wiki.actions.add_page")}
-          </Button>
-        </Header.RightItem>
-      )}
+      <div className="flex flex-1 items-center justify-end gap-3">
+        {designatedWorkspaceSlug && (
+          <WikiSearchInput
+            workspaceSlug={designatedWorkspaceSlug}
+            buildPageHref={({ pageId }) => `/company-wiki/${pageId}`}
+          />
+        )}
+        {canCurrentUserCreatePage && designatedWorkspaceSlug && (
+          <Header.RightItem>
+            <Button variant="primary" size="lg" onClick={handleCreatePage} loading={isCreatingPage}>
+              {isCreatingPage ? t("common.adding") : t("wiki.actions.add_page")}
+            </Button>
+          </Header.RightItem>
+        )}
+      </div>
     </Header>
   );
 });

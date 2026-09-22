@@ -96,6 +96,7 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
       .then((res) => {
         const href = resolvePageHref(res?.id);
         if (href) router.push(href);
+        return res;
       })
       .catch((err) => {
         setToast({
@@ -116,6 +117,13 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
           description: t("settings_empty_state.wiki.archived.description"),
         };
       }
+      if (tab === "favorites") {
+        return {
+          title: t("settings_empty_state.wiki.favorites.title"),
+          description: t("settings_empty_state.wiki.favorites.description"),
+          cta: t("settings_empty_state.wiki.favorites.cta_primary"),
+        };
+      }
       const bucket = tab === "private" ? "private" : "public";
       return {
         title: t(`settings_empty_state.wiki.${bucket}.title`),
@@ -130,6 +138,12 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
           description: t("settings_empty_state.wiki.company_wiki.archived.description"),
         };
       }
+      if (tab === "favorites") {
+        return {
+          title: t("settings_empty_state.wiki.company_wiki.favorites.title"),
+          description: t("settings_empty_state.wiki.company_wiki.favorites.description"),
+        };
+      }
       const bucket = tab === "private" ? "private" : "public";
       return {
         title: t(`settings_empty_state.wiki.company_wiki.${bucket}.title`),
@@ -142,6 +156,13 @@ export const PagesListMainContent = observer(function PagesListMainContent(props
       return {
         title: t("project_empty_state.archive_pages.title"),
         description: t("project_empty_state.archive_pages.description"),
+      };
+    }
+    if (tab === "favorites") {
+      return {
+        title: t("settings_empty_state.wiki.favorites.title"),
+        description: t("settings_empty_state.wiki.favorites.description"),
+        cta: t("settings_empty_state.wiki.favorites.cta_primary"),
       };
     }
     return {

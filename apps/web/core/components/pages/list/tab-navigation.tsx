@@ -34,6 +34,7 @@ export const PageTabNavigation = observer(function PageTabNavigation(props: TPag
     { key: "public", label: t("wiki.tabs.public") },
     { key: "private", label: t("wiki.tabs.private") },
     { key: "archived", label: t("wiki.tabs.archived") },
+    { key: "favorites", label: t("wiki.tabs.favorites") },
   ];
 
   const handleTabClick = (e: React.MouseEvent<HTMLAnchorElement>, tabKey: TPageNavigationTabs) => {

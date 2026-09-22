@@ -31,6 +31,7 @@ import type { Route } from "./+types/page";
 const getPageType = (pageType?: string | null): TPageNavigationTabs => {
   if (pageType === "private") return "private";
   if (pageType === "archived") return "archived";
+  if (pageType === "favorites") return "favorites";
   return "public";
 };
 
