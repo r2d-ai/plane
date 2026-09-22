@@ -53,6 +53,10 @@ def _duplicate_url(slug, page_id):
     return f"/api/workspaces/{slug}/pages/{page_id}/duplicate/"
 
 
+def _favorite_url(slug, page_id):
+    return f"/api/workspaces/{slug}/favorite-pages/{page_id}/"
+
+
 def _entity_search_url(slug):
     return f"/api/workspaces/{slug}/entity-search/"
 
@@ -377,6 +381,232 @@ class TestWorkspacePageAccessControl:
         response = api_client.post(_pages_url(workspace.slug), {"name": "Nope"}, format="json")
 
         assert response.status_code == 403
+
+
+@pytest.mark.contract
+class TestWorkspacePageCoreSecurityGate:
+    """WIKI-04c §7.9: cross-user, cross-workspace and cross-scope regression gate."""
+
+    @staticmethod
+    def _ids(response):
+        return {row["id"] for row in response.json()}
+
+    @pytest.fixture
+    def security_matrix(self, workspace, create_user):
+        user_a = create_user
+        user_b = _make_member(workspace, _make_user("wiki-user-b@plane.so"), role=15)
+        guest = _make_member(workspace, _make_user("wiki-guest@plane.so"), role=5)
+        user_c = _make_user("wiki-user-c@plane.so")
+        other_workspace = Workspace.objects.create(name="Workspace 2", slug="workspace-2", owner=user_c)
+        WorkspaceMember.objects.create(workspace=other_workspace, member=user_c, role=20)
+
+        public_page = _make_wiki_page(workspace, user_a, name="Public W1")
+        private_page = _make_wiki_page(workspace, user_a, name="Private W1", access=Page.PRIVATE_ACCESS)
+        private_child = _make_wiki_page(
+            workspace,
+            user_a,
+            name="Nested private child",
+            access=Page.PRIVATE_ACCESS,
+            parent=private_page,
+        )
+        archived_page = _make_wiki_page(workspace, user_a, name="Archived W1")
+        archived_page.archived_at = timezone.now()
+        archived_page.save(update_fields=["archived_at"])
+        locked_page = _make_wiki_page(workspace, user_a, name="Locked W1")
+        locked_page.is_locked = True
+        locked_page.save(update_fields=["is_locked"])
+        foreign_page = _make_wiki_page(other_workspace, user_c, name="Workspace 2 foreign")
+
+        project = Project.objects.create(name="Project", identifier="PRJ", workspace=workspace)
+        project_page = Page.objects.create(workspace=workspace, owned_by=user_a, name="Project Page")
+        ProjectPage.objects.create(workspace=workspace, project=project, page=project_page)
+
+        version = PageVersion.objects.create(
+            workspace=workspace,
+            page=public_page,
+            owned_by=user_a,
+            description_html="<p>public version</p>",
+        )
+        private_version = PageVersion.objects.create(
+            workspace=workspace,
+            page=private_page,
+            owned_by=user_a,
+            description_html="<p>private version</p>",
+        )
+        foreign_version = PageVersion.objects.create(
+            workspace=other_workspace,
+            page=foreign_page,
+            owned_by=user_c,
+            description_html="<p>foreign version</p>",
+        )
+
+        return {
+            "user_a": user_a,
+            "user_b": user_b,
+            "guest": guest,
+            "user_c": user_c,
+            "workspace": workspace,
+            "other_workspace": other_workspace,
+            "public_page": public_page,
+            "private_page": private_page,
+            "private_child": private_child,
+            "archived_page": archived_page,
+            "locked_page": locked_page,
+            "foreign_page": foreign_page,
+            "project_page": project_page,
+            "version": version,
+            "private_version": private_version,
+            "foreign_version": foreign_version,
+        }
+
+    @pytest.mark.django_db
+    def test_private_and_nested_private_denied_across_metadata_description_versions_and_mutations(
+        self, api_client, security_matrix
+    ):
+        matrix = security_matrix
+        api_client.force_authenticate(user=matrix["user_b"])
+
+        for page in (matrix["private_page"], matrix["private_child"]):
+            assert api_client.get(_page_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert (
+                api_client.patch(
+                    _page_url(matrix["workspace"].slug, page.id), {"name": "Leak"}, format="json"
+                ).status_code
+                == 404
+            )
+            assert api_client.get(_description_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert (
+                api_client.patch(
+                    _description_url(matrix["workspace"].slug, page.id),
+                    {"description_html": "<p>leak</p>"},
+                    format="json",
+                ).status_code
+                == 404
+            )
+            assert api_client.get(_versions_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert api_client.post(_archive_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert api_client.post(_lock_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert api_client.post(_duplicate_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert api_client.post(_favorite_url(matrix["workspace"].slug, page.id)).status_code == 404
+
+        assert (
+            api_client.get(
+                _versions_url(matrix["workspace"].slug, matrix["public_page"].id, matrix["private_version"].id)
+            ).status_code
+            == 404
+        )
+
+        response = api_client.get(_pages_url(matrix["workspace"].slug))
+        assert response.status_code == 200
+        ids = self._ids(response)
+        assert str(matrix["private_page"].id) not in ids
+        assert str(matrix["private_child"].id) not in ids
+
+    @pytest.mark.django_db
+    def test_cross_workspace_and_project_scope_ids_denied_across_wiki_routes(self, api_client, security_matrix):
+        matrix = security_matrix
+        api_client.force_authenticate(user=matrix["user_a"])
+
+        wrong_scope_pages = (matrix["foreign_page"], matrix["project_page"])
+        for page in wrong_scope_pages:
+            assert api_client.get(_page_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert api_client.get(_description_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert api_client.get(_versions_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert api_client.post(_archive_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert api_client.post(_lock_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert api_client.post(_duplicate_url(matrix["workspace"].slug, page.id)).status_code == 404
+            assert api_client.post(_favorite_url(matrix["workspace"].slug, page.id)).status_code == 404
+
+        assert (
+            api_client.get(
+                _versions_url(matrix["workspace"].slug, matrix["public_page"].id, matrix["foreign_version"].id)
+            ).status_code
+            == 404
+        )
+
+    @pytest.mark.django_db
+    def test_guest_can_read_public_metadata_but_cannot_write_or_favorite(self, api_client, security_matrix):
+        matrix = security_matrix
+        api_client.force_authenticate(user=matrix["guest"])
+
+        assert api_client.get(_page_url(matrix["workspace"].slug, matrix["public_page"].id)).status_code == 200
+        assert api_client.get(_description_url(matrix["workspace"].slug, matrix["public_page"].id)).status_code == 200
+        assert api_client.get(_versions_url(matrix["workspace"].slug, matrix["public_page"].id)).status_code == 200
+        assert (
+            api_client.get(
+                _versions_url(matrix["workspace"].slug, matrix["public_page"].id, matrix["version"].id)
+            ).status_code
+            == 200
+        )
+
+        assert (
+            api_client.post(
+                _pages_url(matrix["workspace"].slug), {"name": "Guest write"}, format="json"
+            ).status_code
+            == 403
+        )
+        assert (
+            api_client.patch(
+                _description_url(matrix["workspace"].slug, matrix["public_page"].id),
+                {"description_html": "<p>guest</p>"},
+                format="json",
+            ).status_code
+            == 403
+        )
+        assert api_client.post(_archive_url(matrix["workspace"].slug, matrix["public_page"].id)).status_code == 403
+        assert api_client.post(_lock_url(matrix["workspace"].slug, matrix["public_page"].id)).status_code == 403
+        assert api_client.post(_duplicate_url(matrix["workspace"].slug, matrix["public_page"].id)).status_code == 403
+        assert api_client.post(_favorite_url(matrix["workspace"].slug, matrix["public_page"].id)).status_code == 403
+
+    @pytest.mark.django_db
+    def test_archived_and_locked_pages_do_not_expand_access(self, api_client, security_matrix):
+        matrix = security_matrix
+        api_client.force_authenticate(user=matrix["user_b"])
+
+        response = api_client.get(_pages_url(matrix["workspace"].slug))
+        assert response.status_code == 200
+        assert str(matrix["archived_page"].id) not in self._ids(response)
+
+        assert (
+            api_client.patch(
+                _description_url(matrix["workspace"].slug, matrix["locked_page"].id),
+                {"description_html": "<p>locked</p>"},
+                format="json",
+            ).status_code
+            == 400
+        )
+
+        api_client.force_authenticate(user=matrix["user_a"])
+        response = api_client.get(_pages_url(matrix["workspace"].slug), {"archived": "true"})
+        assert response.status_code == 200
+        assert str(matrix["archived_page"].id) in self._ids(response)
+        assert (
+            api_client.patch(
+                _description_url(matrix["workspace"].slug, matrix["archived_page"].id),
+                {"description_html": "<p>archived</p>"},
+                format="json",
+            ).status_code
+            == 400
+        )
+
+    @pytest.mark.django_db
+    def test_search_never_leaks_private_archived_or_cross_workspace_pages(self, api_client, security_matrix):
+        matrix = security_matrix
+        api_client.force_authenticate(user=matrix["user_b"])
+
+        response = api_client.get(
+            _entity_search_url(matrix["workspace"].slug),
+            {"query": "W1", "query_type": "page", "count": 20},
+        )
+
+        assert response.status_code == 200
+        ids = {row["id"] for row in response.json().get("page", [])}
+        assert str(matrix["public_page"].id) in ids
+        assert str(matrix["locked_page"].id) in ids
+        assert str(matrix["private_page"].id) not in ids
+        assert str(matrix["private_child"].id) not in ids
+        assert str(matrix["archived_page"].id) not in ids
+        assert str(matrix["foreign_page"].id) not in ids
 
 
 @pytest.mark.contract
