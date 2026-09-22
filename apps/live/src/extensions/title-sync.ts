@@ -22,7 +22,7 @@ import { AppError } from "@/lib/errors";
 import { getPageService } from "@/services/page/handler";
 import type { HocusPocusServerContext, OnLoadDocumentPayloadWithContext } from "@/types";
 import { broadcastMessageToPage } from "@/utils/broadcast-message";
-import { TitleUpdateManager } from "./title-update/title-update-manager";
+import { TitleUpdateManager, isTitleWriteForbidden } from "./title-update/title-update-manager";
 
 /**
  * Hocuspocus extension for synchronizing document titles
@@ -62,6 +62,13 @@ export class TitleSyncExtension implements Extension {
       const appError = new AppError(error, {
         context: { operation: "onLoadDocument", documentName },
       });
+      // A locked / forbidden / private page is an authorization outcome, not a
+      // transport failure: the document stays readable only through the API's
+      // own permission gate and title migration must not be forced through.
+      if (isTitleWriteForbidden(appError)) {
+        logger.warn(`Title migration skipped for document ${documentName}: effective permission does not allow access`);
+        return;
+      }
       logger.error("Error loading document title", appError);
     }
   }
