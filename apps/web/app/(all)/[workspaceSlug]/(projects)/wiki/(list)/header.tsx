@@ -19,7 +19,7 @@ import type { TPage } from "@plane/types";
 import { Breadcrumbs, Header } from "@plane/ui";
 // components
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
-import { WikiSearchInput } from "@/components/pages/list/wiki-search-input";
+import { WikiGlobalSearchTrigger } from "@/components/pages/list/wiki-global-search-trigger";
 import { PageTemplatesModal } from "@/components/pages/templates";
 // hooks
 // plane web imports
@@ -86,12 +86,7 @@ export const WikiListHeader = observer(function WikiListHeader() {
         </Breadcrumbs>
       </Header.LeftItem>
       <div className="flex flex-1 items-center justify-end gap-3">
-        {workspaceSlug && (
-          <WikiSearchInput
-            workspaceSlug={workspaceSlug.toString()}
-            buildPageHref={({ workspaceSlug: slug, pageId }) => `/${slug}/wiki/${pageId}`}
-          />
-        )}
+        <WikiGlobalSearchTrigger />
         {canCurrentUserCreatePage && workspace && (
           <Header.RightItem>
             <Button variant="secondary" size="lg" onClick={() => setIsTemplatesModalOpen(true)}>

@@ -60,6 +60,7 @@ function WorkspaceWikiListPage({ params }: Route.ComponentProps) {
           workspaceSlug={workspaceSlug}
           buildPageHref={({ workspaceSlug: slug, pageId }) => `/${slug}/wiki/${pageId}`}
           canCreatePage={canCurrentUserCreatePage}
+          variant="workspace"
         />
       </PagesListView>
     </>

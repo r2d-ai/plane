@@ -94,6 +94,18 @@
     },
     "search_placeholder": "Search Wiki pages",
     "search_no_results": "No pages match your search.",
+    "search_unified_label": "Search pages",
+    "search_unified_hint": "Use the search bar above (⌘F) to find wiki pages across your workspace.",
+    "mentions": {
+      "section_title": "Wiki pages"
+    },
+    "home": {
+      "workspace_title": "Workspace Wiki",
+      "workspace_description": "Browse, organize, and link your team's knowledge in a hierarchical page tree.",
+      "company_title": "Company Wiki",
+      "company_description": "Instance-wide documentation shared across every workspace.",
+      "page_count": "{count} {count, plural, one {page} other {pages}}"
+    },
     "tree": {
       "root_label": "Wiki pages",
       "empty_state": "No pages in this section yet.",

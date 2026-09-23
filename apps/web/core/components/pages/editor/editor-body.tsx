@@ -36,7 +36,7 @@ import { useParseEditorContent } from "@/hooks/use-parse-editor-content";
 import type { TCustomEventHandlers } from "@/hooks/use-realtime-page-events";
 import { useRealtimePageEvents } from "@/hooks/use-realtime-page-events";
 import type { TExtendedEditorExtensionsConfig } from "@/hooks/pages";
-import type { EPageStoreType } from "@/hooks/store";
+import { EPageStoreType, usePageStore } from "@/hooks/store";
 import { useEditorFlagging } from "@/hooks/use-editor-flagging";
 // store
 import type { TPageInstance } from "@/store/pages/base-page";
@@ -97,6 +97,7 @@ export const PageEditorBody = observer(function PageEditorBody(props: Props) {
   const { data: currentUser } = useUser();
   const { getWorkspaceBySlug } = useWorkspace();
   const { getUserDetails } = useMember();
+  const { getPageById } = usePageStore(storeType);
   // derived values
   const {
     id: pageId,
@@ -290,7 +291,13 @@ export const PageEditorBody = observer(function PageEditorBody(props: Props) {
               },
               // oxlint-disable-next-line no-shadow
               renderComponent: (props) => <EditorMentionsRoot {...props} />,
-              getMentionedEntityDetails: (id: string) => ({ display_name: getUserDetails(id)?.display_name ?? "" }),
+              getMentionedEntityDetails: (id: string) => {
+                const pageName = getPageById(id)?.name?.trim();
+                if (pageName) return { display_name: pageName };
+                const userName = getUserDetails(id)?.display_name;
+                if (userName) return { display_name: userName };
+                return undefined;
+              },
             }}
             updatePageProperties={updatePageProperties}
             realtimeConfig={realtimeConfig}
