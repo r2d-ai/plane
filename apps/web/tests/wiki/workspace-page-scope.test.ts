@@ -165,3 +165,85 @@ test("store page mutations target the active scope, not the router scope", async
   await store.removePage({ pageId: "home-page" });
   expect(removeSpy).toHaveBeenCalledWith("home", "home-page");
 });
+
+test("store removePage and movePage use the entity's source slug when active scope and router point elsewhere", async () => {
+  const moveSpy = vi.spyOn(WorkspacePageService.prototype, "move").mockResolvedValue({} as TPage);
+  const removeSpy = vi.spyOn(WorkspacePageService.prototype, "remove").mockResolvedValue();
+  const { root, setWorkspaceSlug } = createFakeRootStore("home");
+  const store = new WorkspacePageStore(root as unknown as CoreRootStore);
+
+  // a "home" entity can outlive a scope switch (e.g. a create response that
+  // lands after the store moved on): seed it while the active scope is "mkt"
+  store.activateScope("mkt");
+  runInAction(() => {
+    store.data["home-page"] = new WorkspacePage(root as unknown as RootStore, homePage, "home");
+  });
+  setWorkspaceSlug("ops");
+
+  await store.movePage({ pageId: "home-page", newParentId: null });
+  expect(moveSpy).toHaveBeenCalledWith("home", "home-page", { parent: null });
+
+  await store.removePage({ pageId: "home-page" });
+  expect(removeSpy).toHaveBeenCalledWith("home", "home-page");
+});
+
+test("a fetch for another scope implicitly activates it and delivers its response", async () => {
+  const mktResponse = createDeferred<TPage[]>();
+  vi.spyOn(WorkspacePageService.prototype, "fetchAll").mockImplementation(async (workspaceSlug) => {
+    if (workspaceSlug === "home") return [homePage];
+    return await mktResponse.promise;
+  });
+  const { root } = createFakeRootStore("home");
+  const store = new WorkspacePageStore(root as unknown as CoreRootStore);
+
+  await store.fetchPagesList("home");
+  store.updateFilters("searchQuery", "handbook");
+
+  // no explicit activateScope: the fetch itself switches the scope
+  const mktFetch = store.fetchPagesList("mkt");
+  expect(store.activeWorkspaceSlug).toBe("mkt");
+  expect(store.getPageById("home-page")).toBeUndefined();
+  expect(store.filters.searchQuery).toBe("");
+
+  mktResponse.resolve([mktPage]);
+  await mktFetch;
+  expect(store.getPageById("mkt-page")).toBeDefined();
+});
+
+test("a mid-flight scope switch leaves state owned by the new scope", async () => {
+  const homeResponse = createDeferred<TPage[]>();
+  vi.spyOn(WorkspacePageService.prototype, "fetchAll").mockImplementation(async (workspaceSlug) => {
+    if (workspaceSlug === "home") return await homeResponse.promise;
+    return [mktPage];
+  });
+  const { root, setWorkspaceSlug } = createFakeRootStore("home");
+  const store = new WorkspacePageStore(root as unknown as CoreRootStore);
+
+  setWorkspaceSlug("mkt");
+  const homeFetch = store.fetchPagesList("home");
+  // the user switches scope mid-flight; the switch is itself a fetch
+  await store.fetchPagesList("mkt");
+  homeResponse.resolve([homePage]);
+  await homeFetch;
+
+  expect(store.activeWorkspaceSlug).toBe("mkt");
+  expect(store.getPageById("mkt-page")).toBeDefined();
+  expect(store.getPageById("home-page")).toBeUndefined();
+  // the ignored response must not leave the active scope stuck loading
+  expect(store.loader).toBeUndefined();
+});
+
+test("a same-scope refetch keeps existing data and the user's search query", async () => {
+  vi.spyOn(WorkspacePageService.prototype, "fetchAll").mockResolvedValue([homePage]);
+  const { root } = createFakeRootStore("home");
+  const store = new WorkspacePageStore(root as unknown as CoreRootStore);
+
+  await store.fetchPagesList("home");
+  store.updateFilters("searchQuery", "handbook");
+
+  await store.fetchPagesList("home");
+
+  expect(store.activeWorkspaceSlug).toBe("home");
+  expect(store.getPageById("home-page")).toBeDefined();
+  expect(store.filters.searchQuery).toBe("handbook");
+});

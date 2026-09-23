@@ -34,6 +34,10 @@ const DEFAULT_PAGE_FILTERS: TPageFilters = {
 
 export const WORKSPACE_WIKI_CREATE_PAGE_ROLES: EUserPermissions[] = [EUserPermissions.ADMIN, EUserPermissions.MEMBER];
 
+/**
+ * Scope contract: fetches implicitly activate their scope; a response whose
+ * slug differs from the active scope is ignored.
+ */
 export interface IWorkspacePageStore extends IBasePageStore<TWorkspacePage> {
   // scope
   activeWorkspaceSlug: string | undefined;
@@ -196,15 +200,17 @@ export class WorkspacePageStore implements IWorkspacePageStore {
     });
 
   /**
-   * @description switch the store to a workspace scope: stale data and filters
-   * are cleared and the active slug recorded atomically before the caller
-   * fetches the new scope
+   * @description switch the store to a workspace scope: stale data, filters,
+   * loader and error are cleared and the active slug recorded atomically
+   * before the caller fetches the new scope
    */
   activateScope = (workspaceSlug: string) => {
     runInAction(() => {
       this.data = {};
       this.filters = { ...DEFAULT_PAGE_FILTERS };
       this.activeWorkspaceSlug = workspaceSlug;
+      this.loader = undefined;
+      this.error = undefined;
     });
   };
 
@@ -214,6 +220,9 @@ export class WorkspacePageStore implements IWorkspacePageStore {
   fetchPagesList = async (workspaceSlug: string, pageType?: TPageNavigationTabs) => {
     try {
       if (!workspaceSlug) return undefined;
+      // fetches implicitly activate their scope; a same-scope refetch keeps
+      // the displayed data and the user's filters
+      if (this.activeWorkspaceSlug !== workspaceSlug) this.activateScope(workspaceSlug);
 
       const currentPageIds = pageType ? this.getCurrentWorkspacePageIdsByTab(pageType) : undefined;
       runInAction(() => {
@@ -263,6 +272,9 @@ export class WorkspacePageStore implements IWorkspacePageStore {
     const { trackVisit } = options || {};
     try {
       if (!workspaceSlug || !pageId) return undefined;
+      // fetches implicitly activate their scope; a same-scope refetch keeps
+      // the displayed data and the user's filters
+      if (this.activeWorkspaceSlug !== workspaceSlug) this.activateScope(workspaceSlug);
 
       const currentPageId = this.getPageById(pageId);
       runInAction(() => {
@@ -340,7 +352,9 @@ export class WorkspacePageStore implements IWorkspacePageStore {
    */
   removePage = async ({ pageId, shouldSync: _shouldSync = true }: { pageId: string; shouldSync?: boolean }) => {
     try {
-      const workspaceSlug = this.activeWorkspaceSlug ?? this.store.router.workspaceSlug;
+      // entity mutations target the page's immutable source workspace, never
+      // the mutable active/router scope
+      const workspaceSlug = this.data?.[pageId]?.sourceWorkspaceSlug;
       if (!workspaceSlug || !pageId) return undefined;
 
       await this.service.remove(workspaceSlug, pageId);
@@ -374,10 +388,11 @@ export class WorkspacePageStore implements IWorkspacePageStore {
     sortOrder?: number;
   }): Promise<TPage | undefined> => {
     const { pageId, newParentId, sortOrder } = params;
-    const workspaceSlug = this.activeWorkspaceSlug ?? this.store.router.workspaceSlug;
-    if (!workspaceSlug || !pageId) return undefined;
     const page = this.data?.[pageId];
     if (!page) return undefined;
+    // entity mutations target the page's immutable source workspace, never
+    // the mutable active/router scope
+    const workspaceSlug = page.sourceWorkspaceSlug;
     const previousParentId = page.parent_id ?? null;
     const previousSortOrder = page.sort_order;
 

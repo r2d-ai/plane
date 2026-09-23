@@ -19,13 +19,16 @@ const workspacePageService = new WorkspacePageService();
 import { BasePage } from "./base-page";
 import type { TPageInstance } from "./base-page";
 
-export type TWorkspacePage = TPageInstance;
+export type TWorkspacePage = TPageInstance & {
+  /** workspace slug the page was fetched from; every page mutation targets it */
+  sourceWorkspaceSlug: string;
+};
 
 export class WorkspacePage extends BasePage implements TWorkspacePage {
   constructor(
     store: RootStore,
     page: TPage,
-    private readonly sourceWorkspaceSlug: string
+    readonly sourceWorkspaceSlug: string
   ) {
     // initialize base instance
     super(store, page, {
