@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -20,6 +20,7 @@ import { LogoSpinner } from "@/components/common/logo-spinner";
 import { PageHead } from "@/components/core/page-title";
 import type { TPageRootConfig, TPageRootHandlers } from "@/components/pages/editor/page-root";
 import { PageRoot } from "@/components/pages/editor/page-root";
+import { PageComments } from "@/components/pages/page-comments";
 // hooks
 import { useEditorConfig } from "@/hooks/editor";
 import { useEditorAsset } from "@/hooks/store/use-editor-asset";
@@ -60,6 +61,8 @@ function WikiPageDetailsPage({ params }: Route.ComponentProps) {
   });
   const { getWorkspaceBySlug } = useWorkspace();
   const { uploadEditorAsset, duplicateEditorAsset } = useEditorAsset();
+  // local state
+  const [showComments, setShowComments] = useState(false);
   // derived values
   const workspaceId = workspaceSlug ? (getWorkspaceBySlug(workspaceSlug)?.id ?? "") : "";
   const { canCurrentUserAccessPage, id, name, updateDescription } = page ?? {};
@@ -176,15 +179,34 @@ function WikiPageDetailsPage({ params }: Route.ComponentProps) {
       <PageHead title={name} />
       <div className="flex h-full flex-col justify-between">
         <div className="relative flex h-full w-full flex-shrink-0 flex-col overflow-hidden">
-          <PageRoot
-            config={pageRootConfig}
-            handlers={pageRootHandlers}
-            storeType={storeType}
-            page={page}
-            webhookConnectionParams={webhookConnectionParams}
-            workspaceSlug={workspaceSlug}
-          />
+          <div className="flex h-full">
+            <div className="flex-1 overflow-hidden">
+              <PageRoot
+                config={pageRootConfig}
+                handlers={pageRootHandlers}
+                storeType={storeType}
+                page={page}
+                webhookConnectionParams={webhookConnectionParams}
+                workspaceSlug={workspaceSlug}
+              />
+            </div>
+            {showComments && (
+              <div className="w-80 flex-shrink-0 border-l border-subtle overflow-y-auto p-4">
+                <PageComments pageId={pageId} isEditingAllowed={page?.isContentEditable} />
+              </div>
+            )}
+          </div>
         </div>
+        {/* Comments toggle button */}
+        <button
+          onClick={() => setShowComments(!showComments)}
+          className={cn(
+            "fixed bottom-4 right-4 z-50 rounded-full border border-subtle bg-layer-2 px-4 py-2 text-sm shadow-lg hover:bg-layer-3",
+            showComments && "bg-primary text-white"
+          )}
+        >
+          {showComments ? "Hide Comments" : "Comments"}
+        </button>
       </div>
     </>
   );

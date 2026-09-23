@@ -6,7 +6,7 @@
 
 // types
 import { API_BASE_URL } from "@plane/constants";
-import type { TDocumentPayload, TPage } from "@plane/types";
+import type { TDocumentPayload, TPage, TPageShare, TPageSharePayload } from "@plane/types";
 // helpers
 // services
 import { APIService } from "@/services/api.service";
@@ -160,6 +160,45 @@ export class WorkspacePageService extends APIService {
 
   async duplicate(workspaceSlug: string, pageId: string): Promise<TPage> {
     return this.post(`/api/workspaces/${workspaceSlug}/pages/${pageId}/duplicate/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // -- direct sharing (WIKI-06b) --
+
+  async fetchShares(workspaceSlug: string, pageId: string): Promise<TPageShare[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/pages/${pageId}/shares/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async addShare(workspaceSlug: string, pageId: string, data: TPageSharePayload): Promise<TPageShare> {
+    return this.post(`/api/workspaces/${workspaceSlug}/pages/${pageId}/shares/`, data)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async updateShare(
+    workspaceSlug: string,
+    pageId: string,
+    shareId: string,
+    data: Partial<TPageSharePayload>
+  ): Promise<TPageShare> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/pages/${pageId}/shares/${shareId}/`, data)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async removeShare(workspaceSlug: string, pageId: string, shareId: string): Promise<void> {
+    return this.delete(`/api/workspaces/${workspaceSlug}/pages/${pageId}/shares/${shareId}/`)
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

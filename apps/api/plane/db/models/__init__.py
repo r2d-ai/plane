@@ -53,6 +53,7 @@ from .page import (
     PageCollection,
     PageCollectionMember,
     PageCollectionPage,
+    PageComment,
     PageLabel,
     PageLog,
     PageShare,
