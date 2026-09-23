@@ -19,6 +19,8 @@ from plane.app.views import (
     WorkspacePageExportEndpoint,
     PageCollectionViewSet,
     PageCommentViewSet,
+    PageAnalyticsViewSet,
+    PageCollectionAnalyticsViewSet,
     PagePublishViewSet,
     PageTemplateViewSet,
 )
@@ -200,6 +202,38 @@ urlpatterns = [
         "workspaces/<str:slug>/pages/<uuid:page_id>/comments/<uuid:comment_id>/",
         PageCommentViewSet.as_view({"patch": "comment_update", "delete": "comment_destroy"}),
         name="workspace-page-comment",
+    ),
+    # Comment moderation (WIKI-09b §12.5): hide/unhide, workspace admin only.
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/comments/<uuid:comment_id>/hide/",
+        PageCommentViewSet.as_view({"post": "comment_hide", "delete": "comment_unhide"}),
+        name="workspace-page-comment-hide",
+    ),
+    # Page/Collection analytics (WIKI-09b §12.3).
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/views/",
+        PageAnalyticsViewSet.as_view({"post": "record_view"}),
+        name="workspace-page-view-record",
+    ),
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/analytics/",
+        PageAnalyticsViewSet.as_view({"get": "analytics"}),
+        name="workspace-page-analytics",
+    ),
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/analytics/export/",
+        PageAnalyticsViewSet.as_view({"get": "analytics_export"}),
+        name="workspace-page-analytics-export",
+    ),
+    path(
+        "workspaces/<str:slug>/page-collections/<uuid:collection_id>/analytics/",
+        PageCollectionAnalyticsViewSet.as_view({"get": "analytics"}),
+        name="workspace-page-collection-analytics",
+    ),
+    path(
+        "workspaces/<str:slug>/page-collections/<uuid:collection_id>/analytics/export/",
+        PageCollectionAnalyticsViewSet.as_view({"get": "analytics_export"}),
+        name="workspace-page-collection-analytics-export",
     ),
     # External publishing (WIKI-07b, spec §15, plan §10.2). The public
     # retrieval endpoint lives in the space app under /api/public/.

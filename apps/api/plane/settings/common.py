@@ -374,6 +374,14 @@ PAGE_EXPORT_MAX_DEPTH = int(os.environ.get("PAGE_EXPORT_MAX_DEPTH", 10))
 PAGE_EXPORT_MAX_PAGES = int(os.environ.get("PAGE_EXPORT_MAX_PAGES", 200))
 PAGE_EXPORT_MAX_BYTES = int(os.environ.get("PAGE_EXPORT_MAX_BYTES", 25 * 1024 * 1024))
 
+# Wiki page/collection analytics (WIKI-09b, plan §12.3). The privacy policy is
+# explicit and off by default: PAGE_ANALYTICS_ENABLED=0 disables recording
+# entirely (existing rows are still readable), and viewer identity is only
+# persisted when PAGE_ANALYTICS_IDENTIFY_VIEWERS=1. With identification off,
+# views are still counted but stay anonymous.
+PAGE_ANALYTICS_ENABLED = os.environ.get("PAGE_ANALYTICS_ENABLED", "1") == "1"
+PAGE_ANALYTICS_IDENTIFY_VIEWERS = os.environ.get("PAGE_ANALYTICS_IDENTIFY_VIEWERS", "0") == "1"
+
 # Analytics
 ANALYTICS_SECRET_KEY = os.environ.get("ANALYTICS_SECRET_KEY", False)
 ANALYTICS_BASE_API = os.environ.get("ANALYTICS_BASE_API", False)

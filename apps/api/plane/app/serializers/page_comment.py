@@ -26,12 +26,27 @@ class PageCommentSerializer(BaseSerializer):
             "comment_stripped",
             "parent",
             "edited_at",
+            "is_hidden",
+            "hidden_reason",
+            "hidden_at",
+            "hidden_by",
             "created_at",
             "updated_at",
             "created_by",
             "updated_by",
         ]
-        read_only_fields = ["workspace", "page", "actor", "comment_stripped", "created_by", "updated_by"]
+        read_only_fields = [
+            "workspace",
+            "page",
+            "actor",
+            "comment_stripped",
+            "is_hidden",
+            "hidden_reason",
+            "hidden_at",
+            "hidden_by",
+            "created_by",
+            "updated_by",
+        ]
 
     def get_actor_detail(self, obj):
         actor = obj.actor

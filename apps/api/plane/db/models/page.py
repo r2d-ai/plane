@@ -471,6 +471,20 @@ class PageComment(BaseModel):
         related_name="parent_page_comment",
     )
     edited_at = models.DateTimeField(null=True, blank=True)
+    # Moderation state (WIKI-09b, plan §12.5). A hidden comment is never
+    # deleted: the row, its body and its audit trail are preserved, only
+    # visibility changes. `hidden_reason`/`hidden_by` mirror the latest
+    # moderation action so a list can render it without joining the log.
+    is_hidden = models.BooleanField(default=False)
+    hidden_reason = models.CharField(max_length=255, blank=True, default="")
+    hidden_at = models.DateTimeField(null=True, blank=True)
+    hidden_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="hidden_page_comments",
+    )
 
     class Meta:
         verbose_name = "Page Comment"
@@ -480,6 +494,8 @@ class PageComment(BaseModel):
         indexes = [
             models.Index(fields=["page", "created_at"], name="page_comment_page_created_idx"),
             models.Index(fields=["workspace", "page"], name="page_comment_ws_page_idx"),
+            # Moderation lists filter hidden/visible comments per page.
+            models.Index(fields=["page", "is_hidden", "created_at"], name="page_comment_page_hidden_idx"),
         ]
 
     def save(self, *args, **kwargs):
@@ -494,6 +510,95 @@ class PageComment(BaseModel):
 
     def __str__(self):
         return f"{self.page_id} by {self.actor_id}"
+
+
+class PageCommentModeration(BaseModel):
+    """Append-only audit trail of comment moderation actions (WIKI-09b §12.5).
+
+    Every hide/unhide writes one row, so the moderation history survives: who
+    acted, when, why, and which action. The comment itself is never deleted, so
+    hiding is fully reversible and the original body stays available to
+    workspace admins.
+    """
+
+    ACTION_HIDE = "hide"
+    ACTION_UNHIDE = "unhide"
+    ACTION_CHOICES = ((ACTION_HIDE, "Hide"), (ACTION_UNHIDE, "Unhide"))
+
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_comment_moderations")
+    page = models.ForeignKey(Page, on_delete=models.CASCADE, related_name="comment_moderations")
+    comment = models.ForeignKey(PageComment, on_delete=models.CASCADE, related_name="moderation_log")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="page_comment_moderations",
+    )
+    action = models.CharField(max_length=16, choices=ACTION_CHOICES)
+    reason = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Page Comment Moderation"
+        verbose_name_plural = "Page Comment Moderations"
+        db_table = "page_comment_moderations"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["comment", "created_at"], name="page_comment_mod_comment_idx"),
+            models.Index(fields=["page", "created_at"], name="page_comment_mod_page_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.comment_id} {self.action}"
+
+
+class PageView(BaseModel):
+    """A single counted page view for Wiki analytics (WIKI-09b, plan §12.3).
+
+    One row per *counted* view. A background preload never reaches this table:
+    the record endpoint short-circuits before insert, so aggregates cannot be
+    inflated by non-user reads. ``viewer`` is filled only when the deployment
+    policy permits viewer identification (``PAGE_ANALYTICS_IDENTIFY_VIEWERS``);
+    otherwise it stays NULL and aggregates report anonymous views only.
+
+    ``collection`` is the nearest Collection boundary at view time, denormalized
+    so Collection roll-ups do not have to re-walk the Page hierarchy. A page
+    that later moves Collections keeps its historical bucket, which is the
+    intended "as viewed" semantics.
+    """
+
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_views")
+    page = models.ForeignKey(Page, on_delete=models.CASCADE, related_name="views")
+    collection = models.ForeignKey(
+        PageCollection,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="page_views",
+    )
+    viewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="page_views",
+    )
+    viewed_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "Page View"
+        verbose_name_plural = "Page Views"
+        db_table = "page_views"
+        ordering = ("-viewed_at",)
+        indexes = [
+            # Page timeline + page total (measured query plan, WIKI-09b).
+            models.Index(fields=["page", "viewed_at"], name="page_view_page_viewed_idx"),
+            # Collection roll-up (measured query plan, WIKI-09b).
+            models.Index(fields=["collection", "viewed_at"], name="page_view_coll_viewed_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.page_id} @ {self.viewed_at}"
 
 
 class PageVersion(BaseModel):
