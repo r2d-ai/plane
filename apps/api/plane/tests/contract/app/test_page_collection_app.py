@@ -10,6 +10,7 @@ atomic subtree moves, BOLA/IDOR scoping and Company Wiki open-read.
 
 import pytest
 from rest_framework.test import APIClient
+from unittest import mock
 
 from plane.db.models import (
     Page,
@@ -429,3 +430,40 @@ class TestCollectionPagesVisibility:
 
         assert response.status_code == 400
         assert "Private pages cannot be added to a public collection" in response.json()["error"]
+
+    @pytest.mark.django_db
+    @mock.patch("plane.app.permissions.page_collection.can_manage_collections", return_value=True)
+    def test_page_add_response_redacts_invisible_parent(self, _manage, api_client, workspace, create_user):
+        member = _member(workspace, _make_user("page-add-member@plane.so"))
+        collection = _collection(workspace, "Public", PageCollection.ACCESS_PUBLIC, created_by=create_user)
+        private_parent = _wiki_page(workspace, create_user, name="Private parent", access=Page.PRIVATE_ACCESS)
+        child = _wiki_page(workspace, create_user, name="Public child", parent=private_parent)
+
+        api_client.force_authenticate(user=member)
+        response = api_client.post(
+            _collection_pages_url(workspace.slug, collection.id),
+            {"page": str(child.id)},
+            format="json",
+        )
+
+        assert response.status_code == 201
+        assert response.json()["page_detail"]["parent"] is None
+
+    @pytest.mark.django_db
+    @mock.patch("plane.app.permissions.page_collection.can_manage_collections", return_value=True)
+    def test_page_move_response_redacts_invisible_parent(self, _manage, api_client, workspace, create_user):
+        member = _member(workspace, _make_user("page-move-member@plane.so"))
+        collection = _collection(workspace, "Public", PageCollection.ACCESS_PUBLIC, created_by=create_user)
+        private_parent = _wiki_page(workspace, create_user, name="Private parent", access=Page.PRIVATE_ACCESS)
+        child = _wiki_page(workspace, create_user, name="Public child", parent=private_parent)
+        PageCollectionPage.objects.create(collection=collection, page=child, workspace=workspace)
+
+        api_client.force_authenticate(user=member)
+        response = api_client.post(
+            _collection_page_url(workspace.slug, collection.id, child.id),
+            {},
+            format="json",
+        )
+
+        assert response.status_code == 200
+        assert response.json()["page_detail"]["parent"] is None

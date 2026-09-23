@@ -437,7 +437,13 @@ class PageCollectionViewSet(BaseViewSet):
             return rejected
 
         association = move_page_to_collection(page, collection)
-        return Response(PageCollectionPageSerializer(association).data, status=status.HTTP_201_CREATED)
+        return Response(
+            PageCollectionPageSerializer(
+                association,
+                context={"request": request, "workspace": workspace},
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     def page_move(self, request, slug, collection_id, page_id):
         workspace = self._workspace(slug)
@@ -457,7 +463,13 @@ class PageCollectionViewSet(BaseViewSet):
             return rejected
 
         association = move_page_to_collection(page, collection)
-        return Response(PageCollectionPageSerializer(association).data, status=status.HTTP_200_OK)
+        return Response(
+            PageCollectionPageSerializer(
+                association,
+                context={"request": request, "workspace": workspace},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
 
     def page_remove(self, request, slug, collection_id, page_id):
         workspace = self._workspace(slug)
