@@ -15,7 +15,11 @@ export interface IPageCommentStore {
   loader: boolean;
   error: string | null;
   fetchComments: (workspaceSlug: string, pageId: string) => Promise<TPageComment[]>;
-  createComment: (workspaceSlug: string, pageId: string, data: TPageCommentPayload) => Promise<TPageComment | undefined>;
+  createComment: (
+    workspaceSlug: string,
+    pageId: string,
+    data: TPageCommentPayload
+  ) => Promise<TPageComment | undefined>;
   updateComment: (
     workspaceSlug: string,
     pageId: string,

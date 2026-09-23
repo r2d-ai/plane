@@ -126,6 +126,38 @@
       "read_only": "You only have read access to this page.",
       "permission_denied": "You don't have permission to perform this action.",
       "load_failed": "Wiki page could not be loaded. Please try again."
+    },
+    "templates": {
+      "title": "Biểu mẫu",
+      "save_action": "Lưu thành biểu mẫu",
+      "search_placeholder": "Tìm biểu mẫu",
+      "empty": "Chưa có biểu mẫu nào trong workspace này.",
+      "use": "Dùng",
+      "name_placeholder": "Tên biểu mẫu",
+      "modal": {
+        "title": "Tạo từ biểu mẫu",
+        "description": "Chọn một biểu mẫu để tạo trang mới."
+      },
+      "rename_modal": {
+        "title": "Đổi tên biểu mẫu"
+      },
+      "delete_modal": {
+        "title": "Xoá biểu mẫu",
+        "description": "Bạn có chắc muốn xoá \"{{name}}\"? Hành động này không thể hoàn tác."
+      },
+      "save_modal": {
+        "title": "Lưu thành biểu mẫu",
+        "description": "Lưu nội dung trang hiện tại thành biểu mẫu dùng lại trong workspace này.",
+        "submit": "Lưu biểu mẫu"
+      },
+      "toasts": {
+        "use_error": "Không thể tạo trang từ biểu mẫu này. Vui lòng thử lại.",
+        "saved": "Đã lưu trang thành biểu mẫu.",
+        "renamed": "Đổi tên biểu mẫu thành công.",
+        "rename_error": "Không thể cập nhật biểu mẫu. Vui lòng thử lại.",
+        "deleted": "Đã xoá biểu mẫu.",
+        "delete_error": "Không thể xoá biểu mẫu. Vui lòng thử lại."
+      }
     }
   }
 }

@@ -521,3 +521,47 @@ class PageVersion(BaseModel):
             else strip_tags(self.description_html)
         )
         super(PageVersion, self).save(*args, **kwargs)
+
+
+class PageTemplate(BaseModel):
+    """Workspace-scoped Wiki page template (spec §16; plan §10.1).
+
+    A template is a workspace-owned snapshot of a page's document content that
+    any member of the workspace can instantiate. It stores the exact same
+    ``description_*`` triplet as ``Page`` so the document engine is never
+    duplicated (spec §16): creating a page from a template copies those fields
+    into a new ``Page`` row.
+
+    ``workspace`` is mandatory and every lookup is scoped to the URL workspace,
+    so a template UUID from another workspace can never be resolved (BOLA/IDOR
+    invariant, spec §6.2).
+    """
+
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="page_templates")
+    name = models.CharField(max_length=255)
+    description_json = models.JSONField(default=dict, blank=True)
+    description_binary = models.BinaryField(null=True)
+    description_html = models.TextField(blank=True, default="<p></p>")
+    description_stripped = models.TextField(blank=True, null=True)
+    logo_props = models.JSONField(default=dict)
+
+    class Meta:
+        verbose_name = "Page Template"
+        verbose_name_plural = "Page Templates"
+        db_table = "page_templates"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["workspace", "created_at"], name="page_template_ws_created_idx"),
+        ]
+
+    def save(self, *args, **kwargs):
+        # Strip the html tags using html parser
+        self.description_stripped = (
+            None
+            if (self.description_html == "" or self.description_html is None)
+            else strip_tags(self.description_html)
+        )
+        super(PageTemplate, self).save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.workspace_id} <{self.name}>"

@@ -19,6 +19,7 @@ from plane.app.views import (
     PageCollectionViewSet,
     PageCommentViewSet,
     PagePublishViewSet,
+    PageTemplateViewSet,
 )
 
 urlpatterns = [
@@ -185,12 +186,12 @@ urlpatterns = [
     # Page comments (WIKI-06b, spec §5.4, §14).
     path(
         "workspaces/<str:slug>/pages/<uuid:page_id>/comments/",
-        PageCommentViewSet.as_view({"get": "list", "post": "create"}),
+        PageCommentViewSet.as_view({"get": "comment_list", "post": "comment_create"}),
         name="workspace-page-comments",
     ),
     path(
         "workspaces/<str:slug>/pages/<uuid:page_id>/comments/<uuid:comment_id>/",
-        PageCommentViewSet.as_view({"patch": "partial_update", "delete": "destroy"}),
+        PageCommentViewSet.as_view({"patch": "comment_update", "delete": "comment_destroy"}),
         name="workspace-page-comment",
     ),
     # External publishing (WIKI-07b, spec §15, plan §10.2). The public
@@ -204,5 +205,28 @@ urlpatterns = [
         "workspaces/<str:slug>/pages/<uuid:page_id>/publish/<uuid:publish_id>/",
         PagePublishViewSet.as_view({"delete": "publish_revoke"}),
         name="workspace-page-publish-revoke",
+    ),
+    # Page templates (WIKI-07a, spec §16). Workspace-scoped snapshots reused to
+    # create Wiki pages; same routes serve the designated Company Wiki workspace.
+    path(
+        "workspaces/<str:slug>/page-templates/",
+        PageTemplateViewSet.as_view({"get": "list", "post": "create"}),
+        name="workspace-page-templates",
+    ),
+    path(
+        "workspaces/<str:slug>/page-templates/<uuid:template_id>/",
+        PageTemplateViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}),
+        name="workspace-page-template",
+    ),
+    path(
+        "workspaces/<str:slug>/page-templates/<uuid:template_id>/use/",
+        PageTemplateViewSet.as_view({"post": "create_page"}),
+        name="workspace-page-template-use",
+    ),
+    # Snapshot an existing Wiki page as a template.
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/save-as-template/",
+        WorkspacePageViewSet.as_view({"post": "save_as_template"}),
+        name="workspace-page-save-as-template",
     ),
 ]

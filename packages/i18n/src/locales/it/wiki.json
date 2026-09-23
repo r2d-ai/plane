@@ -126,6 +126,38 @@
       "read_only": "You only have read access to this page.",
       "permission_denied": "You don't have permission to perform this action.",
       "load_failed": "Wiki page could not be loaded. Please try again."
+    },
+    "templates": {
+      "title": "Templates",
+      "save_action": "Save as template",
+      "search_placeholder": "Search templates",
+      "empty": "No templates in this workspace yet.",
+      "use": "Use",
+      "name_placeholder": "Template name",
+      "modal": {
+        "title": "Create from template",
+        "description": "Pick a template to create a new page."
+      },
+      "rename_modal": {
+        "title": "Rename template"
+      },
+      "delete_modal": {
+        "title": "Delete template",
+        "description": "Are you sure you want to delete \"{{name}}\"? This action can't be undone."
+      },
+      "save_modal": {
+        "title": "Save as template",
+        "description": "Save the current page content as a reusable template for this workspace.",
+        "submit": "Save template"
+      },
+      "toasts": {
+        "use_error": "Page could not be created from this template. Please try again.",
+        "saved": "Page saved as template.",
+        "renamed": "Template renamed successfully.",
+        "rename_error": "Template could not be updated. Please try again.",
+        "deleted": "Template deleted.",
+        "delete_error": "Template could not be deleted. Please try again."
+      }
     }
   }
 }

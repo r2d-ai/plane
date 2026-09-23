@@ -7,6 +7,7 @@
 export * from "./core";
 export * from "./extended";
 export * from "./collection";
+export * from "./template";
 export * from "./share";
 export * from "./comment";
 export * from "./publish";

@@ -20,6 +20,7 @@ import { Breadcrumbs, Header } from "@plane/ui";
 // components
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { WikiSearchInput } from "@/components/pages/list/wiki-search-input";
+import { PageTemplatesModal } from "@/components/pages/templates";
 // hooks
 // plane web imports
 import { EPageStoreType, usePageStore } from "@/hooks/store";
@@ -31,6 +32,7 @@ const storeType = EPageStoreType.WORKSPACE;
 export const WikiListHeader = observer(function WikiListHeader() {
   // states
   const [isCreatingPage, setIsCreatingPage] = useState(false);
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
   // i18n
   const { t } = useTranslation();
   // router
@@ -92,12 +94,24 @@ export const WikiListHeader = observer(function WikiListHeader() {
         )}
         {canCurrentUserCreatePage && workspace && (
           <Header.RightItem>
+            <Button variant="secondary" size="lg" onClick={() => setIsTemplatesModalOpen(true)}>
+              {t("wiki.templates.title")}
+            </Button>
             <Button variant="primary" size="lg" onClick={handleCreatePage} loading={isCreatingPage}>
               {isCreatingPage ? t("common.adding") : t("wiki.actions.add_page")}
             </Button>
           </Header.RightItem>
         )}
       </div>
+      {workspaceSlug && (
+        <PageTemplatesModal
+          workspaceSlug={workspaceSlug.toString()}
+          isOpen={isTemplatesModalOpen}
+          onClose={() => setIsTemplatesModalOpen(false)}
+          buildPageHref={({ workspaceSlug: slug, pageId }) => `/${slug}/wiki/${pageId}`}
+          canCreatePage={canCurrentUserCreatePage}
+        />
+      )}
     </Header>
   );
 });

@@ -21,7 +21,6 @@ override for authenticated active non-members of that workspace; it never
 grants write, lock, archive or manage.
 """
 
-
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
@@ -53,6 +52,10 @@ READ_ACTIONS = {
     "version_detail",
     "comment_list",
 }
+# Actions that add discussion without changing page content/metadata.
+COMMENT_ACTIONS = {
+    "comment_create",
+}
 # Actions that change page content/metadata and therefore need EDIT.
 EDIT_ACTIONS = {
     "update",
@@ -65,8 +68,8 @@ EDIT_ACTIONS = {
     "unarchive",
     "favorite_create",
     "favorite_destroy",
-    "comment_create",
     "comment_update",
+    "save_as_template",
 }
 # Access-management actions reserved for the page owner or workspace admin.
 MANAGE_ACTIONS = {
@@ -164,7 +167,7 @@ class WorkspacePagePermission(BasePermission):
 
         # Comment authors may edit/delete their own comments even without MANAGE.
         if action in ("comment_update", "comment_destroy"):
-            comment_id = request.parser_context.kwargs.get("comment_id")
+            comment_id = (request.parser_context.get("kwargs") or {}).get("comment_id")
             if comment_id:
                 is_author = PageComment.objects.filter(
                     id=comment_id,
@@ -177,6 +180,9 @@ class WorkspacePagePermission(BasePermission):
 
         if action in MANAGE_ACTIONS:
             return can_manage_page(request.user, page, workspace, workspace_role=role)
+
+        if action in COMMENT_ACTIONS:
+            return capability >= Capability.COMMENT
 
         if action in EDIT_ACTIONS or (action is None and method not in SAFE_METHODS):
             return capability >= Capability.EDIT
