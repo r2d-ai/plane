@@ -139,17 +139,11 @@ export const PageComments = observer(function PageComments(props: TPageCommentsP
     return (
       <div key={comment.id} className={cn("flex flex-col gap-2", depth > 0 && "ml-8")}>
         <div className="flex gap-3 rounded-lg border border-subtle p-3">
-          <Avatar
-            name={comment.actor_detail?.display_name}
-            src={comment.actor_detail?.avatar_url}
-            size="sm"
-          />
+          <Avatar name={comment.actor_detail?.display_name} src={comment.actor_detail?.avatar_url} size="sm" />
           <div className="flex flex-1 flex-col gap-1">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{comment.actor_detail?.display_name}</span>
-              <span className="text-xs text-tertiary">
-                {new Date(comment.created_at).toLocaleDateString()}
-              </span>
+              <span className="text-xs text-tertiary">{new Date(comment.created_at).toLocaleDateString()}</span>
               {comment.edited_at && <span className="text-xs text-tertiary">(edited)</span>}
             </div>
             {editingCommentId === comment.id ? (
@@ -162,13 +156,10 @@ export const PageComments = observer(function PageComments(props: TPageCommentsP
                 onCancel={() => setEditingCommentId(null)}
               />
             ) : (
-              <div
-                className="prose-sm text-sm"
-                dangerouslySetInnerHTML={{ __html: comment.comment_html }}
-              />
+              <div className="prose-sm text-sm" dangerouslySetInnerHTML={{ __html: comment.comment_html }} />
             )}
             {isEditingAllowed && depth === 0 && (
-              <div className="flex gap-2 text-xs">
+              <div className="text-xs flex gap-2">
                 <button
                   onClick={() => setReplyToCommentId(replyToCommentId === comment.id ? null : comment.id)}
                   className="text-primary hover:underline"
@@ -177,16 +168,10 @@ export const PageComments = observer(function PageComments(props: TPageCommentsP
                 </button>
                 {isAuthor && (
                   <>
-                    <button
-                      onClick={() => setEditingCommentId(comment.id)}
-                      className="text-primary hover:underline"
-                    >
+                    <button onClick={() => setEditingCommentId(comment.id)} className="text-primary hover:underline">
                       Edit
                     </button>
-                    <button
-                      onClick={() => handleDelete(comment.id)}
-                      className="text-red-500 hover:underline"
-                    >
+                    <button onClick={() => handleDelete(comment.id)} className="text-red-500 hover:underline">
                       Delete
                     </button>
                   </>
@@ -215,7 +200,7 @@ export const PageComments = observer(function PageComments(props: TPageCommentsP
 
       {/* Reply indicator */}
       {replyToCommentId && (
-        <div className="flex items-center gap-2 text-xs text-tertiary">
+        <div className="text-xs flex items-center gap-2 text-tertiary">
           <span>Replying to comment</span>
           <button onClick={() => setReplyToCommentId(null)} className="text-primary hover:underline">
             Cancel
@@ -259,7 +244,7 @@ export const PageComments = observer(function PageComments(props: TPageCommentsP
               />
             )}
           />
-          <div className="flex justify-end mt-2">
+          <div className="mt-2 flex justify-end">
             <Button variant="primary" onClick={handleSubmit(onSubmit)} disabled={isEmpty || isSubmitting}>
               Comment
             </Button>
@@ -302,7 +287,7 @@ function EditCommentForm(props: TEditCommentFormProps) {
         parentClassName="p-2"
         displayConfig={{ fontSize: "small-font" }}
       />
-      <div className="flex gap-2 justify-end">
+      <div className="flex justify-end gap-2">
         <Button variant="outline-primary" onClick={onCancel}>
           Cancel
         </Button>

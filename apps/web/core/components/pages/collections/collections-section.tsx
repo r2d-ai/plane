@@ -73,11 +73,7 @@ const CollectionRow = observer(function CollectionRow(props: CollectionRowProps)
       <div
         ref={rowRef}
         className={cn(
-          "group/col-row flex h-8 cursor-pointer items-center gap-1 rounded-sm px-1 text-13 transition-colors hover:bg-layer-1",
-          {
-            "border-t-2 border-accent-strong": dropPosition === "before",
-            "border-b-2 border-accent-strong": dropPosition === "after",
-          }
+          "group/col-row flex h-8 cursor-pointer items-center gap-1 rounded-sm px-1 text-13 transition-colors hover:bg-layer-1"
         )}
       >
         {canDrag && (

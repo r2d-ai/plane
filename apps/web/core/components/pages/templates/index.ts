@@ -4,7 +4,5 @@
  * See the LICENSE file for details.
  */
 
-export * from "./use-page-store";
-export * from "./use-page";
-export * from "./use-page-collection-store";
-export * from "./use-page-template-store";
+export { PageTemplatesModal } from "./page-templates-modal";
+export { SaveAsTemplateModal } from "./save-as-template-modal";

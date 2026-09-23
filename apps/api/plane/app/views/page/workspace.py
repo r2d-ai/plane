@@ -40,12 +40,14 @@ from plane.app.permissions import WorkspacePagePermission
 from plane.app.serializers import (
     PageBinaryUpdateSerializer,
     PageShareSerializer,
+    PageTemplateSerializer,
     WorkspacePageSerializer,
 )
 from plane.db.models import (
     Page,
     PageLog,
     PageShare,
+    PageTemplate,
     UserFavorite,
     Workspace,
     WorkspaceMember,
@@ -498,6 +500,29 @@ class WorkspacePageViewSet(BaseViewSet):
             entity_type="page",
         ).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def save_as_template(self, request, slug, page_id):
+        """Snapshot a Wiki page's document content as a workspace template.
+
+        Templates reuse the Page document fields verbatim (spec §16); the
+        permission class already required EDIT on the page, which also scopes
+        the lookup to the URL workspace (BOLA/IDOR invariant).
+        """
+        page = self._get_page(slug, page_id, include_archived=True)
+        if page is None:
+            return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        name = (request.data.get("name") or page.name or "Untitled").strip() or "Untitled"
+        template = PageTemplate.objects.create(
+            workspace=page.workspace,
+            name=name,
+            description_json=page.description_json,
+            description_binary=page.description_binary,
+            description_html=page.description_html,
+            logo_props=page.logo_props,
+            created_by=request.user,
+        )
+        return Response(PageTemplateSerializer(template).data, status=status.HTTP_201_CREATED)
 
 
 class WorkspacePagesDescriptionViewSet(BaseViewSet):

@@ -58,6 +58,8 @@ import type { IProjectPageStore } from "./pages/project-page.store";
 import { ProjectPageStore } from "./pages/project-page.store";
 import type { IPageCollectionStore } from "./pages/page-collection.store";
 import { PageCollectionStore } from "./pages/page-collection.store";
+import type { IPageTemplateStore } from "./pages/page-template.store";
+import { PageTemplateStore } from "./pages/page-template.store";
 import type { IWorkspacePageStore } from "./pages/workspace-page.store";
 import { WorkspacePageStore } from "./pages/workspace-page.store";
 import type { IProjectRootStore } from "./project";
@@ -93,6 +95,7 @@ export class CoreRootStore {
   analytics: IAnalyticsStore;
   projectPages: IProjectPageStore;
   pageCollections: IPageCollectionStore;
+  pageTemplates: IPageTemplateStore;
   workspacePages: IWorkspacePageStore;
   router: IRouterStore;
   commandPalette: ICommandPaletteStore;
@@ -133,6 +136,7 @@ export class CoreRootStore {
     this.projectInbox = new ProjectInboxStore(this);
     this.projectPages = new ProjectPageStore(this);
     this.pageCollections = new PageCollectionStore(this);
+    this.pageTemplates = new PageTemplateStore(this);
     this.workspacePages = new WorkspacePageStore(this);
     this.projectEstimate = new ProjectEstimateStore(this);
     this.workspaceNotification = new WorkspaceNotificationStore(this);
@@ -169,6 +173,7 @@ export class CoreRootStore {
     this.projectInbox = new ProjectInboxStore(this);
     this.projectPages = new ProjectPageStore(this);
     this.pageCollections = new PageCollectionStore(this);
+    this.pageTemplates = new PageTemplateStore(this);
     this.workspacePages = new WorkspacePageStore(this);
     this.multipleSelect = new MultipleSelectStore();
     this.projectEstimate = new ProjectEstimateStore(this);

@@ -18,6 +18,7 @@ from plane.app.views import (
     WorkspacePageVersionEndpoint,
     PageCollectionViewSet,
     PageCommentViewSet,
+    PageTemplateViewSet,
 )
 
 urlpatterns = [
@@ -191,5 +192,28 @@ urlpatterns = [
         "workspaces/<str:slug>/pages/<uuid:page_id>/comments/<uuid:comment_id>/",
         PageCommentViewSet.as_view({"patch": "partial_update", "delete": "destroy"}),
         name="workspace-page-comment",
+    ),
+    # Page templates (WIKI-07a, spec §16). Workspace-scoped snapshots reused to
+    # create Wiki pages; same routes serve the designated Company Wiki workspace.
+    path(
+        "workspaces/<str:slug>/page-templates/",
+        PageTemplateViewSet.as_view({"get": "list", "post": "create"}),
+        name="workspace-page-templates",
+    ),
+    path(
+        "workspaces/<str:slug>/page-templates/<uuid:template_id>/",
+        PageTemplateViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}),
+        name="workspace-page-template",
+    ),
+    path(
+        "workspaces/<str:slug>/page-templates/<uuid:template_id>/use/",
+        PageTemplateViewSet.as_view({"post": "create_page"}),
+        name="workspace-page-template-use",
+    ),
+    # Snapshot an existing Wiki page as a template.
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/save-as-template/",
+        WorkspacePageViewSet.as_view({"post": "save_as_template"}),
+        name="workspace-page-save-as-template",
     ),
 ]
