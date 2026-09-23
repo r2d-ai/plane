@@ -6,12 +6,17 @@
 
 import { useState, useRef, useEffect } from "react";
 import { observer } from "mobx-react";
+import { useParams } from "next/navigation";
+import useSWR from "swr";
 import { SearchIcon, CloseIcon } from "@plane/propel/icons";
 import type { TPageFilterProps, TPageFilters } from "@plane/types";
 // components
 import { FilterCreatedDate } from "@/components/common/filters/created-at";
 import { FilterCreatedBy } from "@/components/common/filters/created-by";
 import { FilterOption } from "@/components/issues/issue-layouts/filters";
+import { PageFilterLabels } from "@/components/pages/list/filters/labels";
+// hooks
+import { useLabel } from "@/hooks/store/use-label";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 
 type Props = {
@@ -22,6 +27,9 @@ type Props = {
 
 export const PageFiltersSelection = observer(function PageFiltersSelection(props: Props) {
   const { filters, handleFiltersUpdate, memberIds } = props;
+  const { workspaceSlug } = useParams();
+  const { fetchWorkspaceLabels, getWorkspaceLabels } = useLabel();
+  const workspaceLabels = getWorkspaceLabels(workspaceSlug?.toString() ?? "");
   // states
   const [filtersSearchQuery, setFiltersSearchQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -32,6 +40,13 @@ export const PageFiltersSelection = observer(function PageFiltersSelection(props
       inputRef.current.focus();
     }
   }, [isMobile]);
+
+  // fetch workspace labels for wiki pages
+  const workspaceSlugStr = workspaceSlug?.toString() ?? "";
+  useSWR(
+    workspaceSlugStr ? `WORKSPACE_LABELS_${workspaceSlugStr}` : null,
+    workspaceSlugStr ? () => fetchWorkspaceLabels(workspaceSlugStr) : null
+  );
 
   const handleFilters = (key: keyof TPageFilterProps, value: boolean | string | string[]) => {
     const newValues = filters.filters?.[key] ?? [];
@@ -106,6 +121,16 @@ export const PageFiltersSelection = observer(function PageFiltersSelection(props
             handleUpdate={(val) => handleFilters("created_by", val)}
             searchQuery={filtersSearchQuery}
             memberIds={memberIds}
+          />
+        </div>
+
+        {/* labels */}
+        <div className="py-2">
+          <PageFilterLabels
+            appliedFilters={filters.filters?.labels ?? null}
+            handleUpdate={(val) => handleFilters("labels", val)}
+            labels={workspaceLabels}
+            searchQuery={filtersSearchQuery}
           />
         </div>
       </div>

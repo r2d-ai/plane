@@ -14,6 +14,7 @@ import { getPageName } from "@plane/utils";
 import { ListItem } from "@/components/core/list";
 import { BlockItemAction } from "@/components/pages/list/block-item-action";
 // hooks
+import { useLabel } from "@/hooks/store/use-label";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web hooks
 import type { EPageStoreType } from "@/hooks/store";
@@ -34,10 +35,12 @@ export const PageListBlock = observer(function PageListBlock(props: TPageListBlo
     storeType,
   });
   const { isMobile } = usePlatformOS();
+  const { getLabelById } = useLabel();
   // handle page check
   if (!page) return null;
   // derived values
-  const { name, logo_props, getRedirectionLink } = page;
+  const { name, logo_props, label_ids, getRedirectionLink } = page;
+  const pageLabels = label_ids?.slice(0, 3) ?? [];
 
   return (
     <ListItem
@@ -49,6 +52,29 @@ export const PageListBlock = observer(function PageListBlock(props: TPageListBlo
             <PageIcon className="h-4 w-4 text-tertiary" />
           )}
         </>
+      }
+      appendTitleElement={
+        pageLabels.length > 0 ? (
+          <div className="flex items-center gap-1">
+            {pageLabels.map((labelId) => {
+              const label = getLabelById(labelId);
+              if (!label) return null;
+              return (
+                <span
+                  key={labelId}
+                  className="flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-10 font-medium"
+                  style={{ backgroundColor: `${label.color}20`, color: label.color }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: label.color }} />
+                  {label.name}
+                </span>
+              );
+            })}
+            {(label_ids?.length ?? 0) > 3 && (
+              <span className="text-10 text-tertiary">+{(label_ids?.length ?? 0) - 3}</span>
+            )}
+          </div>
+        ) : undefined
       }
       title={getPageName(name)}
       itemLink={getRedirectionLink()}

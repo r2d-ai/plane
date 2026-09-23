@@ -83,6 +83,10 @@ export const shouldFilterPage = (page: TPage, filters: TPageFilterProps | undefi
     }
   });
   if (filters?.favorites && !page.is_favorite) fallsInFilters = false;
+  if (filters?.labels && filters.labels.length > 0) {
+    const pageLabelIds = page.label_ids ?? [];
+    fallsInFilters = fallsInFilters && filters.labels.some((id) => pageLabelIds.includes(id));
+  }
 
   return fallsInFilters;
 };
