@@ -142,7 +142,7 @@ services:
 
   plane-minio:
     container_name: plane-minio
-    image: minio/minio
+    image: pgsty/silo
     restart: always
     command: server /export --console-address ":9090"
     volumes:

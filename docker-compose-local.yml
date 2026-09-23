@@ -24,17 +24,17 @@ services:
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
 
   plane-minio:
-    image: minio/minio
+    image: pgsty/silo
     restart: unless-stopped
     networks:
       - dev_env
     entrypoint: >
       /bin/sh -c "
       mkdir -p /export/${AWS_S3_BUCKET_NAME} &&
-      minio server /export --console-address ':9090' &
+      silo server /export --console-address ':9090' &
       sleep 5 &&
-      mc alias set myminio http://localhost:9000 ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY} &&
-      mc mb myminio/${AWS_S3_BUCKET_NAME} -p || true
+      mcli alias set myminio http://localhost:9000 ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY} &&
+      mcli mb myminio/${AWS_S3_BUCKET_NAME} -p || true
       && tail -f /dev/null
       "
     volumes:
