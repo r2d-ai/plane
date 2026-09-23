@@ -9,6 +9,7 @@ from rest_framework import serializers
 
 # Module imports
 from .base import BaseSerializer
+from plane.utils.page_access import visible_page_parent_id
 from plane.db.models import (
     PageCollection,
     PageCollectionMember,
@@ -65,12 +66,14 @@ class PageCollectionMemberSerializer(BaseSerializer):
 
     def get_member_detail(self, obj):
         member = obj.member
-        return {
+        detail = {
             "id": str(member.id),
-            "email": member.email,
             "display_name": member.display_name,
             "avatar_url": member.avatar_url,
         }
+        if self.context.get("include_member_email", True):
+            detail["email"] = member.email
+        return detail
 
 
 class PageCollectionPageSerializer(BaseSerializer):
@@ -92,10 +95,17 @@ class PageCollectionPageSerializer(BaseSerializer):
 
     def get_page_detail(self, obj):
         page = obj.page
+        request = self.context.get("request")
+        workspace = self.context.get("workspace") or page.workspace
+        parent = None
+        if request is not None:
+            parent = visible_page_parent_id(page, request.user, workspace)
+        elif page.parent_id is not None:
+            parent = str(page.parent_id)
         return {
             "id": str(page.id),
             "name": page.name,
             "access": page.access,
-            "parent": str(page.parent_id) if page.parent_id else None,
+            "parent": parent,
             "sort_order": page.sort_order,
         }

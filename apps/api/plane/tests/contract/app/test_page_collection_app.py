@@ -10,6 +10,7 @@ atomic subtree moves, BOLA/IDOR scoping and Company Wiki open-read.
 
 import pytest
 from rest_framework.test import APIClient
+from unittest import mock
 
 from plane.db.models import (
     Page,
@@ -373,3 +374,96 @@ class TestCompanyWikiCollections:
         settings.COMPANY_WIKI_WORKSPACE_SLUG = workspace.slug
         settings.COMPANY_WIKI_OPEN_READ = True
         assert client.post(_collections_url(workspace.slug), {"name": "Nope"}, format="json").status_code == 403
+
+    @pytest.mark.django_db
+    def test_open_read_members_omit_email_for_non_members(self, session_client, settings, workspace, create_user):
+        member = _member(workspace, _make_user("member@plane.so"))
+        collection = _collection(workspace, "Public", PageCollection.ACCESS_PUBLIC, created_by=create_user)
+        PageCollectionMember.objects.create(
+            collection=collection, member=member, role=PageCollection.ROLE_VIEW
+        )
+        outsider = _make_user("outsider@plane.so")
+        settings.COMPANY_WIKI_WORKSPACE_SLUG = workspace.slug
+        settings.COMPANY_WIKI_OPEN_READ = True
+
+        response = _client_for(outsider).get(_members_url(workspace.slug, collection.id))
+        assert response.status_code == 200
+        assert response.json()
+        assert "email" not in response.json()[0]["member_detail"]
+
+        member_response = _client_for(member).get(_members_url(workspace.slug, collection.id))
+        assert member_response.status_code == 200
+        assert member_response.json()[0]["member_detail"]["email"] == member.email
+
+
+@pytest.mark.contract
+class TestCollectionPagesVisibility:
+    @pytest.mark.django_db
+    def test_pages_list_filters_invisible_pages(self, session_client, workspace, create_user):
+        member = _member(workspace, _make_user("collection-viewer@plane.so"))
+        collection = _collection(workspace, "Private", PageCollection.ACCESS_PRIVATE, created_by=create_user)
+        PageCollectionMember.objects.create(
+            collection=collection, member=member, role=PageCollection.ROLE_VIEW
+        )
+        visible = _wiki_page(workspace, create_user, name="Visible")
+        hidden = _wiki_page(workspace, create_user, name="Hidden", access=Page.PRIVATE_ACCESS)
+        PageCollectionPage.objects.create(collection=collection, page=visible, workspace=workspace)
+        PageCollectionPage.objects.create(collection=collection, page=hidden, workspace=workspace)
+
+        response = _client_for(member).get(_collection_pages_url(workspace.slug, collection.id))
+
+        assert response.status_code == 200
+        page_ids = {row["page_detail"]["id"] for row in response.json()}
+        assert str(visible.id) in page_ids
+        assert str(hidden.id) not in page_ids
+
+    @pytest.mark.django_db
+    def test_private_page_cannot_join_public_collection(self, session_client, workspace, create_user):
+        collection = _collection(workspace, "Public", PageCollection.ACCESS_PUBLIC, created_by=create_user)
+        private_page = _wiki_page(workspace, create_user, name="Secret", access=Page.PRIVATE_ACCESS)
+
+        response = session_client.post(
+            _collection_pages_url(workspace.slug, collection.id),
+            {"page": str(private_page.id)},
+            format="json",
+        )
+
+        assert response.status_code == 400
+        assert "Private pages cannot be added to a public collection" in response.json()["error"]
+
+    @pytest.mark.django_db
+    @mock.patch("plane.app.permissions.page_collection.can_manage_collections", return_value=True)
+    def test_page_add_response_redacts_invisible_parent(self, _manage, api_client, workspace, create_user):
+        member = _member(workspace, _make_user("page-add-member@plane.so"))
+        collection = _collection(workspace, "Public", PageCollection.ACCESS_PUBLIC, created_by=create_user)
+        private_parent = _wiki_page(workspace, create_user, name="Private parent", access=Page.PRIVATE_ACCESS)
+        child = _wiki_page(workspace, create_user, name="Public child", parent=private_parent)
+
+        api_client.force_authenticate(user=member)
+        response = api_client.post(
+            _collection_pages_url(workspace.slug, collection.id),
+            {"page": str(child.id)},
+            format="json",
+        )
+
+        assert response.status_code == 201
+        assert response.json()["page_detail"]["parent"] is None
+
+    @pytest.mark.django_db
+    @mock.patch("plane.app.permissions.page_collection.can_manage_collections", return_value=True)
+    def test_page_move_response_redacts_invisible_parent(self, _manage, api_client, workspace, create_user):
+        member = _member(workspace, _make_user("page-move-member@plane.so"))
+        collection = _collection(workspace, "Public", PageCollection.ACCESS_PUBLIC, created_by=create_user)
+        private_parent = _wiki_page(workspace, create_user, name="Private parent", access=Page.PRIVATE_ACCESS)
+        child = _wiki_page(workspace, create_user, name="Public child", parent=private_parent)
+        PageCollectionPage.objects.create(collection=collection, page=child, workspace=workspace)
+
+        api_client.force_authenticate(user=member)
+        response = api_client.post(
+            _collection_page_url(workspace.slug, collection.id, child.id),
+            {},
+            format="json",
+        )
+
+        assert response.status_code == 200
+        assert response.json()["page_detail"]["parent"] is None
