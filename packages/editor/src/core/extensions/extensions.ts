@@ -33,6 +33,11 @@ import {
   TableRow,
   UtilityExtension,
 } from "@/extensions";
+// wiki commercial-parity blocks
+import { CustomToggleBlockExtension } from "./toggle-block";
+import { TabItemExtensionConfig, CustomTabsBlockExtension } from "./tabs-block";
+import { CustomMermaidExtension } from "./mermaid";
+import { HierarchyEmbedExtension } from "./hierarchy-embed";
 // plane editor extensions
 import { CoreEditorAdditionalExtensions } from "@/plane-editor/extensions";
 // types
@@ -121,6 +126,11 @@ export const CoreEditorExtensions = (args: TArguments): Extensions => {
     CustomColorExtension,
     CustomTextAlignExtension,
     CustomCalloutExtension,
+    CustomToggleBlockExtension,
+    TabItemExtensionConfig,
+    CustomTabsBlockExtension,
+    CustomMermaidExtension,
+    HierarchyEmbedExtension,
     UtilityExtension({
       disabledExtensions,
       flaggedExtensions,

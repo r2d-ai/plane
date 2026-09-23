@@ -28,6 +28,7 @@
     "check:lint": "oxlint --max-warnings=416 .",
     "check:types": "tsc --noEmit",
     "check:format": "oxfmt --check .",
+    "test": "vitest run",
     "fix:lint": "oxlint --fix .",
     "fix:format": "oxfmt .",
     "clean": "rm -rf .turbo && rm -rf .next && rm -rf node_modules && rm -rf dist"
@@ -74,6 +75,7 @@
     "lodash-es": "catalog:",
     "lowlight": "catalog:",
     "lucide-react": "catalog:",
+    "mermaid": "catalog:",
     "prosemirror-codemark": "catalog:",
     "tippy.js": "catalog:",
     "tiptap-markdown": "catalog:",
@@ -92,7 +94,9 @@
     "@types/react-dom": "catalog:",
     "postcss": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.4"
   },
   "peerDependencies": {
     "react": "catalog:",

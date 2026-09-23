@@ -66,6 +66,10 @@ export type TEditorCommands =
   | "attachment"
   | "emoji"
   | "external-embed"
+  | "toggle"
+  | "tabs"
+  | "mermaid"
+  | "hierarchy-embed"
   | TExtendedEditorCommands;
 
 export type TCommandExtraProps = {

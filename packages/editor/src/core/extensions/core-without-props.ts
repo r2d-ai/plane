@@ -26,6 +26,11 @@ import { CustomStarterKitExtension } from "./starter-kit";
 import { TableHeader, TableCell, TableRow, Table } from "./table";
 import { CustomTextAlignExtension } from "./text-align";
 import { WorkItemEmbedExtensionConfig } from "./work-item-embed/extension-config";
+// wiki commercial-parity blocks
+import { CustomToggleBlockExtensionConfig } from "./toggle-block/extension-config";
+import { TabItemExtensionConfig, CustomTabsBlockExtensionConfig } from "./tabs-block";
+import { CustomMermaidExtensionConfig } from "./mermaid/extension-config";
+import { HierarchyEmbedExtensionConfig } from "./hierarchy-embed/extension-config";
 
 export const CoreEditorExtensionsWithoutProps = [
   CustomStarterKitExtension({
@@ -60,6 +65,11 @@ export const CoreEditorExtensionsWithoutProps = [
   CustomTextAlignExtension,
   CustomCalloutExtensionConfig,
   CustomColorExtension,
+  CustomToggleBlockExtensionConfig,
+  TabItemExtensionConfig,
+  CustomTabsBlockExtensionConfig,
+  CustomMermaidExtensionConfig,
+  HierarchyEmbedExtensionConfig,
   ...CoreEditorAdditionalExtensionsWithoutProps,
 ];
 
