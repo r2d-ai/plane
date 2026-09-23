@@ -242,6 +242,7 @@ overrides:
   "@opentelemetry/resources": 2.8.0
   "@opentelemetry/sdk-trace-base": 2.8.0
   morgan: 1.11.0
+  mermaid: 11.4.1
 
 allowBuilds:
   "@parcel/watcher": true

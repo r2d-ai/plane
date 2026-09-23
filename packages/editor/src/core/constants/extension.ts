@@ -49,6 +49,10 @@ export enum CORE_EXTENSIONS {
   WORK_ITEM_EMBED = "issue-embed-component",
   EMOJI = "emoji",
   UNIQUE_ID = "uniqueID",
+  TOGGLE_BLOCK = "toggleBlockComponent",
+  TABS_BLOCK = "tabsBlockComponent",
+  MERMAID = "mermaidComponent",
+  HIERARCHY_EMBED = "hierarchyEmbedComponent",
 }
 
 export const BLOCK_NODE_TYPES = [
@@ -74,4 +78,10 @@ export const BLOCK_NODE_TYPES = [
   CORE_EXTENSIONS.CUSTOM_IMAGE,
   CORE_EXTENSIONS.CALLOUT,
   CORE_EXTENSIONS.WORK_ITEM_EMBED,
+
+  // Wiki commercial-parity blocks
+  CORE_EXTENSIONS.TOGGLE_BLOCK,
+  CORE_EXTENSIONS.TABS_BLOCK,
+  CORE_EXTENSIONS.MERMAID,
+  CORE_EXTENSIONS.HIERARCHY_EMBED,
 ];

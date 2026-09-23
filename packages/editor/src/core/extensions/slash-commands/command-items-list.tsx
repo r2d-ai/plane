@@ -23,6 +23,9 @@ import {
   Smile,
   Table,
   TextQuote,
+  ChevronDown,
+  PanelTop,
+  GitBranch,
 } from "lucide-react";
 // constants
 import { COLORS_LIST } from "@/constants/common";
@@ -38,6 +41,9 @@ import {
   toggleBackgroundColor,
   insertImage,
   insertCallout,
+  insertToggleBlock,
+  insertTabsBlock,
+  insertMermaid,
   setText,
   openEmojiPicker,
 } from "@/helpers/editor-commands";
@@ -188,6 +194,33 @@ export const getSlashCommandFilteredSections =
             description: "Insert callout",
             searchTerms: ["callout", "comment", "message", "info", "alert"],
             command: ({ editor, range }: CommandProps) => insertCallout(editor, range),
+          },
+          {
+            commandKey: "toggle",
+            key: "toggle",
+            title: "Toggle",
+            icon: <ChevronDown className="size-3.5" />,
+            description: "Insert collapsible toggle block",
+            searchTerms: ["toggle", "collapse", "expand", "accordion"],
+            command: ({ editor, range }: CommandProps) => insertToggleBlock(editor, range),
+          },
+          {
+            commandKey: "tabs",
+            key: "tabs",
+            title: "Tabs",
+            icon: <PanelTop className="size-3.5" />,
+            description: "Insert horizontal or vertical tabs",
+            searchTerms: ["tabs", "tab", "panel", "horizontal", "vertical"],
+            command: ({ editor, range }: CommandProps) => insertTabsBlock(editor, range),
+          },
+          {
+            commandKey: "mermaid",
+            key: "mermaid",
+            title: "Mermaid Diagram",
+            icon: <GitBranch className="size-3.5" />,
+            description: "Insert a Mermaid diagram",
+            searchTerms: ["mermaid", "diagram", "chart", "flow", "graph"],
+            command: ({ editor, range }: CommandProps) => insertMermaid(editor, range),
           },
           {
             commandKey: "divider",

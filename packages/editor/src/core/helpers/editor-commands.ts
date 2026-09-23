@@ -192,6 +192,30 @@ export const insertCallout = (editor: Editor, range?: Range) => {
   else editor.chain().focus().insertCallout().run();
 };
 
+export const insertToggleBlock = (editor: Editor, range?: Range) => {
+  if (range) editor.chain().focus().deleteRange(range).insertToggleBlock().run();
+  else editor.chain().focus().insertToggleBlock().run();
+};
+
+export const insertTabsBlock = (editor: Editor, range?: Range) => {
+  if (range) editor.chain().focus().deleteRange(range).insertTabsBlock().run();
+  else editor.chain().focus().insertTabsBlock().run();
+};
+
+export const insertMermaid = (editor: Editor, range?: Range) => {
+  if (range) editor.chain().focus().deleteRange(range).insertMermaid().run();
+  else editor.chain().focus().insertMermaid().run();
+};
+
+export const insertHierarchyEmbed = (
+  editor: Editor,
+  attrs: { pageId: string; workspaceSlug: string; projectId: string },
+  range?: Range
+) => {
+  if (range) editor.chain().focus().deleteRange(range).insertHierarchyEmbed(attrs).run();
+  else editor.chain().focus().insertHierarchyEmbed(attrs).run();
+};
+
 export const openEmojiPicker = (editor: Editor, range?: Range) => {
   if (range) editor.chain().focus().deleteRange(range).run();
   const emojiStorage = editor.storage.emoji as ExtendedEmojiStorage;
