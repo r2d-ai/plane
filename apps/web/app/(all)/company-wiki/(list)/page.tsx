@@ -73,6 +73,7 @@ const CompanyWikiListPage = observer(function CompanyWikiListPage() {
           workspaceSlug={workspaceSlug ?? ""}
           buildPageHref={({ pageId }) => `/company-wiki/${pageId}`}
           canCreatePage={canCurrentUserCreatePage}
+          variant="company"
         />
       </PagesListView>
     </>

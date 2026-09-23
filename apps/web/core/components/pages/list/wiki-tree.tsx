@@ -262,6 +262,9 @@ type TProps = {
   pageType?: TPageNavigationTabs;
   /** Whether the current user can create child pages (controls the "+" button). */
   canCreatePage?: boolean;
+  /** Optional controlled expand state for tree rows. */
+  expandedIds?: Set<string>;
+  onExpandedIdsChange?: (ids: Set<string>) => void;
 };
 
 /**
@@ -274,11 +277,27 @@ type TProps = {
  * (cycle/scope guard). Archived pages are never part of the active tree.
  */
 export const WikiTreeView = observer(function WikiTreeView(props: TProps) {
-  const { buildPageHref, workspaceSlug, pageType, canCreatePage } = props;
+  const {
+    buildPageHref,
+    workspaceSlug,
+    pageType,
+    canCreatePage,
+    expandedIds: controlledExpandedIds,
+    onExpandedIdsChange,
+  } = props;
   const router = useAppRouter();
   const { t } = useTranslation();
   const pageStore = usePageStore(EPageStoreType.WORKSPACE) as IWorkspacePageStore;
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [internalExpandedIds, setInternalExpandedIds] = useState<Set<string>>(() => new Set());
+  const expandedIds = controlledExpandedIds ?? internalExpandedIds;
+  const updateExpandedIds = useCallback(
+    (updater: Set<string> | ((previous: Set<string>) => Set<string>)) => {
+      const next = typeof updater === "function" ? updater(expandedIds) : updater;
+      if (onExpandedIdsChange) onExpandedIdsChange(next);
+      else setInternalExpandedIds(next);
+    },
+    [expandedIds, onExpandedIdsChange]
+  );
 
   const pages = (Object.values(pageStore?.data ?? {}).filter(Boolean) as TWikiTreePage[]).filter((page) => {
     if (!page.id || page.archived_at) return false;
@@ -318,14 +337,17 @@ export const WikiTreeView = observer(function WikiTreeView(props: TProps) {
     [descendantIdsOf]
   );
 
-  const toggleExpanded = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const toggleExpanded = useCallback(
+    (id: string) => {
+      updateExpandedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    },
+    [updateExpandedIds]
+  );
 
   const defaultHref = useCallback(
     (pageId: string) => (buildPageHref ? buildPageHref({ workspaceSlug, pageId }) : `/${workspaceSlug}/wiki/${pageId}`),
@@ -336,11 +358,11 @@ export const WikiTreeView = observer(function WikiTreeView(props: TProps) {
     async (parentId: string) => {
       const newPage = await pageStore.createPage({ parent: parentId } as never);
       if (newPage?.id) {
-        setExpandedIds((prev) => new Set(prev).add(parentId));
+        updateExpandedIds((prev) => new Set(prev).add(parentId));
         router.push(defaultHref(newPage.id));
       }
     },
-    [pageStore, defaultHref, router]
+    [pageStore, defaultHref, router, updateExpandedIds]
   );
 
   /**
@@ -381,7 +403,7 @@ export const WikiTreeView = observer(function WikiTreeView(props: TProps) {
       try {
         await pageStore.movePage({ pageId: source.pageId, newParentId, sortOrder });
         if (position === "inside") {
-          setExpandedIds((prev) => new Set(prev).add(target.pageId));
+          updateExpandedIds((prev) => new Set(prev).add(target.pageId));
         }
       } catch (error) {
         const message = (error as { error?: string } | undefined)?.error;
@@ -392,7 +414,7 @@ export const WikiTreeView = observer(function WikiTreeView(props: TProps) {
         });
       }
     },
-    [pageStore, resolveSortOrder, t]
+    [pageStore, resolveSortOrder, t, updateExpandedIds]
   );
 
   if (pages.length === 0) return null;

@@ -278,14 +278,14 @@ export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS: Record<string, IWorkspac
   },
   wiki: {
     key: "wiki",
-    labelTranslationKey: "wiki",
+    labelTranslationKey: "sidebar.wiki",
     href: `/wiki/`,
     access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER, EUserWorkspaceRoles.GUEST],
-    highlight: (pathname: string) => pathname.includes(`/wiki`),
+    highlight: (pathname: string) => pathname.includes(`/wiki`) && !pathname.includes(`/company-wiki`),
   },
   "company-wiki": {
     key: "company_wiki",
-    labelTranslationKey: "company_wiki",
+    labelTranslationKey: "sidebar.company_wiki",
     href: `/company-wiki/`,
     access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER, EUserWorkspaceRoles.GUEST],
     highlight: (pathname: string) => pathname.includes(`/company-wiki`),
@@ -294,12 +294,12 @@ export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS: Record<string, IWorkspac
 
 export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
   WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["home"],
+  WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["company-wiki"],
 ];
 
 export const WORKSPACE_SIDEBAR_STATIC_PINNED_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
   WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["projects"],
   WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["wiki"],
-  WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["company-wiki"],
 ];
 
 export const IS_FAVORITE_MENU_OPEN = "is_favorite_menu_open";
