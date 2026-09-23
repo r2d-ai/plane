@@ -2,6 +2,7 @@ import { Outlet, useParams } from "react-router";
 import { AuthenticationWrapper } from "@/lib/wrappers/authentication-wrapper";
 import { AppRailVisibilityProvider } from "@/lib/app-rail";
 import { WorkspaceContentWrapper } from "@/components/workspace/content-wrapper";
+import { WikiShell } from "@/components/wiki";
 import { WikiAuthWrapper } from "@/layouts/auth-layout/wiki-wrapper";
 
 export default function WikiLayout() {
@@ -12,7 +13,9 @@ export default function WikiLayout() {
         <WorkspaceContentWrapper>
           {workspaceSlug ? (
             <WikiAuthWrapper workspaceSlug={workspaceSlug}>
-              <Outlet />
+              <WikiShell>
+                <Outlet />
+              </WikiShell>
             </WikiAuthWrapper>
           ) : (
             <Outlet />
