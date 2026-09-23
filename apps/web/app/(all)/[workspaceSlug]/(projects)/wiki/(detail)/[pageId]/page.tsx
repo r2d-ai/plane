@@ -191,7 +191,7 @@ function WikiPageDetailsPage({ params }: Route.ComponentProps) {
               />
             </div>
             {showComments && (
-              <div className="w-80 flex-shrink-0 border-l border-subtle overflow-y-auto p-4">
+              <div className="w-80 flex-shrink-0 overflow-y-auto border-l border-subtle p-4">
                 <PageComments pageId={pageId} isEditingAllowed={page?.isContentEditable} />
               </div>
             )}
@@ -201,7 +201,7 @@ function WikiPageDetailsPage({ params }: Route.ComponentProps) {
         <button
           onClick={() => setShowComments(!showComments)}
           className={cn(
-            "fixed bottom-4 right-4 z-50 rounded-full border border-subtle bg-layer-2 px-4 py-2 text-sm shadow-lg hover:bg-layer-3",
+            "text-sm shadow-lg fixed right-4 bottom-4 z-50 rounded-full border border-subtle bg-layer-2 px-4 py-2 hover:bg-layer-3",
             showComments && "bg-primary text-white"
           )}
         >
