@@ -35,12 +35,12 @@ import zipfile
 from dataclasses import dataclass
 from html import escape
 from urllib.parse import unquote
-from xml.etree import ElementTree as ET
 
 from bs4 import BeautifulSoup  # type: ignore[import-untyped]
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import transaction
+from lxml import etree as lxml_etree
 
 from plane.db.models import FileAsset, Page, PageComment, WikiEvent
 from plane.utils.content_validator import validate_html_content
@@ -496,10 +496,24 @@ def _object_id(obj):
 
 
 def _parse_confluence_objects(xml_bytes):
-    """Parse a Confluence ``entities.xml`` into pages/bodies/comments/attachments."""
+    """Parse a Confluence ``entities.xml`` into pages/bodies/comments/attachments.
+
+    The XML comes from an untrusted upload, so it is parsed with a hardened
+    ``lxml`` parser: entity resolution is off (defeats billion-laughs /
+    quadratic blowup), no network access is allowed (no XXE/SSRF), external
+    DTDs are not loaded, and ``huge_tree`` stays disabled so oversized or
+    deeply nested documents are rejected rather than expanded.
+    """
+    parser = lxml_etree.XMLParser(
+        resolve_entities=False,
+        no_network=True,
+        load_dtd=False,
+        huge_tree=False,
+        recover=False,
+    )
     try:
-        root = ET.fromstring(xml_bytes)
-    except ET.ParseError as exc:
+        root = lxml_etree.fromstring(xml_bytes, parser=parser)
+    except (lxml_etree.XMLSyntaxError, ValueError) as exc:
         raise WikiImportError("INVALID_CONFLUENCE_XML", "Confluence export XML could not be parsed.") from exc
 
     pages = {}
