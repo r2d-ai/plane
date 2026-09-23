@@ -101,6 +101,50 @@ class TestWorkspacePageAIContext:
         assert api_client.get(_context_url(workspace.slug, page.id)).status_code == 404
 
     @pytest.mark.django_db
+    def test_children_do_not_leak_private_pages(self, api_client, workspace, create_user):
+        member = _member(workspace, _make_user("ctx-member@plane.so"))
+        parent = _wiki_page(workspace, create_user, name="Parent")
+        _wiki_page(workspace, create_user, name="Public child", parent=parent)
+        _wiki_page(workspace, create_user, name="Private child", access=Page.PRIVATE_ACCESS, parent=parent)
+
+        api_client.force_authenticate(user=member)
+        body = api_client.get(_context_url(workspace.slug, parent.id)).json()
+
+        names = [child["name"] for child in body["hierarchy"]["children"]]
+        assert "Public child" in names
+        assert "Private child" not in names
+
+    @pytest.mark.django_db
+    def test_breadcrumbs_do_not_leak_private_ancestor(self, api_client, workspace, create_user):
+        member = _member(workspace, _make_user("ctx-member2@plane.so"))
+        private_parent = _wiki_page(workspace, create_user, name="Private parent", access=Page.PRIVATE_ACCESS)
+        child = _wiki_page(workspace, create_user, name="Public child", parent=private_parent)
+
+        api_client.force_authenticate(user=member)
+        body = api_client.get(_context_url(workspace.slug, child.id)).json()
+
+        assert [crumb["name"] for crumb in body["hierarchy"]["breadcrumbs"]] == ["Public child"]
+        assert body["hierarchy"]["parent_id"] is None
+
+    @pytest.mark.django_db
+    def test_owner_still_sees_own_private_children_and_ancestors(self, session_client, workspace, create_user):
+        parent = _wiki_page(workspace, create_user, name="Parent")
+        private_child = _wiki_page(
+            workspace, create_user, name="Private child", access=Page.PRIVATE_ACCESS, parent=parent
+        )
+        grandchild = _wiki_page(workspace, create_user, name="Grandchild", parent=private_child)
+
+        body = session_client.get(_context_url(workspace.slug, grandchild.id)).json()
+
+        assert [child["name"] for child in body["hierarchy"]["children"]] == []
+        assert [crumb["name"] for crumb in body["hierarchy"]["breadcrumbs"]] == [
+            "Parent",
+            "Private child",
+            "Grandchild",
+        ]
+        assert body["hierarchy"]["parent_id"] == str(private_child.id)
+
+    @pytest.mark.django_db
     def test_cross_workspace_page_not_found(self, session_client, workspace, create_user):
         other = Workspace.objects.create(name="Other", slug="other-workspace", owner=create_user)
         foreign = _wiki_page(other, create_user)

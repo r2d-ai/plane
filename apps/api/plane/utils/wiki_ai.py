@@ -38,6 +38,7 @@ from plane.db.models import Label, Page, PageCollectionPage, WikiEvent
 from plane.utils.page_access import (
     _UNSET,
     Capability,
+    can_view_page,
     filter_visible_pages,
     get_page_capabilities,
     hidden_page_ids,
@@ -189,17 +190,29 @@ def iter_wiki_events(workspace, user, *, since=None, limit=None, event_types=Non
 # ---------------------------------------------------------------------------
 
 
-def page_breadcrumbs(page):
-    """Ancestor chain from the root to ``page`` (cycle-safe, bounded)."""
+def page_breadcrumbs(page, user=None, workspace=None, *, workspace_role=_UNSET, resolver=None):
+    """Visible ancestor chain from the root to ``page`` (cycle-safe, bounded).
+
+    An ancestor the caller cannot view is dropped from the chain: a public page
+    under a private parent must not leak that parent's id or name through the
+    context envelope (spec §22.5). The page itself is always included — the
+    caller already passed the VIEW check before this is called.
+    """
     chain = []
     seen = set()
     current = page
     while current is not None and current.pk not in seen:
         seen.add(current.pk)
-        chain.append({"id": str(current.pk), "name": current.name or ""})
+        if user is None or can_view_page(user, current, workspace, workspace_role=workspace_role, resolver=resolver):
+            chain.append({"id": str(current.pk), "name": current.name or ""})
         if current.parent_id is None:
             break
-        current = Page.objects.filter(pk=current.parent_id).only("id", "name", "parent_id").first()
+        current = (
+            Page.objects.filter(pk=current.parent_id)
+            .select_related("workspace")
+            .only("id", "name", "parent_id", "workspace", "access", "owned_by")
+            .first()
+        )
     chain.reverse()
     return chain
 
@@ -235,11 +248,25 @@ def page_context(page, user, workspace=None, *, resolver=None, workspace_role=_U
         )
         if label_id is not None
     ]
+    # Children go through the same visibility policy as the Wiki list, so a
+    # private child, a child behind a private Collection boundary, or a child
+    # only reachable through an unshared private parent is never listed
+    # (spec §22.5).
     children = list(
-        Page.objects.filter(workspace=workspace, is_global=True, parent_id=page.pk, archived_at__isnull=True)
+        filter_visible_pages(
+            Page.objects.filter(workspace=workspace, is_global=True, parent_id=page.pk, archived_at__isnull=True),
+            user,
+            workspace,
+            workspace_role=workspace_role,
+        )
         .values("id", "name")
         .order_by("sort_order", "name")[:50]
     )
+
+    breadcrumbs = page_breadcrumbs(page, user, workspace, workspace_role=workspace_role, resolver=resolver)
+    # The visible parent is the nearest visible ancestor; a private parent is
+    # reported as absent rather than leaked by id (spec §22.5).
+    visible_parent_id = breadcrumbs[-2]["id"] if len(breadcrumbs) >= 2 else None
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -257,8 +284,8 @@ def page_context(page, user, workspace=None, *, resolver=None, workspace_role=_U
             "owned_by": str(page.owned_by_id) if page.owned_by_id else None,
         },
         "hierarchy": {
-            "parent_id": str(page.parent_id) if page.parent_id else None,
-            "breadcrumbs": page_breadcrumbs(page),
+            "parent_id": visible_parent_id,
+            "breadcrumbs": breadcrumbs,
             "children": [{"id": str(child["id"]), "name": child["name"]} for child in children],
         },
         "labels": labels,

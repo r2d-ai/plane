@@ -125,6 +125,20 @@ CONFLUENCE_XML = """<?xml version="1.0" encoding="UTF-8"?>
 </confluence>"""
 
 
+ENTITY_BOMB_XML = (
+    '<?xml version="1.0"?>\n'
+    "<!DOCTYPE confluence [\n"
+    '  <!ENTITY a "AAAAAAAAAA">\n'
+    '  <!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">\n'
+    '  <!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">\n'
+    '  <!ENTITY d "&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;">\n'
+    '  <!ENTITY e "&d;&d;&d;&d;&d;&d;&d;&d;&d;&d;">\n'
+    "]>\n"
+    '<confluence><object class="Page"><id name="id">1</id>'
+    '<property name="title">&e;</property></object></confluence>'
+)
+
+
 @pytest.mark.contract
 class TestNotionImport:
     @pytest.mark.django_db
@@ -285,6 +299,17 @@ class TestConfluenceImport:
 
         assert response.status_code == 400
         assert response.json()["error_code"] == "UNSUPPORTED_CONFLUENCE_ARCHIVE"
+
+    @pytest.mark.django_db
+    def test_entity_expansion_is_not_resolved(self, session_client, workspace, create_user):
+        upload = _zip_upload({"entities.xml": ENTITY_BOMB_XML.encode("utf-8")})
+
+        response = session_client.post(_confluence_url(workspace.slug), {"file": upload}, format="multipart")
+
+        assert response.status_code == 201
+        page = Page.objects.get(workspace=workspace)
+        assert "AAAA" not in page.name
+        assert len(page.name) < 50
 
     @pytest.mark.django_db
     def test_invalid_xml_rejected(self, session_client, workspace, create_user):
