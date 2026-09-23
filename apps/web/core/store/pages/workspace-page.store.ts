@@ -26,9 +26,19 @@ type TLoader = "init-loader" | "mutation-loader" | undefined;
 
 type TError = { title: string; description: string };
 
+const DEFAULT_PAGE_FILTERS: TPageFilters = {
+  searchQuery: "",
+  sortKey: "updated_at",
+  sortBy: "desc",
+};
+
 export const WORKSPACE_WIKI_CREATE_PAGE_ROLES: EUserPermissions[] = [EUserPermissions.ADMIN, EUserPermissions.MEMBER];
 
 export interface IWorkspacePageStore extends IBasePageStore<TWorkspacePage> {
+  // scope
+  activeWorkspaceSlug: string | undefined;
+  /** Switch the store to a workspace scope, clearing stale active data. */
+  activateScope: (workspaceSlug: string) => void;
   // helper actions
   getCurrentWorkspacePageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
   getCurrentWorkspaceFilteredPageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
@@ -55,11 +65,9 @@ export class WorkspacePageStore implements IWorkspacePageStore {
   loader: TLoader = "init-loader";
   data: Record<string, TWorkspacePage> = {}; // pageId => Page
   error: TError | undefined = undefined;
-  filters: TPageFilters = {
-    searchQuery: "",
-    sortKey: "updated_at",
-    sortBy: "desc",
-  };
+  filters: TPageFilters = { ...DEFAULT_PAGE_FILTERS };
+  // active workspace scope
+  activeWorkspaceSlug: string | undefined = undefined;
   // service
   service: WorkspacePageService;
   rootStore: CoreRootStore;
@@ -71,12 +79,14 @@ export class WorkspacePageStore implements IWorkspacePageStore {
       data: observable,
       error: observable,
       filters: observable,
+      activeWorkspaceSlug: observable.ref,
       // computed
       isAnyPageAvailable: computed,
       canCurrentUserCreatePage: computed,
       // helper actions
       updateFilters: action,
       clearAllFilters: action,
+      activateScope: action,
       // actions
       fetchPagesList: action,
       fetchPageDetails: action,
@@ -108,7 +118,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
    * @description returns true if the current logged in user can create a page
    */
   get canCurrentUserCreatePage() {
-    const { workspaceSlug } = this.store.router;
+    const workspaceSlug = this.activeWorkspaceSlug ?? this.store.router.workspaceSlug;
     const workspaceRole = this.store.user.permission.getWorkspaceRoleByWorkspaceSlug(workspaceSlug?.toString() || "");
     if (!workspaceRole) return false;
     if (typeof workspaceRole === "number") {
@@ -186,6 +196,19 @@ export class WorkspacePageStore implements IWorkspacePageStore {
     });
 
   /**
+   * @description switch the store to a workspace scope: stale data and filters
+   * are cleared and the active slug recorded atomically before the caller
+   * fetches the new scope
+   */
+  activateScope = (workspaceSlug: string) => {
+    runInAction(() => {
+      this.data = {};
+      this.filters = { ...DEFAULT_PAGE_FILTERS };
+      this.activeWorkspaceSlug = workspaceSlug;
+    });
+  };
+
+  /**
    * @description fetch all the pages
    */
   fetchPagesList = async (workspaceSlug: string, pageType?: TPageNavigationTabs) => {
@@ -199,6 +222,8 @@ export class WorkspacePageStore implements IWorkspacePageStore {
       });
 
       const pages = await this.service.fetchAll(workspaceSlug);
+      // ignore a late response for a scope that is no longer active
+      if (this.activeWorkspaceSlug && this.activeWorkspaceSlug !== workspaceSlug) return undefined;
       runInAction(() => {
         for (const page of pages) {
           if (page?.id) {
@@ -207,7 +232,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
               const { name, ...otherFields } = page;
               existingPage.mutateProperties(otherFields, false);
             } else {
-              set(this.data, [page.id], new WorkspacePage(this.store, page));
+              set(this.data, [page.id], new WorkspacePage(this.store, page, workspaceSlug));
             }
           }
         }
@@ -216,6 +241,8 @@ export class WorkspacePageStore implements IWorkspacePageStore {
 
       return pages;
     } catch (error) {
+      // ignore a late failure for a scope that is no longer active
+      if (this.activeWorkspaceSlug && this.activeWorkspaceSlug !== workspaceSlug) throw error;
       runInAction(() => {
         this.loader = undefined;
         this.error = {
@@ -244,6 +271,8 @@ export class WorkspacePageStore implements IWorkspacePageStore {
       });
 
       const page = await this.service.fetchById(workspaceSlug, pageId, trackVisit ?? true);
+      // ignore a late response for a scope that is no longer active
+      if (this.activeWorkspaceSlug && this.activeWorkspaceSlug !== workspaceSlug) return undefined;
 
       runInAction(() => {
         if (page?.id) {
@@ -251,7 +280,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
           if (pageInstance) {
             pageInstance.mutateProperties(page, false);
           } else {
-            set(this.data, [page.id], new WorkspacePage(this.store, page));
+            set(this.data, [page.id], new WorkspacePage(this.store, page, workspaceSlug));
           }
         }
         this.loader = undefined;
@@ -259,6 +288,8 @@ export class WorkspacePageStore implements IWorkspacePageStore {
 
       return page;
     } catch (error) {
+      // ignore a late failure for a scope that is no longer active
+      if (this.activeWorkspaceSlug && this.activeWorkspaceSlug !== workspaceSlug) throw error;
       runInAction(() => {
         this.loader = undefined;
         this.error = {
@@ -276,7 +307,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
    */
   createPage = async (pageData: Partial<TPage>) => {
     try {
-      const { workspaceSlug } = this.store.router;
+      const workspaceSlug = this.activeWorkspaceSlug ?? this.store.router.workspaceSlug;
       if (!workspaceSlug) return undefined;
 
       runInAction(() => {
@@ -286,7 +317,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
 
       const page = await this.service.create(workspaceSlug, pageData);
       runInAction(() => {
-        if (page?.id) set(this.data, [page.id], new WorkspacePage(this.store, page));
+        if (page?.id) set(this.data, [page.id], new WorkspacePage(this.store, page, workspaceSlug));
         this.loader = undefined;
       });
 
@@ -309,7 +340,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
    */
   removePage = async ({ pageId, shouldSync: _shouldSync = true }: { pageId: string; shouldSync?: boolean }) => {
     try {
-      const { workspaceSlug } = this.store.router;
+      const workspaceSlug = this.activeWorkspaceSlug ?? this.store.router.workspaceSlug;
       if (!workspaceSlug || !pageId) return undefined;
 
       await this.service.remove(workspaceSlug, pageId);
@@ -343,7 +374,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
     sortOrder?: number;
   }): Promise<TPage | undefined> => {
     const { pageId, newParentId, sortOrder } = params;
-    const { workspaceSlug } = this.store.router;
+    const workspaceSlug = this.activeWorkspaceSlug ?? this.store.router.workspaceSlug;
     if (!workspaceSlug || !pageId) return undefined;
     const page = this.data?.[pageId];
     if (!page) return undefined;
