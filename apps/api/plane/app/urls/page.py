@@ -23,6 +23,10 @@ from plane.app.views import (
     PageCollectionAnalyticsViewSet,
     PagePublishViewSet,
     PageTemplateViewSet,
+    WorkspacePageAIEndpoint,
+    WorkspaceWikiAIEventsEndpoint,
+    WorkspaceWikiAISearchEndpoint,
+    WorkspaceWikiImportEndpoint,
 )
 
 urlpatterns = [
@@ -269,5 +273,49 @@ urlpatterns = [
         "workspaces/<str:slug>/pages/<uuid:page_id>/save-as-template/",
         WorkspacePageViewSet.as_view({"post": "save_as_template"}),
         name="workspace-page-save-as-template",
+    ),
+    # Stable Wiki <-> AI contract (WIKI-10, plan §13.1). AI consumers read and
+    # mutate Wiki state only through these endpoints and the event feed, never
+    # the database directly.
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/ai/context/",
+        WorkspacePageAIEndpoint.as_view({"get": "ai_context"}),
+        name="workspace-page-ai-context",
+    ),
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/ai/summarize/",
+        WorkspacePageAIEndpoint.as_view({"post": "ai_summarize"}),
+        name="workspace-page-ai-summarize",
+    ),
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/ai/apply/",
+        WorkspacePageAIEndpoint.as_view({"post": "ai_apply"}),
+        name="workspace-page-ai-apply",
+    ),
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/ai/label-suggestions/",
+        WorkspacePageAIEndpoint.as_view({"post": "ai_label_suggestions"}),
+        name="workspace-page-ai-label-suggestions",
+    ),
+    path(
+        "workspaces/<str:slug>/wiki/ai/search/",
+        WorkspaceWikiAISearchEndpoint.as_view({"post": "ai_search"}),
+        name="workspace-wiki-ai-search",
+    ),
+    path(
+        "workspaces/<str:slug>/wiki/ai/events/",
+        WorkspaceWikiAIEventsEndpoint.as_view({"get": "ai_events"}),
+        name="workspace-wiki-ai-events",
+    ),
+    # Optional importers (WIKI-10, plan §13.2/§13.3).
+    path(
+        "workspaces/<str:slug>/wiki/import/notion/",
+        WorkspaceWikiImportEndpoint.as_view({"post": "wiki_import_notion"}),
+        name="workspace-wiki-import-notion",
+    ),
+    path(
+        "workspaces/<str:slug>/wiki/import/confluence/",
+        WorkspaceWikiImportEndpoint.as_view({"post": "wiki_import_confluence"}),
+        name="workspace-wiki-import-confluence",
     ),
 ]

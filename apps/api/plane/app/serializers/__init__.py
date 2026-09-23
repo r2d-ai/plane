@@ -117,6 +117,13 @@ from .page_comment import PageCommentSerializer
 from .page_analytics import PageViewRecordSerializer, PageViewSerializer
 from .page_publish import PagePublishSerializer
 from .page_template import PageTemplateSerializer
+from .wiki_ai import (
+    WikiAIApplySerializer,
+    WikiAILabelSuggestionSerializer,
+    WikiAISearchSerializer,
+    WikiAISummarizeSerializer,
+    WikiEventSerializer,
+)
 
 from .estimate import (
     EstimateSerializer,

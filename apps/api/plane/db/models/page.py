@@ -502,9 +502,7 @@ class PageComment(BaseModel):
         from plane.utils.html_processor import strip_tags
 
         self.comment_stripped = (
-            None
-            if (self.comment_html == "" or self.comment_html is None)
-            else strip_tags(self.comment_html)
+            None if (self.comment_html == "" or self.comment_html is None) else strip_tags(self.comment_html)
         )
         super(PageComment, self).save(*args, **kwargs)
 
@@ -670,3 +668,73 @@ class PageTemplate(BaseModel):
 
     def __str__(self):
         return f"{self.workspace_id} <{self.name}>"
+
+
+class WikiEvent(BaseModel):
+    """Append-only Wiki integration event feed (WIKI-10, spec §20).
+
+    AI/provider integrations and importers consume Wiki state through this
+    durable event log and the read APIs in ``plane.utils.wiki_ai`` instead of
+    reading the ``Page`` tables directly, so the Wiki schema can evolve without
+    coupling an external service to it (plan §13.1 "stable APIs/events").
+
+    Events are workspace-scoped; ``payload`` carries identifiers and metadata
+    only and never embeds ``description_html``/``description_json``, so a
+    private page body can never leak through the feed (spec §20, §22.5).
+    ``page`` is ``SET_NULL`` and ``page_name`` is a snapshot so the trail
+    survives a hard delete.
+    """
+
+    PAGE_CREATED = "page.created"
+    PAGE_UPDATED = "page.updated"
+    PAGE_MOVED = "page.moved"
+    PAGE_ARCHIVED = "page.archived"
+    PAGE_RESTORED = "page.restored"
+    PAGE_DELETED = "page.deleted"
+    PAGE_ACCESS_CHANGED = "page.access_changed"
+    PAGE_IMPORTED = "page.imported"
+    PAGE_AI_EDIT = "page.ai_edit"
+
+    EVENT_CHOICES = (
+        (PAGE_CREATED, "Page Created"),
+        (PAGE_UPDATED, "Page Updated"),
+        (PAGE_MOVED, "Page Moved"),
+        (PAGE_ARCHIVED, "Page Archived"),
+        (PAGE_RESTORED, "Page Restored"),
+        (PAGE_DELETED, "Page Deleted"),
+        (PAGE_ACCESS_CHANGED, "Page Access Changed"),
+        (PAGE_IMPORTED, "Page Imported"),
+        (PAGE_AI_EDIT, "Page AI Edit"),
+    )
+
+    workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="wiki_events")
+    page = models.ForeignKey(
+        "db.Page",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="wiki_events",
+    )
+    page_name = models.CharField(max_length=255, blank=True, default="")
+    event_type = models.CharField(max_length=64, choices=EVENT_CHOICES)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="wiki_events",
+    )
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Wiki Event"
+        verbose_name_plural = "Wiki Events"
+        db_table = "wiki_events"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["workspace", "created_at"], name="wiki_event_ws_created_idx"),
+            models.Index(fields=["workspace", "event_type", "created_at"], name="wiki_event_ws_type_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.event_type} {self.page_name}"

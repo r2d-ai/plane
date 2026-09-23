@@ -382,6 +382,32 @@ PAGE_EXPORT_MAX_BYTES = int(os.environ.get("PAGE_EXPORT_MAX_BYTES", 25 * 1024 * 
 PAGE_ANALYTICS_ENABLED = os.environ.get("PAGE_ANALYTICS_ENABLED", "1") == "1"
 PAGE_ANALYTICS_IDENTIFY_VIEWERS = os.environ.get("PAGE_ANALYTICS_IDENTIFY_VIEWERS", "0") == "1"
 
+# Wiki <-> AI integration (WIKI-10, plan §13.1). The Wiki exposes a stable
+# read/write contract (context, summary, agent edit, natural-language search,
+# label suggestions) plus the ``WikiEvent`` feed so an AI provider consumes
+# Wiki through APIs/events instead of the database. WIKI_AI_ENABLED=0 disables
+# the provider-facing endpoints; the Wiki itself is unaffected. The schema
+# version is part of every payload so a consumer can negotiate the contract.
+WIKI_AI_ENABLED = os.environ.get("WIKI_AI_ENABLED", "1") == "1"
+WIKI_AI_CONTEXT_SCHEMA_VERSION = "1.0"
+WIKI_AI_MAX_SUGGESTIONS = int(os.environ.get("WIKI_AI_MAX_SUGGESTIONS", 10))
+WIKI_AI_MAX_EVENTS = int(os.environ.get("WIKI_AI_MAX_EVENTS", 200))
+WIKI_AI_SEARCH_MAX_RESULTS = int(os.environ.get("WIKI_AI_SEARCH_MAX_RESULTS", 25))
+
+# Wiki importer limits (WIKI-10, plan §13.2/§13.3). Imports run synchronously
+# inside the request, so every dimension is bounded and a malformed or hostile
+# archive is rejected with a structured error instead of exhausting the worker.
+# The extractor also refuses path traversal, absolute paths and symlinks.
+WIKI_IMPORT_MAX_BYTES = int(os.environ.get("WIKI_IMPORT_MAX_BYTES", 50 * 1024 * 1024))
+WIKI_IMPORT_MAX_ENTRIES = int(os.environ.get("WIKI_IMPORT_MAX_ENTRIES", 2000))
+WIKI_IMPORT_MAX_PAGES = int(os.environ.get("WIKI_IMPORT_MAX_PAGES", 500))
+WIKI_IMPORT_MAX_DEPTH = int(os.environ.get("WIKI_IMPORT_MAX_DEPTH", 20))
+WIKI_IMPORT_MAX_ATTACHMENTS = int(os.environ.get("WIKI_IMPORT_MAX_ATTACHMENTS", 500))
+WIKI_IMPORT_MAX_ATTACHMENT_BYTES = int(
+    os.environ.get("WIKI_IMPORT_MAX_ATTACHMENT_BYTES", 10 * 1024 * 1024)
+)
+WIKI_IMPORT_MAX_COMMENTS = int(os.environ.get("WIKI_IMPORT_MAX_COMMENTS", 2000))
+
 # Analytics
 ANALYTICS_SECRET_KEY = os.environ.get("ANALYTICS_SECRET_KEY", False)
 ANALYTICS_BASE_API = os.environ.get("ANALYTICS_BASE_API", False)

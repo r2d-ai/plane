@@ -187,6 +187,12 @@ from .page.page_comment import PageCommentViewSet
 from .page.analytics import PageAnalyticsViewSet, PageCollectionAnalyticsViewSet
 from .page.publish import PagePublishViewSet
 from .page.template import PageTemplateViewSet
+from .page.ai import (
+    WorkspacePageAIEndpoint,
+    WorkspaceWikiAIEventsEndpoint,
+    WorkspaceWikiAISearchEndpoint,
+)
+from .page.importer import WorkspaceWikiImportEndpoint
 
 from .search.base import GlobalSearchEndpoint, SearchEndpoint
 from .search.issue import IssueSearchEndpoint
