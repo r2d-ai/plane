@@ -32,7 +32,6 @@ import { EPageStoreType, usePage, usePageStore } from "@/hooks/store";
 import { WorkspaceService } from "@/services/workspace.service";
 // services
 import { WorkspacePageService, WorkspacePageVersionService } from "@/services/page";
-import type { Route } from "./+types/page";
 
 const workspaceService = new WorkspaceService();
 const workspacePageService = new WorkspacePageService();
@@ -47,7 +46,7 @@ const storeType = EPageStoreType.WORKSPACE;
  * `workspace_page` realtime document type and workspace-scoped asset
  * handling. The Project Page behaviour is unchanged.
  */
-function WikiPageDetailsPage({ params }: Route.ComponentProps) {
+function WikiPageDetailsPage({ params }: { params: { workspaceSlug: string; pageId: string } }) {
   // router
   const router = useAppRouter();
   const { workspaceSlug, pageId } = params;

@@ -16,7 +16,6 @@ import { WikiPagesListRoot } from "@/components/pages/list/wiki-pages-root";
 import { PagesListView } from "@/components/pages/pages-list-view";
 // plane web hooks
 import { EPageStoreType, usePageStore } from "@/hooks/store";
-import type { Route } from "./+types/page";
 
 const getPageType = (pageType?: string | null): TPageNavigationTabs => {
   if (pageType === "private") return "private";
@@ -25,7 +24,7 @@ const getPageType = (pageType?: string | null): TPageNavigationTabs => {
   return "public";
 };
 
-function WorkspaceWikiListPage({ params }: Route.ComponentProps) {
+function WorkspaceWikiListPage({ params }: { params: { workspaceSlug: string } }) {
   const { workspaceSlug } = params;
   const searchParams = useSearchParams();
   const type = searchParams.get("type");

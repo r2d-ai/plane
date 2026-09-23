@@ -12,10 +12,9 @@ import { ContentWrapper } from "@/components/core/content-wrapper";
 // plane web hooks
 import { EPageStoreType, usePageStore } from "@/hooks/store";
 // local components
-import type { Route } from "./+types/layout";
 import { WikiDetailsHeader } from "./header";
 
-export default function WikiDetailsLayout({ params }: Route.ComponentProps) {
+export default function WikiDetailsLayout({ params }: { params: { workspaceSlug: string } }) {
   const { workspaceSlug } = params;
   const { fetchPagesList } = usePageStore(EPageStoreType.WORKSPACE);
   // fetching pages list
