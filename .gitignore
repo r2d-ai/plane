@@ -120,3 +120,4 @@ packages/i18n/src/types/keys.generated.ts
 
 # Local feature worktrees
 .worktrees/
+.superpowers/
