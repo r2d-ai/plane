@@ -85,7 +85,7 @@ export const PageShareDialog = observer(function PageShareDialog(props: TShareDi
         }}
         aria-label="Close share dialog"
       />
-      <div className="relative z-10 flex w-full max-w-lg flex-col gap-4 rounded-lg border border-subtle bg-layer-2 p-6 shadow-xl">
+      <div className="shadow-xl relative z-10 flex w-full max-w-lg flex-col gap-4 rounded-lg border border-subtle bg-layer-2 p-6">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-medium">Share Page</h3>
           <button onClick={onClose} className="text-tertiary hover:text-primary">
@@ -109,7 +109,7 @@ export const PageShareDialog = observer(function PageShareDialog(props: TShareDi
                 <select
                   value={share.role}
                   onChange={(e) => handleRoleChange(share.id, Number(e.target.value) as EPageShareRole)}
-                  className="rounded border border-subtle bg-layer-2 px-2 py-1 text-xs"
+                  className="text-xs rounded border border-subtle bg-layer-2 px-2 py-1"
                 >
                   {PAGE_SHARE_ROLE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -117,10 +117,7 @@ export const PageShareDialog = observer(function PageShareDialog(props: TShareDi
                     </option>
                   ))}
                 </select>
-                <button
-                  onClick={() => handleRemoveShare(share.id)}
-                  className="text-xs text-red-500 hover:text-red-700"
-                >
+                <button onClick={() => handleRemoveShare(share.id)} className="text-xs text-red-500 hover:text-red-700">
                   Remove
                 </button>
               </div>

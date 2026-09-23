@@ -69,6 +69,7 @@ EDIT_ACTIONS = {
     "favorite_create",
     "favorite_destroy",
     "comment_update",
+    "save_as_template",
 }
 # Access-management actions reserved for the page owner or workspace admin.
 MANAGE_ACTIONS = {

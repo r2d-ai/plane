@@ -87,19 +87,20 @@ function WikiPageDetailsPage({ params }: Route.ComponentProps) {
   const pageRootHandlers: TPageRootHandlers = useMemo(
     () => ({
       create: createPage,
-      fetchAllVersions: async (pageId) => await workspacePageVersionService.fetchAllVersions(workspaceSlug, pageId),
+      fetchAllVersions: async (targetPageId) =>
+        await workspacePageVersionService.fetchAllVersions(workspaceSlug, targetPageId),
       fetchDescriptionBinary: async () => {
         if (!id) return;
         return await workspacePageService.fetchDescriptionBinary(workspaceSlug, id);
       },
       fetchEntity: fetchEntityCallback,
-      fetchVersionDetails: async (pageId, versionId) =>
-        await workspacePageVersionService.fetchVersionById(workspaceSlug, pageId, versionId),
-      restoreVersion: async (pageId, versionId) =>
-        await workspacePageVersionService.restoreVersion(workspaceSlug, pageId, versionId),
-      getRedirectionLink: (pageId) => {
-        if (pageId) {
-          return `/${workspaceSlug}/wiki/${pageId}`;
+      fetchVersionDetails: async (targetPageId, versionId) =>
+        await workspacePageVersionService.fetchVersionById(workspaceSlug, targetPageId, versionId),
+      restoreVersion: async (targetPageId, versionId) =>
+        await workspacePageVersionService.restoreVersion(workspaceSlug, targetPageId, versionId),
+      getRedirectionLink: (targetPageId) => {
+        if (targetPageId) {
+          return `/${workspaceSlug}/wiki/${targetPageId}`;
         } else {
           return `/${workspaceSlug}/wiki`;
         }
@@ -191,7 +192,7 @@ function WikiPageDetailsPage({ params }: Route.ComponentProps) {
               />
             </div>
             {showComments && (
-              <div className="w-80 flex-shrink-0 border-l border-subtle overflow-y-auto p-4">
+              <div className="w-80 flex-shrink-0 overflow-y-auto border-l border-subtle p-4">
                 <PageComments pageId={pageId} isEditingAllowed={page?.isContentEditable} />
               </div>
             )}
@@ -201,7 +202,7 @@ function WikiPageDetailsPage({ params }: Route.ComponentProps) {
         <button
           onClick={() => setShowComments(!showComments)}
           className={cn(
-            "fixed bottom-4 right-4 z-50 rounded-full border border-subtle bg-layer-2 px-4 py-2 text-sm shadow-lg hover:bg-layer-3",
+            "text-sm shadow-lg fixed right-4 bottom-4 z-50 rounded-full border border-subtle bg-layer-2 px-4 py-2 hover:bg-layer-3",
             showComments && "bg-primary text-white"
           )}
         >

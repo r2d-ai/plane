@@ -6,8 +6,11 @@
 
 import { useMemo, useState } from "react";
 import { observer } from "mobx-react";
-import { ArrowUpToLine, Clipboard, History } from "lucide-react";
+import { ArrowUpToLine, Clipboard, FileText, History } from "lucide-react";
+import { useParams } from "next/navigation";
 // plane imports
+import { COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { ToggleSwitch } from "@plane/ui";
 // hooks
@@ -16,13 +19,14 @@ import { usePageFilters } from "@/hooks/use-page-filters";
 import { useQueryParams } from "@/hooks/use-query-params";
 // plane web imports
 import type { TPageNavigationPaneTab } from "@/components/pages/navigation-pane/tab-panels";
-import type { EPageStoreType } from "@/hooks/store";
+import { EPageStoreType, usePageTemplateStore } from "@/hooks/store";
 // store
 import type { TPageInstance } from "@/store/pages/base-page";
 // local imports
 import { PageActions } from "../../dropdowns";
 import { ExportPageModal } from "../../modals/export-page-modal";
 import { PAGE_NAVIGATION_PANE_TABS_QUERY_PARAM } from "../../navigation-pane";
+import { SaveAsTemplateModal } from "../../templates";
 
 type Props = {
   page: TPageInstance;
@@ -33,14 +37,25 @@ export const PageOptionsDropdown = observer(function PageOptionsDropdown(props: 
   const { page, storeType } = props;
   // states
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
   // navigation
   const router = useAppRouter();
+  const params = useParams();
+  // i18n
+  const { t } = useTranslation();
   // store values
   const {
     name,
     isContentEditable,
     editor: { editorRef },
   } = page;
+  // template store
+  const { savePageAsTemplate } = usePageTemplateStore();
+  // the workspace slug the page belongs to; Company Wiki has no URL slug, so
+  // fall back to the designated workspace (spec §29.6).
+  const workspaceSlug = params?.workspaceSlug
+    ? params.workspaceSlug.toString()
+    : COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG;
   // page filters
   const { isFullWidth, handleFullWidth, isStickyToolbarEnabled, handleStickyToolbar } = usePageFilters();
   // query params
@@ -109,6 +124,13 @@ export const PageOptionsDropdown = observer(function PageOptionsDropdown(props: 
           icon: ArrowUpToLine,
           shouldRender: true,
         },
+        {
+          key: "save-as-template",
+          action: () => setIsSaveTemplateModalOpen(true),
+          title: t("wiki.templates.save_action"),
+          icon: FileText,
+          shouldRender: storeType === EPageStoreType.WORKSPACE && isContentEditable,
+        },
       ];
     },
     [
@@ -121,6 +143,8 @@ export const PageOptionsDropdown = observer(function PageOptionsDropdown(props: 
       updateQueryParams,
       router,
       setIsExportModalOpen,
+      t,
+      storeType,
     ]
   );
 
@@ -131,6 +155,20 @@ export const PageOptionsDropdown = observer(function PageOptionsDropdown(props: 
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         pageTitle={name ?? ""}
+      />
+      <SaveAsTemplateModal
+        isOpen={isSaveTemplateModalOpen}
+        onClose={() => setIsSaveTemplateModalOpen(false)}
+        defaultName={name ?? ""}
+        onSubmit={async (templateName) => {
+          if (!workspaceSlug || !page.id) return;
+          await savePageAsTemplate(workspaceSlug, page.id, templateName);
+          setToast({
+            type: TOAST_TYPE.SUCCESS,
+            title: t("common.success"),
+            message: t("wiki.templates.toasts.saved"),
+          });
+        }}
       />
       <PageActions
         extraOptions={EXTRA_MENU_OPTIONS}
@@ -144,6 +182,7 @@ export const PageOptionsDropdown = observer(function PageOptionsDropdown(props: 
           "delete",
           "toggle-access",
           "export",
+          "save-as-template",
         ]}
         page={page}
         storeType={storeType}

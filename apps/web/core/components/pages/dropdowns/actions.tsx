@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
-import { ArchiveRestoreIcon, FileOutput, FolderInput, LockKeyhole, LockKeyholeOpen } from "lucide-react";
+import { ArchiveRestoreIcon, FolderInput, LockKeyhole, LockKeyholeOpen } from "lucide-react";
 // constants
 import { EPageAccess } from "@plane/constants";
 // plane editor
@@ -23,7 +23,6 @@ import { MovePageToCollectionModal } from "@/components/pages/collections";
 import { usePageOperations } from "@/hooks/use-page-operations";
 // plane web hooks
 import type { EPageStoreType } from "@/hooks/store";
-import { usePageFlag } from "@/hooks/use-page-flag";
 // store types
 import type { TPageInstance } from "@/store/pages/base-page";
 
@@ -41,7 +40,8 @@ export type TPageActions =
   | "version-history"
   | "export"
   | "move"
-  | "move-to-collection";
+  | "move-to-collection"
+  | "save-as-template";
 
 type Props = {
   extraOptions?: (TContextMenuItem & { key: TPageActions })[];
@@ -59,10 +59,6 @@ export const PageActions = observer(function PageActions(props: Props) {
   // params
   const { workspaceSlug: rawWorkspaceSlug } = useParams();
   const workspaceSlug = rawWorkspaceSlug?.toString() ?? "";
-  // page flag
-  const { isMovePageEnabled } = usePageFlag({
-    workspaceSlug,
-  });
   // page operations
   const { pageOperations } = usePageOperations({
     page,
@@ -77,7 +73,6 @@ export const PageActions = observer(function PageActions(props: Props) {
     canCurrentUserDeletePage,
     canCurrentUserDuplicatePage,
     canCurrentUserLockPage,
-    canCurrentUserMovePage,
   } = page;
   // menu items
   const MENU_ITEMS = useMemo(
@@ -143,13 +138,6 @@ export const PageActions = observer(function PageActions(props: Props) {
           shouldRender: canCurrentUserDeletePage && !!archived_at,
         },
         {
-          key: "move",
-          action: () => setMovePageModal(true),
-          title: "Move",
-          icon: FileOutput,
-          shouldRender: canCurrentUserMovePage && isMovePageEnabled,
-        },
-        {
           key: "move-to-collection",
           action: () => setMoveToCollectionModal(true),
           title: "Move to Collection",
@@ -172,8 +160,6 @@ export const PageActions = observer(function PageActions(props: Props) {
       canCurrentUserDuplicatePage,
       canCurrentUserArchivePage,
       canCurrentUserDeletePage,
-      canCurrentUserMovePage,
-      isMovePageEnabled,
       pageOperations,
     ]
   );

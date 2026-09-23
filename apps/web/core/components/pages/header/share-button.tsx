@@ -22,19 +22,11 @@ export const PageShareButton = observer(function PageShareButton(props: Props) {
 
   return (
     <>
-      <Button
-        variant="outline-primary"
-        size="sm"
-        onClick={() => setIsShareOpen(true)}
-      >
+      <Button variant="outline-primary" size="sm" onClick={() => setIsShareOpen(true)}>
         Share
       </Button>
       {isShareOpen && page.id && (
-        <PageShareDialog
-          isOpen={isShareOpen}
-          onClose={() => setIsShareOpen(false)}
-          pageId={page.id}
-        />
+        <PageShareDialog isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} pageId={page.id} />
       )}
     </>
   );
