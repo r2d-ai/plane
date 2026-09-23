@@ -14,17 +14,24 @@ import type { EditorRefApi } from "@plane/editor";
 // plane ui
 import { Button } from "@plane/propel/button";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
-import { CustomSelect, EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
+import { CustomSelect, EModalPosition, EModalWidth, ModalCore, ToggleSwitch } from "@plane/ui";
 // components
 import { PDFDocument } from "@/components/editor/pdf";
 // hooks
+import { EPageStoreType } from "@/hooks/store";
 import { useParseEditorContent } from "@/hooks/use-parse-editor-content";
+// services
+import { WorkspacePageService } from "@/services/page";
+
+const workspacePageService = new WorkspacePageService();
 
 type Props = {
   editorRef: EditorRefApi | null;
   isOpen: boolean;
   onClose: () => void;
   pageTitle: string;
+  storeType?: EPageStoreType;
+  pageId?: string;
 };
 
 type TExportFormats = "pdf" | "markdown";
@@ -102,11 +109,14 @@ const defaultValues: TFormValues = {
 };
 
 export function ExportPageModal(props: Props) {
-  const { editorRef, isOpen, onClose, pageTitle } = props;
+  const { editorRef, isOpen, onClose, pageTitle, storeType, pageId } = props;
   // states
   const [isExporting, setIsExporting] = useState(false);
+  const [includeSubPages, setIncludeSubPages] = useState(false);
   // params
   const { workspaceSlug, projectId } = useParams();
+  // derived values
+  const isWorkspacePage = storeType === EPageStoreType.WORKSPACE && !!pageId;
   // form info
   const { control, reset, watch } = useForm<TFormValues>({
     defaultValues,
@@ -174,14 +184,21 @@ export function ExportPageModal(props: Props) {
       throw new Error(`Error in exporting as markdown: ${error}`);
     }
   };
+  // handle nested export as a ZIP of Markdown files
+  const handleExportAsNestedZip = async () => {
+    if (!pageId || !workspaceSlug) return;
+    const blob = await workspacePageService.exportNested(workspaceSlug, pageId);
+    initiateDownload(blob, `${fileName}-export.zip`);
+  };
   // handle export
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      if (selectedExportFormat === "pdf") {
+      if (includeSubPages && isWorkspacePage) {
+        await handleExportAsNestedZip();
+      } else if (selectedExportFormat === "pdf") {
         await handleExportAsPDF();
-      }
-      if (selectedExportFormat === "markdown") {
+      } else if (selectedExportFormat === "markdown") {
         await handleExportAsMarkdown();
       }
       setToast({
@@ -208,76 +225,90 @@ export function ExportPageModal(props: Props) {
         <div className="space-y-5 p-5">
           <h3 className="text-18 font-medium text-secondary">Export page</h3>
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h6 className="flex-shrink-0 text-13 text-secondary">Export format</h6>
-              <Controller
-                control={control}
-                name="export_format"
-                render={({ field: { onChange, value } }) => (
-                  <CustomSelect
-                    label={EXPORT_FORMATS.find((format) => format.key === value)?.label}
-                    buttonClassName="border-none"
-                    value={value}
-                    onChange={(val: TExportFormats) => onChange(val)}
-                    className="flex-shrink-0"
-                    placement="bottom-end"
-                  >
-                    {EXPORT_FORMATS.map((format) => (
-                      <CustomSelect.Option key={format.key} value={format.key}>
-                        {format.label}
-                      </CustomSelect.Option>
-                    ))}
-                  </CustomSelect>
-                )}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <h6 className="flex-shrink-0 text-13 text-secondary">Include content</h6>
-              <Controller
-                control={control}
-                name="content_variety"
-                render={({ field: { onChange, value } }) => (
-                  <CustomSelect
-                    label={CONTENT_VARIETY.find((variety) => variety.key === value)?.label}
-                    buttonClassName="border-none"
-                    value={value}
-                    onChange={(val: TContentVariety) => onChange(val)}
-                    className="flex-shrink-0"
-                    placement="bottom-end"
-                  >
-                    {CONTENT_VARIETY.map((variety) => (
-                      <CustomSelect.Option key={variety.key} value={variety.key}>
-                        {variety.label}
-                      </CustomSelect.Option>
-                    ))}
-                  </CustomSelect>
-                )}
-              />
-            </div>
-            {isPDFSelected && (
+            {isWorkspacePage && (
               <div className="flex items-center justify-between gap-2">
-                <h6 className="flex-shrink-0 text-13 text-secondary">Page format</h6>
-                <Controller
-                  control={control}
-                  name="page_format"
-                  render={({ field: { onChange, value } }) => (
-                    <CustomSelect
-                      label={PAGE_FORMATS.find((format) => format.key === value)?.label}
-                      buttonClassName="border-none"
-                      value={value}
-                      onChange={(val: TPageFormats) => onChange(val)}
-                      className="flex-shrink-0"
-                      placement="bottom-end"
-                    >
-                      {PAGE_FORMATS.map((format) => (
-                        <CustomSelect.Option key={format.key.toString()} value={format.key}>
-                          {format.label}
-                        </CustomSelect.Option>
-                      ))}
-                    </CustomSelect>
-                  )}
-                />
+                <h6 className="flex-shrink-0 text-13 text-secondary">Include sub-pages</h6>
+                <ToggleSwitch value={includeSubPages} onChange={setIncludeSubPages} />
               </div>
+            )}
+            {includeSubPages && isWorkspacePage ? (
+              <p className="text-11 text-tertiary">
+                The page and every accessible sub-page are packaged as a ZIP of Markdown files.
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <h6 className="flex-shrink-0 text-13 text-secondary">Export format</h6>
+                  <Controller
+                    control={control}
+                    name="export_format"
+                    render={({ field: { onChange, value } }) => (
+                      <CustomSelect
+                        label={EXPORT_FORMATS.find((format) => format.key === value)?.label}
+                        buttonClassName="border-none"
+                        value={value}
+                        onChange={(val: TExportFormats) => onChange(val)}
+                        className="flex-shrink-0"
+                        placement="bottom-end"
+                      >
+                        {EXPORT_FORMATS.map((format) => (
+                          <CustomSelect.Option key={format.key} value={format.key}>
+                            {format.label}
+                          </CustomSelect.Option>
+                        ))}
+                      </CustomSelect>
+                    )}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <h6 className="flex-shrink-0 text-13 text-secondary">Include content</h6>
+                  <Controller
+                    control={control}
+                    name="content_variety"
+                    render={({ field: { onChange, value } }) => (
+                      <CustomSelect
+                        label={CONTENT_VARIETY.find((variety) => variety.key === value)?.label}
+                        buttonClassName="border-none"
+                        value={value}
+                        onChange={(val: TContentVariety) => onChange(val)}
+                        className="flex-shrink-0"
+                        placement="bottom-end"
+                      >
+                        {CONTENT_VARIETY.map((variety) => (
+                          <CustomSelect.Option key={variety.key} value={variety.key}>
+                            {variety.label}
+                          </CustomSelect.Option>
+                        ))}
+                      </CustomSelect>
+                    )}
+                  />
+                </div>
+                {isPDFSelected && (
+                  <div className="flex items-center justify-between gap-2">
+                    <h6 className="flex-shrink-0 text-13 text-secondary">Page format</h6>
+                    <Controller
+                      control={control}
+                      name="page_format"
+                      render={({ field: { onChange, value } }) => (
+                        <CustomSelect
+                          label={PAGE_FORMATS.find((format) => format.key === value)?.label}
+                          buttonClassName="border-none"
+                          value={value}
+                          onChange={(val: TPageFormats) => onChange(val)}
+                          className="flex-shrink-0"
+                          placement="bottom-end"
+                        >
+                          {PAGE_FORMATS.map((format) => (
+                            <CustomSelect.Option key={format.key.toString()} value={format.key}>
+                              {format.label}
+                            </CustomSelect.Option>
+                          ))}
+                        </CustomSelect>
+                      )}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -181,6 +181,7 @@ from .page.workspace import (
     WorkspacePageDuplicateEndpoint,
 )
 from .page.workspace_version import WorkspacePageVersionEndpoint
+from .page.export import WorkspacePageExportEndpoint
 from .page.collection import PageCollectionViewSet
 from .page.page_comment import PageCommentViewSet
 
