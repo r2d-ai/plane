@@ -10,3 +10,4 @@ export * from "./collection";
 export * from "./template";
 export * from "./share";
 export * from "./comment";
+export * from "./publish";

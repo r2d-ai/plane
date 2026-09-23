@@ -79,6 +79,11 @@ MANAGE_ACTIONS = {
     "share_update",
     "share_remove",
     "comment_destroy",
+    # External publishing (WIKI-07b): creating/reading/revoking the public
+    # token is an access-management operation, not an edit.
+    "publish_state",
+    "publish",
+    "publish_revoke",
 }
 # Destructive actions reserved for workspace admins (page owners may still
 # delete their own archived page; enforced in the view).

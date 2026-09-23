@@ -16,6 +16,7 @@ import { PageCopyLinkControl } from "./copy-link-control";
 import { PageFavoriteControl } from "./favorite-control";
 import { PageOfflineBadge } from "./offline-badge";
 import { PageLockControl } from "./lock-control";
+import { PagePublishButton } from "./publish-button";
 import { PageShareButton } from "./share-button";
 
 type Props = {
@@ -32,6 +33,7 @@ export const PageHeaderActions = observer(function PageHeaderActions(props: Prop
       <PageOfflineBadge page={page} />
       <PageLockControl page={page} />
       <PageShareButton page={page} />
+      <PagePublishButton page={page} />
       <PageCopyLinkControl page={page} />
       <PageFavoriteControl page={page} />
       <PageOptionsDropdown page={page} storeType={storeType} />

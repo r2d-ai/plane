@@ -114,6 +114,7 @@ from .page_collection import (
 
 from .page_share import PageShareSerializer
 from .page_comment import PageCommentSerializer
+from .page_publish import PagePublishSerializer
 from .page_template import PageTemplateSerializer
 
 from .estimate import (

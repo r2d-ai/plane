@@ -30,4 +30,6 @@ from .label import ProjectLabelsEndpoint
 
 from .asset import EntityAssetEndpoint, AssetRestoreEndpoint, EntityBulkAssetEndpoint
 
+from .page import PublishedPageEndpoint
+
 from .meta import ProjectMetaDataEndpoint
