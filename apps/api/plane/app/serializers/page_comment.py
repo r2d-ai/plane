@@ -41,3 +41,13 @@ class PageCommentSerializer(BaseSerializer):
             "display_name": actor.display_name,
             "avatar_url": actor.avatar_url,
         }
+
+    def create(self, validated_data):
+        # workspace/page/actor are read-only on the wire and supplied by the
+        # view through the serializer context, so they must be bound here.
+        return PageComment.objects.create(
+            workspace_id=self.context["workspace_id"],
+            page_id=self.context["page_id"],
+            actor_id=self.context["actor_id"],
+            **validated_data,
+        )

@@ -184,12 +184,12 @@ urlpatterns = [
     # Page comments (WIKI-06b, spec §5.4, §14).
     path(
         "workspaces/<str:slug>/pages/<uuid:page_id>/comments/",
-        PageCommentViewSet.as_view({"get": "list", "post": "create"}),
+        PageCommentViewSet.as_view({"get": "comment_list", "post": "comment_create"}),
         name="workspace-page-comments",
     ),
     path(
         "workspaces/<str:slug>/pages/<uuid:page_id>/comments/<uuid:comment_id>/",
-        PageCommentViewSet.as_view({"patch": "partial_update", "delete": "destroy"}),
+        PageCommentViewSet.as_view({"patch": "comment_update", "delete": "comment_destroy"}),
         name="workspace-page-comment",
     ),
 ]
