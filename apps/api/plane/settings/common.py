@@ -367,6 +367,13 @@ COMPANY_WIKI_WORKSPACE_SLUG = os.environ.get("COMPANY_WIKI_WORKSPACE_SLUG", "")
 # to the designated workspace's Wiki pages. It never grants write/manage.
 COMPANY_WIKI_OPEN_READ = os.environ.get("COMPANY_WIKI_OPEN_READ", "0") == "1"
 
+# Nested Wiki page export limits (spec §17.2, plan §10.3). The export runs
+# synchronously inside the request, so it is bounded: a subtree that exceeds any
+# limit is rejected with a structured error instead of exhausting the worker.
+PAGE_EXPORT_MAX_DEPTH = int(os.environ.get("PAGE_EXPORT_MAX_DEPTH", 10))
+PAGE_EXPORT_MAX_PAGES = int(os.environ.get("PAGE_EXPORT_MAX_PAGES", 200))
+PAGE_EXPORT_MAX_BYTES = int(os.environ.get("PAGE_EXPORT_MAX_BYTES", 25 * 1024 * 1024))
+
 # Analytics
 ANALYTICS_SECRET_KEY = os.environ.get("ANALYTICS_SECRET_KEY", False)
 ANALYTICS_BASE_API = os.environ.get("ANALYTICS_BASE_API", False)

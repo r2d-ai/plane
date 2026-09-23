@@ -16,6 +16,7 @@ from plane.app.views import (
     WorkspacePageFavoriteViewSet,
     WorkspacePageDuplicateEndpoint,
     WorkspacePageVersionEndpoint,
+    WorkspacePageExportEndpoint,
     PageCollectionViewSet,
     PageCommentViewSet,
     PagePublishViewSet,
@@ -145,6 +146,12 @@ urlpatterns = [
         "workspaces/<str:slug>/pages/<uuid:page_id>/duplicate/",
         WorkspacePageDuplicateEndpoint.as_view(),
         name="workspace-page-duplicate",
+    ),
+    # Nested export: root page + permitted descendants as a ZIP (WIKI-07c, §17.2).
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/export/",
+        WorkspacePageExportEndpoint.as_view(),
+        name="workspace-page-export",
     ),
     # Collections (WIKI-05). Same routes serve Workspace Wiki and the
     # designated Company Wiki workspace.
