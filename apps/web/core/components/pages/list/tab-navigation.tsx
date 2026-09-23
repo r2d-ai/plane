@@ -11,6 +11,9 @@ import { useTranslation } from "@plane/i18n";
 import type { TPageNavigationTabs } from "@plane/types";
 // helpers
 import { cn } from "@plane/utils";
+// hooks
+import { EPageStoreType, usePageStore } from "@/hooks/store";
+import type { IWorkspacePageStore } from "@/store/pages/workspace-page.store";
 
 type TPageTabNavigation = {
   workspaceSlug: string;
@@ -24,11 +27,19 @@ type TPageTabNavigation = {
    * (`() => `/${workspaceSlug}/wiki``).
    */
   buildTabHref?: (params: { workspaceSlug: string; tabKey: TPageNavigationTabs }) => string;
+  storeType?: EPageStoreType;
 };
 
 export const PageTabNavigation = observer(function PageTabNavigation(props: TPageTabNavigation) {
-  const { workspaceSlug, projectId, pageType, buildTabHref } = props;
+  const { workspaceSlug, projectId, pageType, buildTabHref, storeType } = props;
   const { t } = useTranslation();
+
+  // Get favorites count for badge
+  const pageStore = usePageStore(storeType ?? EPageStoreType.WORKSPACE);
+  const favoritesCount =
+    storeType === EPageStoreType.WORKSPACE
+      ? (pageStore as IWorkspacePageStore).getCurrentWorkspacePageIdsByTab?.("favorites")?.length ?? 0
+      : 0;
 
   const tabs: { key: TPageNavigationTabs; label: string }[] = [
     { key: "public", label: t("wiki.tabs.public") },
@@ -56,11 +67,23 @@ export const PageTabNavigation = observer(function PageTabNavigation(props: TPag
           className="flex h-full flex-col"
         >
           <div
-            className={cn(`flex flex-1 items-center justify-center px-4 text-13 font-medium transition-all`, {
+            className={cn(`flex flex-1 items-center justify-center gap-1.5 px-4 text-13 font-medium transition-all`, {
               "text-accent-primary": tab.key === pageType,
             })}
           >
             {tab.label}
+            {tab.key === "favorites" && favoritesCount > 0 && (
+              <span
+                className={cn(
+                  "flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-10 font-medium",
+                  tab.key === pageType
+                    ? "bg-accent-primary/20 text-accent-primary"
+                    : "bg-layer-3 text-secondary"
+                )}
+              >
+                {favoritesCount}
+              </span>
+            )}
           </div>
           <div
             className={cn(`w-full rounded-t border-t-2 border-transparent transition-all`, {

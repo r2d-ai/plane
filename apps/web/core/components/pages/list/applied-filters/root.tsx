@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { useParams } from "next/navigation";
 import { useTranslation } from "@plane/i18n";
 import { CloseIcon } from "@plane/propel/icons";
 // plane imports
@@ -13,6 +14,9 @@ import { replaceUnderscoreIfSnakeCase } from "@plane/utils";
 // components
 import { AppliedDateFilters } from "@/components/common/applied-filters/date";
 import { AppliedMembersFilters } from "@/components/common/applied-filters/members";
+import { AppliedLabelsFilters } from "@/components/issues/issue-layouts/filters/applied-filters/label";
+// hooks
+import { useLabel } from "@/hooks/store/use-label";
 
 type Props = {
   appliedFilters: TPageFilterProps;
@@ -21,12 +25,16 @@ type Props = {
   alwaysAllowEditing?: boolean;
 };
 
-const MEMBERS_FILTERS = ["created_by"];
-const DATE_FILTERS = ["created_at"];
+const MEMBERS_FILTERS = new Set(["created_by"]);
+const DATE_FILTERS = new Set(["created_at"]);
+const LABELS_FILTERS = new Set(["labels"]);
 
 export function PageAppliedFiltersList(props: Props) {
   const { appliedFilters, handleClearAllFilters, handleRemoveFilter, alwaysAllowEditing } = props;
+  const { workspaceSlug } = useParams();
   const { t } = useTranslation();
+  const { getWorkspaceLabels } = useLabel();
+  const workspaceLabels = getWorkspaceLabels(workspaceSlug?.toString() ?? "");
 
   if (!appliedFilters) return null;
   if (Object.keys(appliedFilters).length === 0) return null;
@@ -45,17 +53,25 @@ export function PageAppliedFiltersList(props: Props) {
           <Tag key={filterKey}>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-11 text-tertiary">{replaceUnderscoreIfSnakeCase(filterKey)}</span>
-              {DATE_FILTERS.includes(filterKey) && (
+              {DATE_FILTERS.has(filterKey) && (
                 <AppliedDateFilters
                   editable={isEditingAllowed}
                   handleRemove={(val) => handleRemoveFilter(filterKey, val)}
                   values={Array.isArray(value) ? value : []}
                 />
               )}
-              {MEMBERS_FILTERS.includes(filterKey) && (
+              {MEMBERS_FILTERS.has(filterKey) && (
                 <AppliedMembersFilters
                   editable={isEditingAllowed}
                   handleRemove={(val) => handleRemoveFilter(filterKey, val)}
+                  values={Array.isArray(value) ? value : []}
+                />
+              )}
+              {LABELS_FILTERS.has(filterKey) && (
+                <AppliedLabelsFilters
+                  editable={isEditingAllowed}
+                  handleRemove={(val) => handleRemoveFilter(filterKey, val)}
+                  labels={workspaceLabels}
                   values={Array.isArray(value) ? value : []}
                 />
               )}

@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
+import { useSearchParams } from "next/navigation";
 // plane imports
 import type { CollaborationState, EditorRefApi } from "@plane/editor";
 import type { TDocumentPayload, TPage, TPageVersion, TWebhookConnectionQueryParams } from "@plane/types";
@@ -17,7 +18,9 @@ import type { EPageStoreType } from "@/hooks/store";
 // store
 import type { TPageInstance } from "@/store/pages/base-page";
 // local imports
+import { PAGE_NAVIGATION_PANE_DIFF_QUERY_PARAM, PAGE_NAVIGATION_PANE_WIDTH } from "../navigation-pane";
 import { PageNavigationPaneRoot } from "../navigation-pane";
+import { PageVersionDiff } from "../version/diff";
 import { PageVersionsOverlay } from "../version";
 import { PagesVersionEditor } from "../version/editor";
 import { ContentLimitBanner } from "./content-limit-banner";
@@ -64,6 +67,11 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
   const [showContentTooLargeBanner, setShowContentTooLargeBanner] = useState(false);
   // refs
   const editorRef = useRef<EditorRefApi>(null);
+  // navigation
+  const searchParams = useSearchParams();
+  const diffParam = searchParams.get(PAGE_NAVIGATION_PANE_DIFF_QUERY_PARAM);
+  const [diffBaseId, diffCompareId] = diffParam?.split(":") ?? [];
+  const isDiffMode = !!diffBaseId && !!diffCompareId;
   // derived values
   const {
     isContentEditable,
@@ -161,6 +169,20 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
           restoreEnabled={isContentEditable}
           storeType={storeType}
         />
+        {/* Diff overlay */}
+        {isDiffMode && (
+          <div
+            className="pointer-events-auto absolute inset-0 z-[16] flex h-full overflow-hidden bg-surface-1 opacity-100"
+            style={{ width: `calc(100% - ${PAGE_NAVIGATION_PANE_WIDTH}px)` }}
+          >
+            <PageVersionDiff
+              baseVersionId={diffBaseId}
+              compareVersionId={diffCompareId}
+              fetchVersionDetails={handlers.fetchVersionDetails}
+              pageId={page.id ?? ""}
+            />
+          </div>
+        )}
         <PageEditorToolbarRoot
           handleOpenNavigationPane={handleOpenNavigationPane}
           isNavigationPaneOpen={isNavigationPaneOpen}

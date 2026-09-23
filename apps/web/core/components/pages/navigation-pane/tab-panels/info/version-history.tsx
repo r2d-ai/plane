@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -12,7 +12,7 @@ import useSWR from "swr";
 // plane imports
 import { useTranslation } from "@plane/i18n";
 import type { TPageVersion } from "@plane/types";
-import { Avatar } from "@plane/ui";
+import { Avatar, Button } from "@plane/ui";
 import { cn, getFileURL, renderFormattedDate, renderFormattedTime } from "@plane/utils";
 // components
 import type { TPageRootHandlers } from "@/components/pages/editor/page-root";
@@ -22,7 +22,7 @@ import { useQueryParams } from "@/hooks/use-query-params";
 // store
 import type { TPageInstance } from "@/store/pages/base-page";
 // local imports
-import { PAGE_NAVIGATION_PANE_VERSION_QUERY_PARAM } from "../..";
+import { PAGE_NAVIGATION_PANE_VERSION_QUERY_PARAM, PAGE_NAVIGATION_PANE_DIFF_QUERY_PARAM } from "../..";
 
 type Props = {
   page: TPageInstance;
@@ -33,16 +33,58 @@ type VersionHistoryItemProps = {
   getVersionLink: (versionID: string) => string;
   isVersionActive: boolean;
   version: TPageVersion;
+  isCompareMode: boolean;
+  isCompareSelected: boolean;
+  onToggleCompare: (versionId: string) => void;
 };
 
 const VersionHistoryItem = observer(function VersionHistoryItem(props: VersionHistoryItemProps) {
-  const { getVersionLink, isVersionActive, version } = props;
+  const { getVersionLink, isVersionActive, version, isCompareMode, isCompareSelected, onToggleCompare } = props;
   // store hooks
   const { getUserDetails } = useMember();
   // derived values
   const versionCreator = getUserDetails(version.owned_by);
   // translation
   const { t } = useTranslation();
+
+  if (isCompareMode) {
+    return (
+      <li className="relative flex items-center gap-x-4 text-11 font-medium">
+        <div className="relative grid size-6 flex-none place-items-center">
+          <button
+            type="button"
+            onClick={() => onToggleCompare(version.id)}
+            className={cn(
+              "size-4 rounded-sm border transition-colors",
+              isCompareSelected
+                ? "border-accent-primary bg-accent-primary"
+                : "border-subtle bg-surface-2 hover:border-secondary"
+            )}
+          >
+            {isCompareSelected && (
+              <svg className="size-3 text-white" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+        </div>
+        <div className="flex-1 rounded-md px-1 py-2">
+          <p className="text-tertiary">
+            {renderFormattedDate(version.last_saved_at)}, {renderFormattedTime(version.last_saved_at)}
+          </p>
+          <p className="mt-1 flex items-center gap-1">
+            <Avatar
+              size="sm"
+              src={getFileURL(versionCreator?.avatar_url ?? "")}
+              name={versionCreator?.display_name}
+              className="shrink-0"
+            />
+            <span>{versionCreator?.display_name ?? t("common.deactivated_user")}</span>
+          </p>
+        </div>
+      </li>
+    );
+  }
 
   return (
     <li className="relative flex items-center gap-x-4 text-11 font-medium">
@@ -87,6 +129,10 @@ export const PageNavigationPaneInfoTabVersionHistory = observer(function PageNav
   const { t } = useTranslation();
   // query params
   const { updateQueryParams } = useQueryParams();
+  // local state
+  const [isCompareMode, setIsCompareMode] = useState(false);
+  const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
+
   // fetch all versions
   const { data: versionsList } = useSWR(
     id ? `PAGE_VERSIONS_LIST_${id}` : null,
@@ -108,9 +154,77 @@ export const PageNavigationPaneInfoTabVersionHistory = observer(function PageNav
     [updateQueryParams]
   );
 
+  const getDiffLink = useCallback(
+    (baseId: string, compareId: string) => {
+      return updateQueryParams({
+        paramsToAdd: { [PAGE_NAVIGATION_PANE_DIFF_QUERY_PARAM]: `${baseId}:${compareId}` },
+      });
+    },
+    [updateQueryParams]
+  );
+
+  const handleToggleCompare = useCallback(
+    (versionId: string) => {
+      setSelectedForCompare((prev) => {
+        if (prev.includes(versionId)) {
+          return prev.filter((vid) => vid !== versionId);
+        }
+        if (prev.length >= 2) {
+          return [prev[1], versionId];
+        }
+        return [...prev, versionId];
+      });
+    },
+    []
+  );
+
+  const handleCompare = useCallback(() => {
+    if (selectedForCompare.length === 2 && id) {
+      const diffLink = getDiffLink(selectedForCompare[0], selectedForCompare[1]);
+      // Navigate to diff view by adding diff param
+      window.location.href = diffLink;
+    }
+  }, [selectedForCompare, id, getDiffLink]);
+
+  const handleCancelCompare = useCallback(() => {
+    setIsCompareMode(false);
+    setSelectedForCompare([]);
+  }, []);
+
   return (
     <div>
-      <p className="text-11 font-medium text-secondary">{t("page_navigation_pane.tabs.info.version_history.label")}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-11 font-medium text-secondary">{t("page_navigation_pane.tabs.info.version_history.label")}</p>
+        {versionsList && versionsList.length > 0 && !isCompareMode && (
+          <button
+            type="button"
+            onClick={() => setIsCompareMode(true)}
+            className="text-11 font-medium text-accent-primary hover:text-accent-primary/80"
+          >
+            Compare
+          </button>
+        )}
+      </div>
+
+      {isCompareMode && (
+        <div className="mt-2 rounded-sm bg-accent-primary/10 px-2 py-1.5 text-11 text-accent-primary">
+          <p>Select 2 versions to compare</p>
+          <div className="mt-1 flex gap-1">
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={selectedForCompare.length !== 2}
+              onClick={handleCompare}
+            >
+              Compare ({selectedForCompare.length}/2)
+            </Button>
+            <Button variant="outline-primary" size="sm" onClick={handleCancelCompare}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="mt-3">
         <ul className="relative">
           {/* timeline line */}
@@ -139,6 +253,9 @@ export const PageNavigationPaneInfoTabVersionHistory = observer(function PageNav
               getVersionLink={getVersionLink}
               isVersionActive={activeVersion === version.id}
               version={version}
+              isCompareMode={isCompareMode}
+              isCompareSelected={selectedForCompare.includes(version.id)}
+              onToggleCompare={handleToggleCompare}
             />
           ))}
         </ul>
