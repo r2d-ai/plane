@@ -196,6 +196,7 @@ from .page.importer import WorkspaceWikiImportEndpoint
 
 from .search.base import GlobalSearchEndpoint, SearchEndpoint
 from .search.issue import IssueSearchEndpoint
+from .search.wiki import UnifiedWikiScopesEndpoint, UnifiedWikiSearchEndpoint, UnifiedWikiPersonalPagesEndpoint
 
 
 from .external.base import (
