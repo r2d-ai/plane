@@ -15,6 +15,7 @@ import pytest
 from plane.db.models import Page, PageCollection, PageCollectionMember, PageShare, User, WorkspaceMember
 from plane.utils.page_access import (
     Capability,
+    can_comment_page,
     can_edit_page,
     can_manage_page,
     can_view_page,
@@ -184,6 +185,27 @@ class TestPageShareTruthTable:
         assert get_page_capabilities(viewer, page, workspace) == Capability.VIEW
         assert get_page_capabilities(commenter, page, workspace) == Capability.COMMENT
         assert get_page_capabilities(editor, page, workspace) == Capability.EDIT
+
+    @pytest.mark.django_db
+    def test_share_comment_capability_is_distinct_from_view_and_edit(self, workspace, create_user):
+        # WIKI-06c: the realtime permission matrix relies on COMMENT being a
+        # distinct capability — VIEW may not comment, COMMENT may not edit.
+        viewer = _user("viewer@plane.so")
+        commenter = _user("commenter@plane.so")
+        editor = _user("editor@plane.so")
+        for user in (viewer, commenter, editor):
+            WorkspaceMember.objects.create(workspace=workspace, member=user, role=15)
+        page = _wiki_page(workspace, create_user, access=Page.PRIVATE_ACCESS)
+        self._share(page, viewer, PageShare.ROLE_VIEW)
+        self._share(page, commenter, PageShare.ROLE_COMMENT)
+        self._share(page, editor, PageShare.ROLE_EDIT)
+
+        assert can_comment_page(viewer, page, workspace) is False
+        assert can_edit_page(viewer, page, workspace) is False
+        assert can_comment_page(commenter, page, workspace) is True
+        assert can_edit_page(commenter, page, workspace) is False
+        assert can_comment_page(editor, page, workspace) is True
+        assert can_edit_page(editor, page, workspace) is True
 
     @pytest.mark.django_db
     def test_private_share_role_caps_member_baseline(self, workspace, create_user):

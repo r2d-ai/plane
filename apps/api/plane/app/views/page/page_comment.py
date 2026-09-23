@@ -56,7 +56,7 @@ class PageCommentViewSet(BaseViewSet):
             .order_by("-created_at")
         )
 
-    def list(self, request, slug, page_id):
+    def comment_list(self, request, slug, page_id):
         page = self._get_page(slug, page_id)
         if page is None:
             return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -64,7 +64,7 @@ class PageCommentViewSet(BaseViewSet):
         comments = self.get_queryset()
         return Response(PageCommentSerializer(comments, many=True).data, status=status.HTTP_200_OK)
 
-    def create(self, request, slug, page_id):
+    def comment_create(self, request, slug, page_id):
         page = self._get_page(slug, page_id)
         if page is None:
             return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -96,7 +96,7 @@ class PageCommentViewSet(BaseViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def partial_update(self, request, slug, page_id, comment_id):
+    def comment_update(self, request, slug, page_id, comment_id):
         page = self._get_page(slug, page_id)
         if page is None:
             return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -124,7 +124,7 @@ class PageCommentViewSet(BaseViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def destroy(self, request, slug, page_id, comment_id):
+    def comment_destroy(self, request, slug, page_id, comment_id):
         page = self._get_page(slug, page_id)
         if page is None:
             return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -138,7 +138,7 @@ class PageCommentViewSet(BaseViewSet):
             return Response({"error": "Comment not found"}, status=status.HTTP_404_NOT_FOUND)
 
         # Authors may delete their own comments; page managers may delete any.
-        from plane.utils.page_access import can_manage_page, get_page_capabilities, Capability, resolve_workspace_role
+        from plane.utils.page_access import can_manage_page, resolve_workspace_role
 
         workspace = page.workspace
         role = resolve_workspace_role(workspace.id, request.user.id)
