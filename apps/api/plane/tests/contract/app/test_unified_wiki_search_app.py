@@ -6,6 +6,9 @@ from plane.db.models import (
     PageCollection,
     PageCollectionPage,
     PageShare,
+    Project,
+    ProjectMember,
+    ProjectPage,
     User,
     UserFavorite,
     Workspace,
@@ -96,6 +99,23 @@ def test_workspace_global_search_respects_private_pages_and_collections(context,
     )
     assert response.status_code == 200, response.content
     assert {str(item["id"]) for item in response.json()["results"]["page"]} == {str(visible.id), str(shared.id)}
+
+
+def test_project_page_search_keeps_project_result(context, api_client):
+    user, owner, _, workspace, _ = context
+    project = Project.objects.create(workspace=workspace, name="Campaign", identifier="CMP")
+    ProjectMember.objects.create(workspace=workspace, project=project, member=user, role=20, is_active=True)
+    page = Page.objects.create(workspace=workspace, owned_by=owner, name="Handbook project")
+    ProjectPage.objects.create(workspace=workspace, project=project, page=page)
+
+    response = api_client.get(
+        f"/api/workspaces/{workspace.slug}/search/",
+        {"search": "Handbook", "project_id": str(project.id), "workspace_search": "false", "entities": "page"},
+    )
+    assert response.status_code == 200, response.content
+    assert [(str(item["id"]), item["project_ids"], item["project_identifiers"]) for item in response.json()["results"]["page"]] == [
+        (str(page.id), [str(project.id)], [project.identifier])
+    ]
 
 
 def test_owned_private_and_inherited_shares(context, api_client):
