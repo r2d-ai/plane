@@ -54,12 +54,14 @@ from .page import (
     PageCollectionMember,
     PageCollectionPage,
     PageComment,
+    PageCommentModeration,
     PageLabel,
     PageLog,
     PageShare,
     PageTemplate,
-    ProjectPage,
     PageVersion,
+    PageView,
+    ProjectPage,
 )
 from .project import (
     Project,

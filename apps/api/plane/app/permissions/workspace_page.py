@@ -32,6 +32,7 @@ from plane.utils.page_access import (
     can_manage_page,
     company_wiki_open_read,
     get_page_capabilities,
+    is_workspace_admin,
     resolve_workspace_role,
 )
 
@@ -51,10 +52,25 @@ READ_ACTIONS = {
     "versions",
     "version_detail",
     "comment_list",
+    # Recording a view is a transparent side-effect of viewing a page, so it is
+    # bound to the VIEW capability rather than to EDIT (WIKI-09b §12.3).
+    "record_view",
 }
 # Actions that add discussion without changing page content/metadata.
 COMMENT_ACTIONS = {
     "comment_create",
+}
+# Moderation (hide/unhide) is reserved for workspace admins/owner (WIKI-09b
+# §12.5); a page owner who is not an admin cannot moderate.
+MODERATION_ACTIONS = {
+    "comment_hide",
+    "comment_unhide",
+}
+# Analytics summaries and exports expose visitor data, so they are gated like
+# access management (page owner or workspace admin).
+ANALYTICS_ACTIONS = {
+    "analytics",
+    "analytics_export",
 }
 # Actions that change page content/metadata and therefore need EDIT.
 EDIT_ACTIONS = {
@@ -180,6 +196,12 @@ class WorkspacePagePermission(BasePermission):
 
         if action in MANAGE_ACTIONS:
             return can_manage_page(request.user, page, workspace, workspace_role=role)
+
+        if action in ANALYTICS_ACTIONS:
+            return can_manage_page(request.user, page, workspace, workspace_role=role)
+
+        if action in MODERATION_ACTIONS:
+            return is_workspace_admin(workspace, request.user, workspace_role=role)
 
         if action in COMMENT_ACTIONS:
             return capability >= Capability.COMMENT

@@ -9,8 +9,13 @@ CRUD for page-level comments. Permissions derive from effective page access:
 - COMMENT: can create comments
 - EDIT: can edit/delete own comments
 - MANAGE: can delete any comment on the page
+
+Comment moderation (WIKI-09b §12.5) adds hide/unhide, reserved for workspace
+admins/owner, with a mandatory reason and an append-only audit trail. A hidden
+comment is never deleted: its row and body are preserved.
 """
 
+from django.db import transaction
 from django.utils import timezone
 
 from rest_framework import status
@@ -18,7 +23,7 @@ from rest_framework.response import Response
 
 from plane.app.permissions import WorkspacePagePermission
 from plane.app.serializers import PageCommentSerializer
-from plane.db.models import Page, PageComment, Workspace
+from plane.db.models import Page, PageComment, PageCommentModeration, Workspace
 
 from ..base import BaseViewSet
 
@@ -43,10 +48,16 @@ class PageCommentViewSet(BaseViewSet):
         )
         return page
 
+    def _is_moderator(self, page):
+        from plane.utils.page_access import is_workspace_admin, resolve_workspace_role
+
+        role = resolve_workspace_role(page.workspace_id, self.request.user.id)
+        return is_workspace_admin(page.workspace, self.request.user, workspace_role=role)
+
     def get_queryset(self):
         slug = self.kwargs.get("slug")
         page_id = self.kwargs.get("page_id")
-        return (
+        queryset = (
             PageComment.objects.filter(
                 page_id=page_id,
                 page__workspace__slug=slug,
@@ -55,6 +66,12 @@ class PageCommentViewSet(BaseViewSet):
             .select_related("actor")
             .order_by("-created_at")
         )
+        # Hidden comments stay in the audit trail: moderators see them (flagged),
+        # everyone else does not.
+        page = self._get_page(slug, page_id)
+        if page is None or not self._is_moderator(page):
+            queryset = queryset.filter(is_hidden=False)
+        return queryset
 
     def comment_list(self, request, slug, page_id):
         page = self._get_page(slug, page_id)
@@ -153,3 +170,70 @@ class PageCommentViewSet(BaseViewSet):
 
         comment.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # -- moderation (WIKI-09b §12.5) ------------------------------------
+    def _get_comment(self, page_id, comment_id):
+        return PageComment.objects.filter(
+            id=comment_id,
+            page_id=page_id,
+            deleted_at__isnull=True,
+        ).first()
+
+    def _log_moderation(self, page, comment, action, reason):
+        PageCommentModeration.objects.create(
+            workspace_id=page.workspace_id,
+            page_id=page.id,
+            comment=comment,
+            actor=self.request.user
+            if getattr(self.request.user, "is_authenticated", False)
+            else None,
+            action=action,
+            reason=reason,
+        )
+
+    def comment_hide(self, request, slug, page_id, comment_id):
+        page = self._get_page(slug, page_id)
+        if page is None:
+            return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        comment = self._get_comment(page_id, comment_id)
+        if comment is None:
+            return Response({"error": "Comment not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        reason = (request.data.get("reason") or "").strip()
+        if not reason:
+            return Response({"error": "A reason is required to hide a comment"}, status=status.HTTP_400_BAD_REQUEST)
+        if len(reason) > 255:
+            return Response({"error": "Reason must be 255 characters or fewer"}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            if not comment.is_hidden:
+                comment.is_hidden = True
+                comment.hidden_reason = reason
+                comment.hidden_at = timezone.now()
+                comment.hidden_by = request.user
+                comment.save(update_fields=["is_hidden", "hidden_reason", "hidden_at", "hidden_by"])
+                self._log_moderation(page, comment, PageCommentModeration.ACTION_HIDE, reason)
+
+        return Response(PageCommentSerializer(comment).data, status=status.HTTP_200_OK)
+
+    def comment_unhide(self, request, slug, page_id, comment_id):
+        page = self._get_page(slug, page_id)
+        if page is None:
+            return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        comment = self._get_comment(page_id, comment_id)
+        if comment is None:
+            return Response({"error": "Comment not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        reason = (request.data.get("reason") or "").strip()
+
+        with transaction.atomic():
+            if comment.is_hidden:
+                comment.is_hidden = False
+                comment.hidden_at = None
+                comment.hidden_by = None
+                comment.save(update_fields=["is_hidden", "hidden_at", "hidden_by"])
+                self._log_moderation(page, comment, PageCommentModeration.ACTION_UNHIDE, reason)
+
+        return Response(PageCommentSerializer(comment).data, status=status.HTTP_200_OK)

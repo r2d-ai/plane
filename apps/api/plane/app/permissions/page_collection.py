@@ -39,6 +39,10 @@ MANAGE_ACTIONS = {
     "page_move",
     "page_remove",
     "page_reorder",
+    # Analytics roll-ups expose visitor data and stay with collection managers
+    # (WIKI-09b §12.3).
+    "analytics",
+    "analytics_export",
 }
 
 

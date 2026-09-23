@@ -184,6 +184,7 @@ from .page.workspace_version import WorkspacePageVersionEndpoint
 from .page.export import WorkspacePageExportEndpoint
 from .page.collection import PageCollectionViewSet
 from .page.page_comment import PageCommentViewSet
+from .page.analytics import PageAnalyticsViewSet, PageCollectionAnalyticsViewSet
 from .page.publish import PagePublishViewSet
 from .page.template import PageTemplateViewSet
 
