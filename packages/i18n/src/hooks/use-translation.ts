@@ -40,7 +40,19 @@ export function useTranslation(): TTranslationStore {
   // No namespace arg — fallbackNS in the i18next config ensures all namespaces
   // are searched for any key. Passing NAMESPACES here would trigger concurrent
   // async loads per component, causing a re-render cascade.
-  const { t, i18n } = useI18nextTranslation();
+  const { t: i18nT, i18n } = useI18nextTranslation();
+
+  // Memoize the wrapper `t` so its identity is stable between renders
+  // (react-i18next already memoizes the underlying `t` per language). Without
+  // this, every render produces a fresh function, which makes any effect or
+  // memo that depends on `t` re-run on every render — e.g. causing React
+  // "Maximum update depth exceeded" loops in components that set state inside
+  // a `t`-dependent effect.
+  const t = useCallback(
+    (key: string, params?: Record<string, unknown>) =>
+      coerceToString(key, params === undefined ? i18nT(key) : i18nT(key, params)),
+    [i18nT]
+  );
 
   const changeLanguage = useCallback(
     (lng: TLanguage) => {
@@ -59,8 +71,7 @@ export function useTranslation(): TTranslationStore {
   );
 
   return {
-    t: (key: string, params?: Record<string, unknown>) =>
-      coerceToString(key, params === undefined ? t(key) : t(key, params)),
+    t,
     currentLocale: i18n.language as TLanguage,
     changeLanguage,
     languages: SUPPORTED_LANGUAGES,

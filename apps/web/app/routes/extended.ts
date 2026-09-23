@@ -25,15 +25,17 @@ import { layout, route } from "@react-router/dev/routes";
 export const extendedRoutes: RouteConfigEntry[] = [
   // Workspace Wiki — attach to the existing workspace layout via file key
   layout("./(all)/[workspaceSlug]/(projects)/layout.tsx", [
-    layout("./(all)/[workspaceSlug]/(projects)/wiki/(detail)/layout.tsx", [
+    layout("./(all)/[workspaceSlug]/(projects)/wiki/(list)/layout.tsx", [
       route(":workspaceSlug/wiki", "./(all)/[workspaceSlug]/(projects)/wiki/(list)/page.tsx"),
+    ]),
+    layout("./(all)/[workspaceSlug]/(projects)/wiki/(detail)/layout.tsx", [
       route(":workspaceSlug/wiki/:pageId", "./(all)/[workspaceSlug]/(projects)/wiki/(detail)/[pageId]/page.tsx"),
     ]),
   ]),
   // Company Wiki — standalone authenticated route (no workspace in URL).
   layout("./(all)/layout.tsx", [
+    layout("./(all)/company-wiki/(list)/layout.tsx", [route("company-wiki", "./(all)/company-wiki/(list)/page.tsx")]),
     layout("./(all)/company-wiki/(detail)/layout.tsx", [
-      route("company-wiki", "./(all)/company-wiki/(list)/page.tsx"),
       route("company-wiki/:pageId", "./(all)/company-wiki/(detail)/[pageId]/page.tsx"),
     ]),
   ]),
