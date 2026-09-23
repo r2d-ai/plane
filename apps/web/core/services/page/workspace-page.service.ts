@@ -204,4 +204,18 @@ export class WorkspacePageService extends APIService {
         throw error?.response?.data;
       });
   }
+
+  /**
+   * @description Nested export (WIKI-07c): download the page and its permitted
+   * descendants as a ZIP. The server traverses the hierarchy, filters every
+   * page through effective access and enforces the export limits, so the
+   * private descendants never reach the archive.
+   */
+  async exportNested(workspaceSlug: string, pageId: string): Promise<Blob> {
+    return this.get(`/api/workspaces/${workspaceSlug}/pages/${pageId}/export/`, {}, { responseType: "blob" })
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
 }

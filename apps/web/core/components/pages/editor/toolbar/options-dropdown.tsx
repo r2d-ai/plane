@@ -155,6 +155,8 @@ export const PageOptionsDropdown = observer(function PageOptionsDropdown(props: 
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         pageTitle={name ?? ""}
+        storeType={storeType}
+        pageId={page.id}
       />
       <SaveAsTemplateModal
         isOpen={isSaveTemplateModalOpen}
