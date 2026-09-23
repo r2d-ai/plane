@@ -31,10 +31,7 @@ export const HierarchyEmbedExtension = HierarchyEmbedExtensionConfig.extend({
 
   addNodeView() {
     return ReactNodeViewRenderer((props) => (
-      <CustomHierarchyEmbedBlock
-        {...props}
-        node={props.node as CustomHierarchyEmbedNodeViewProps["node"]}
-      />
+      <CustomHierarchyEmbedBlock {...props} node={props.node as CustomHierarchyEmbedNodeViewProps["node"]} />
     ));
   },
 });

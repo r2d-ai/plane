@@ -8,56 +8,52 @@ import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 // types
-import { IMermaidAttributeNames } from "./types";
-import type { TMermaidBlockAttributes } from "./types";
+import { ILaTeXAttributeNames } from "./types";
+import type { TLaTeXBlockAttributes } from "./types";
 
-export type CustomMermaidNodeViewProps = NodeViewProps & {
+export type LaTeXNodeViewProps = NodeViewProps & {
   node: NodeViewProps["node"] & {
-    attrs: TMermaidBlockAttributes;
+    attrs: TLaTeXBlockAttributes;
   };
-  updateAttributes: (attrs: Partial<TMermaidBlockAttributes>) => void;
+  updateAttributes: (attrs: Partial<TLaTeXBlockAttributes>) => void;
 };
 
-export function CustomMermaidBlock(props: CustomMermaidNodeViewProps) {
+export function LaTeXBlock(props: LaTeXNodeViewProps) {
   const { editor, node, updateAttributes } = props;
-  const code = node.attrs[IMermaidAttributeNames.CODE] ?? "";
+  const code = node.attrs[ILaTeXAttributeNames.CODE] ?? "";
   const [isEditing, setIsEditing] = useState(false);
-  const [svgContent, setSvgContent] = useState<string>("");
+  const [htmlContent, setHtmlContent] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const renderDiagram = useCallback(
-    async (diagramCode: string) => {
-      if (!diagramCode.trim()) {
-        setSvgContent("");
-        setError(null);
-        return;
-      }
-      try {
-        const { default: mermaid } = await import("mermaid");
-        mermaid.initialize({
-          startOnLoad: false,
-          theme: "default",
-          securityLevel: "strict",
-          logLevel: "error",
-        });
-        const id = `mermaid-${node.attrs[IMermaidAttributeNames.ID] || Date.now()}`;
-        const { svg } = await mermaid.render(id, diagramCode);
-        setSvgContent(svg);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to render diagram");
-        setSvgContent("");
-      }
-    },
-    [node.attrs]
-  );
+  const renderLatex = useCallback(async (latexCode: string) => {
+    if (!latexCode.trim()) {
+      setHtmlContent("");
+      setError(null);
+      return;
+    }
+    try {
+      const katex = (await import("katex")).default;
+      const html = katex.renderToString(latexCode, {
+        displayMode: true,
+        throwOnError: false,
+        strict: true,
+        trust: false,
+        output: "html",
+      });
+      setHtmlContent(html);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to render LaTeX");
+      setHtmlContent("");
+    }
+  }, []);
 
   useEffect(() => {
     if (!isEditing) {
-      renderDiagram(code);
+      renderLatex(code);
     }
-  }, [code, isEditing, renderDiagram]);
+  }, [code, isEditing, renderLatex]);
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -68,11 +64,11 @@ export function CustomMermaidBlock(props: CustomMermaidNodeViewProps) {
 
   return (
     <NodeViewWrapper
-      className="editor-mermaid-block border-custom-border-200 my-2 overflow-hidden rounded border"
-      data-block-type="mermaid-component"
+      className="editor-latex-block border-custom-border-200 my-2 overflow-hidden rounded border"
+      data-block-type="latex-component"
     >
       <div className="border-custom-border-200 flex items-center justify-between border-b px-3 py-1.5">
-        <span className="text-xs text-custom-text-300 font-medium">Mermaid Diagram</span>
+        <span className="text-xs text-custom-text-300 font-medium">LaTeX</span>
         <div className="flex gap-1">
           <button
             type="button"
@@ -91,11 +87,11 @@ export function CustomMermaidBlock(props: CustomMermaidNodeViewProps) {
         <div className="p-2" contentEditable={false}>
           <textarea
             ref={textareaRef}
-            className="border-custom-border-300 bg-custom-bg-100 font-mono text-xs text-custom-text-100 focus:border-custom-primary min-h-[120px] w-full resize-y rounded border p-2 focus:outline-none"
+            className="border-custom-border-300 bg-custom-bg-100 font-mono text-xs text-custom-text-100 focus:border-custom-primary min-h-[80px] w-full resize-y rounded border p-2 focus:outline-none"
             value={code}
             onChange={(e) => {
               updateAttributes({
-                [IMermaidAttributeNames.CODE]: e.target.value,
+                [ILaTeXAttributeNames.CODE]: e.target.value,
               });
             }}
             spellCheck={false}
@@ -107,13 +103,13 @@ export function CustomMermaidBlock(props: CustomMermaidNodeViewProps) {
             <div className="bg-red-50 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400 rounded p-3">
               {error}
             </div>
-          ) : svgContent ? (
+          ) : htmlContent ? (
             <div
-              className="mermaid-preview flex justify-center [&>svg]:max-w-full"
-              dangerouslySetInnerHTML={{ __html: svgContent }}
+              className="latex-preview flex justify-center overflow-x-auto"
+              dangerouslySetInnerHTML={{ __html: htmlContent }}
             />
           ) : (
-            <div className="text-xs text-custom-text-300 py-8 text-center">No diagram to display</div>
+            <div className="text-xs text-custom-text-300 py-8 text-center">No LaTeX to display</div>
           )}
         </div>
       )}

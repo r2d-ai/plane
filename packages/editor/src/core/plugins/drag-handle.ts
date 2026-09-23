@@ -30,6 +30,8 @@ const generalSelectors = [
   ".editor-callout-component",
   ".editor-embed-component",
   ".editor-drawio-component",
+  ".editor-media-embed-block",
+  ".editor-latex-block",
 ].join(", ");
 
 const maxScrollSpeed = 20;

@@ -34,24 +34,22 @@ export function CustomTabsBlock(props: CustomTabsBlockNodeViewProps) {
 
   return (
     <NodeViewWrapper
-      className="editor-tabs-block my-2 rounded border border-custom-border-200"
+      className="editor-tabs-block border-custom-border-200 my-2 rounded border"
       data-block-type="tabs-block-component"
       data-orientation={orientation}
     >
-      <div
-        className={`flex ${orientation === "vertical" ? "flex-row" : "flex-col"}`}
-      >
+      <div className={`flex ${orientation === "vertical" ? "flex-row" : "flex-col"}`}>
         <div
-          className={`flex ${orientation === "vertical" ? "flex-col border-r border-custom-border-200" : "border-b border-custom-border-200"}`}
+          className={`flex ${orientation === "vertical" ? "border-custom-border-200 flex-col border-r" : "border-custom-border-200 border-b"}`}
           contentEditable={false}
         >
           {tabLabels.map((label, index) => (
             <button
               key={label}
               type="button"
-              className={`px-3 py-2 text-left text-sm font-medium transition-colors ${
+              className={`text-sm px-3 py-2 text-left font-medium transition-colors ${
                 index === activeTab
-                  ? "border-b-2 border-custom-primary text-custom-primary"
+                  ? "border-custom-primary text-custom-primary border-b-2"
                   : "text-custom-text-200 hover:text-custom-text-100"
               }`}
               onClick={() => {

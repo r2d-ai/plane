@@ -53,6 +53,9 @@ export enum CORE_EXTENSIONS {
   TABS_BLOCK = "tabsBlockComponent",
   MERMAID = "mermaidComponent",
   HIERARCHY_EMBED = "hierarchyEmbedComponent",
+  MEDIA_EMBED = "mediaEmbedComponent",
+  LATEX = "latexComponent",
+  DRAWIO = "drawioComponent",
 }
 
 export const BLOCK_NODE_TYPES = [
@@ -84,4 +87,7 @@ export const BLOCK_NODE_TYPES = [
   CORE_EXTENSIONS.TABS_BLOCK,
   CORE_EXTENSIONS.MERMAID,
   CORE_EXTENSIONS.HIERARCHY_EMBED,
+  CORE_EXTENSIONS.MEDIA_EMBED,
+  CORE_EXTENSIONS.LATEX,
+  CORE_EXTENSIONS.DRAWIO,
 ];
