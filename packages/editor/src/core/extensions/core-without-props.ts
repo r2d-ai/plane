@@ -31,6 +31,9 @@ import { CustomToggleBlockExtensionConfig } from "./toggle-block/extension-confi
 import { TabItemExtensionConfig, CustomTabsBlockExtensionConfig } from "./tabs-block";
 import { CustomMermaidExtensionConfig } from "./mermaid/extension-config";
 import { HierarchyEmbedExtensionConfig } from "./hierarchy-embed/extension-config";
+import { CustomMediaEmbedExtensionConfig } from "./media-embed/extension-config";
+import { CustomLaTeXExtensionConfig } from "./latex/extension-config";
+import { CustomDrawIOExtensionConfig } from "./drawio/extension-config";
 
 export const CoreEditorExtensionsWithoutProps = [
   CustomStarterKitExtension({
@@ -70,6 +73,9 @@ export const CoreEditorExtensionsWithoutProps = [
   CustomTabsBlockExtensionConfig,
   CustomMermaidExtensionConfig,
   HierarchyEmbedExtensionConfig,
+  CustomMediaEmbedExtensionConfig,
+  CustomLaTeXExtensionConfig,
+  CustomDrawIOExtensionConfig,
   ...CoreEditorAdditionalExtensionsWithoutProps,
 ];
 

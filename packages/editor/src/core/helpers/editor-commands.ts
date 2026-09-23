@@ -207,6 +207,25 @@ export const insertMermaid = (editor: Editor, range?: Range) => {
   else editor.chain().focus().insertMermaid().run();
 };
 
+export const insertMediaEmbed = (
+  editor: Editor,
+  attrs: { src: string; mediaType?: "image" | "video" },
+  range?: Range
+) => {
+  if (range) editor.chain().focus().deleteRange(range).insertMediaEmbed(attrs).run();
+  else editor.chain().focus().insertMediaEmbed(attrs).run();
+};
+
+export const insertLaTeX = (editor: Editor, range?: Range) => {
+  if (range) editor.chain().focus().deleteRange(range).insertLaTeX().run();
+  else editor.chain().focus().insertLaTeX().run();
+};
+
+export const insertDrawIO = (editor: Editor, range?: Range) => {
+  if (range) editor.chain().focus().deleteRange(range).insertDrawIO().run();
+  else editor.chain().focus().insertDrawIO().run();
+};
+
 export const insertHierarchyEmbed = (
   editor: Editor,
   attrs: { pageId: string; workspaceSlug: string; projectId: string },

@@ -23,12 +23,12 @@ export function CustomToggleBlock(props: CustomToggleBlockNodeViewProps) {
 
   return (
     <NodeViewWrapper
-      className="editor-toggle-block my-2 rounded border border-custom-border-200"
+      className="editor-toggle-block border-custom-border-200 my-2 rounded border"
       data-block-type="toggle-block-component"
     >
       <button
         type="button"
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-custom-text-200 hover:bg-custom-bg-80"
+        className="text-sm text-custom-text-200 hover:bg-custom-bg-80 flex w-full items-center gap-2 px-3 py-2 text-left font-medium"
         onClick={() => {
           if (!editor.isEditable) return;
           updateAttributes({
@@ -49,7 +49,7 @@ export function CustomToggleBlock(props: CustomToggleBlockNodeViewProps) {
         <span>Toggle</span>
       </button>
       {isOpen && (
-        <div className="border-t border-custom-border-200 px-3 py-2">
+        <div className="border-custom-border-200 border-t px-3 py-2">
           <NodeViewContent as="div" className="w-full break-words" />
         </div>
       )}

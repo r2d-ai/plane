@@ -70,6 +70,9 @@ export type TEditorCommands =
   | "tabs"
   | "mermaid"
   | "hierarchy-embed"
+  | "media-embed"
+  | "latex"
+  | "drawio"
   | TExtendedEditorCommands;
 
 export type TCommandExtraProps = {

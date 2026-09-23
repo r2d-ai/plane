@@ -13,11 +13,7 @@ import { IHierarchyEmbedAttributeNames, DEFAULT_HIERARCHY_EMBED_ATTRIBUTES } fro
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     [CORE_EXTENSIONS.HIERARCHY_EMBED]: {
-      insertHierarchyEmbed: (attrs: {
-        pageId: string;
-        workspaceSlug: string;
-        projectId: string;
-      }) => ReturnType;
+      insertHierarchyEmbed: (attrs: { pageId: string; workspaceSlug: string; projectId: string }) => ReturnType;
     };
   }
 }

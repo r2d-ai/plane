@@ -26,6 +26,9 @@ import {
   ChevronDown,
   PanelTop,
   GitBranch,
+  Video,
+  Pi,
+  PenTool,
 } from "lucide-react";
 // constants
 import { COLORS_LIST } from "@/constants/common";
@@ -44,6 +47,9 @@ import {
   insertToggleBlock,
   insertTabsBlock,
   insertMermaid,
+  insertMediaEmbed,
+  insertLaTeX,
+  insertDrawIO,
   setText,
   openEmojiPicker,
 } from "@/helpers/editor-commands";
@@ -221,6 +227,34 @@ export const getSlashCommandFilteredSections =
             description: "Insert a Mermaid diagram",
             searchTerms: ["mermaid", "diagram", "chart", "flow", "graph"],
             command: ({ editor, range }: CommandProps) => insertMermaid(editor, range),
+          },
+          {
+            commandKey: "media-embed",
+            key: "media-embed",
+            title: "Media Embed",
+            icon: <Video className="size-3.5" />,
+            description: "Embed an image or video from URL",
+            searchTerms: ["media", "image", "video", "embed", "url", "youtube"],
+            command: ({ editor, range }: CommandProps) =>
+              insertMediaEmbed(editor, { src: "", mediaType: "image" }, range),
+          },
+          {
+            commandKey: "latex",
+            key: "latex",
+            title: "LaTeX",
+            icon: <Pi className="size-3.5" />,
+            description: "Insert a LaTeX math equation",
+            searchTerms: ["latex", "math", "equation", "formula", "katex"],
+            command: ({ editor, range }: CommandProps) => insertLaTeX(editor, range),
+          },
+          {
+            commandKey: "drawio",
+            key: "drawio",
+            title: "Draw.io",
+            icon: <PenTool className="size-3.5" />,
+            description: "Insert a Draw.io diagram",
+            searchTerms: ["drawio", "draw.io", "diagram", "flowchart", "chart"],
+            command: ({ editor, range }: CommandProps) => insertDrawIO(editor, range),
           },
           {
             commandKey: "divider",

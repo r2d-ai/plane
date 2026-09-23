@@ -348,6 +348,9 @@ catalogs:
     jsx-dom-cjs:
       specifier: ^8.0.3
       version: 8.1.6
+    katex:
+      specifier: ^0.16.11
+      version: 0.16.47
     linkifyjs:
       specifier: ^4.3.2
       version: 4.3.2
@@ -1399,6 +1402,9 @@ importers:
       jsx-dom-cjs:
         specifier: 'catalog:'
         version: 8.1.6
+      katex:
+        specifier: 'catalog:'
+        version: 0.16.47
       linkifyjs:
         specifier: 'catalog:'
         version: 4.3.2

@@ -38,6 +38,9 @@ import { CustomToggleBlockExtension } from "./toggle-block";
 import { TabItemExtensionConfig, CustomTabsBlockExtension } from "./tabs-block";
 import { CustomMermaidExtension } from "./mermaid";
 import { HierarchyEmbedExtension } from "./hierarchy-embed";
+import { CustomMediaEmbedExtension } from "./media-embed";
+import { CustomLaTeXExtension } from "./latex";
+import { CustomDrawIOExtension } from "./drawio";
 // plane editor extensions
 import { CoreEditorAdditionalExtensions } from "@/plane-editor/extensions";
 // types
@@ -131,6 +134,9 @@ export const CoreEditorExtensions = (args: TArguments): Extensions => {
     CustomTabsBlockExtension,
     CustomMermaidExtension,
     HierarchyEmbedExtension,
+    CustomMediaEmbedExtension,
+    CustomLaTeXExtension,
+    CustomDrawIOExtension,
     UtilityExtension({
       disabledExtensions,
       flaggedExtensions,
