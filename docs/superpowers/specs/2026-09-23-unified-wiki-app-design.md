@@ -1,6 +1,6 @@
 # Unified Wiki App Design
 
-**Status:** Approved design; pending implementation plan
+**Status:** Approved design; implementation plan at `docs/superpowers/plans/2026-09-23-unified-wiki-app.md`
 
 **Date:** 2026-09-23
 
@@ -267,7 +267,8 @@ expanded Wiki workspaces safely:
 
 - Workspace Page data is currently held in one unscoped map.
 - Collection fetch replaces the whole collection map.
-- Workspace Page entities perform mutations using the active router slug.
+- Workspace Page entities capture the router slug when constructed; a page
+  constructed under the wrong route scope keeps that wrong slug for mutations.
 
 Introduce a Wiki navigation state boundary partitioned by `workspaceSlug`:
 
