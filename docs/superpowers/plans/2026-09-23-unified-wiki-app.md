@@ -794,7 +794,7 @@ Fix workspace Wiki recent links so pages without `project_id` route to `/wiki/:w
 
 Move the existing workspace Wiki editor body into `WorkspaceWikiPageView`. Keep its `WorkspacePageService`, versions service, asset handlers, comments, and `workspace_page` webhook parameters. Before fetching details, call `workspacePageStore.activateScope(workspaceSlug)`. Build all page, parent, delete, and error-state links with the canonical route helper.
 
-The new route page passes route params directly. The old route file remains only until Task 9 converts it to a redirect.
+The new route page passes route params directly. The old route file remains only until Task 10 converts it to a redirect.
 
 - [ ] **Step 5: Run focused tests and types**
 
@@ -922,7 +922,7 @@ docker compose -f docker-compose-test.yml run --rm api-tests pytest \
   plane/tests/contract/app/test_workspace_page_app.py \
   plane/tests/contract/app/test_page_collection_app.py \
   plane/tests/contract/app/test_page_share_app.py \
-  plane/tests/contract/app/test_page_comment_app.py -q
+  plane/tests/contract/app/test_page_comment_moderation_app.py -q
 ```
 
 Expected: all commands PASS. Report focused green tests separately from any unrelated full-suite failures.
