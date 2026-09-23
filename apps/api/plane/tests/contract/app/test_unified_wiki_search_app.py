@@ -80,6 +80,35 @@ def test_owned_private_and_inherited_shares(context, api_client):
     }
 
 
+def test_non_member_share_visibility_in_default_workspace(api_client, settings, create_user):
+    # A caller without membership in the open-read default workspace keeps the
+    # visibility its direct PageShare grants: the brief prescribes
+    # page_visibility_q + hidden_page_ids and nothing more, so an active share
+    # surfaces its page in search and in section=shared while a revoked share
+    # grants nothing.
+    user = create_user
+    owner = make_user("owner@example.com")
+    default = make_workspace("Instance", "home", owner)
+    add_member(make_workspace("Marketing", "mkt", owner), user, is_active=True)
+    settings.COMPANY_WIKI_WORKSPACE_SLUG = default.slug
+    settings.COMPANY_WIKI_OPEN_READ = True
+    shared_public = make_wiki_page(default, owner, name="Launch public shared", access=Page.PUBLIC_ACCESS)
+    shared_private = make_wiki_page(default, owner, name="Launch private shared", access=Page.PRIVATE_ACCESS)
+    revoked = make_wiki_page(default, owner, name="Launch revoked share", access=Page.PRIVATE_ACCESS)
+    for page in (shared_public, shared_private):
+        PageShare.objects.create(workspace=default, page=page, member=user, role=PageShare.ROLE_VIEW)
+    PageShare.objects.create(
+        workspace=default, page=revoked, member=user, role=PageShare.ROLE_VIEW, deleted_at=timezone.now()
+    )
+    api_client.force_authenticate(user=user)
+
+    # The share-only page must not disappear; the revoked-share page must not
+    # reappear in either result set.
+    shared_ids = {str(shared_public.id), str(shared_private.id)}
+    assert result_ids(api_client.get("/api/wiki/search/", {"query": "Launch"})) == shared_ids
+    assert result_ids(api_client.get("/api/wiki/personal/", {"section": "shared"})) == shared_ids
+
+
 def test_private_collection_subtree(context, api_client):
     user, owner, _, workspace, _ = context
     parent = make_wiki_page(workspace, user)

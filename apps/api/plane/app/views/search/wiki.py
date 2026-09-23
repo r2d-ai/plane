@@ -43,9 +43,6 @@ def authorized_workspaces(user):
 
 def visible_pages(user, workspace, roles):
     visibility = page_visibility_q(user, workspace)
-    # Stale shares do not restore membership after removal from a workspace.
-    if workspace.id not in roles:
-        visibility &= Q(access=Page.PUBLIC_ACCESS) | Q(owned_by=user)
     return (
         Page.objects.filter(
             visibility,
