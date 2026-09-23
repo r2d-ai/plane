@@ -627,6 +627,24 @@ def filter_visible_pages(queryset, user, workspace, *, workspace_role=None):
     return queryset
 
 
+def visible_page_parent_id(page, user, workspace=None, *, workspace_role=_UNSET, resolver=None):
+    """Return ``page.parent_id`` only when the parent is visible to ``user``.
+
+    Matches the breadcrumb redaction in :mod:`plane.utils.wiki_ai`: a child the
+    caller can view must not leak a private parent's id through ``parent``.
+    """
+    if page.parent_id is None:
+        return None
+    if workspace is None:
+        workspace = page.workspace
+    parent = page.parent
+    if user is None or can_view_page(
+        user, parent, workspace, workspace_role=workspace_role, resolver=resolver
+    ):
+        return str(page.parent_id)
+    return None
+
+
 def searchable_page_q(user, workspace):
     """Visibility ``Q`` for workspace Wiki search.
 

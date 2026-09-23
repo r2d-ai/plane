@@ -12,6 +12,7 @@ from plane.utils.content_validator import (
     validate_binary_data,
     validate_html_content,
 )
+from plane.utils.page_access import visible_page_parent_id
 from plane.db.models import (
     Page,
     PageLabel,
@@ -25,7 +26,7 @@ from plane.db.models import (
 class PageSerializer(BaseSerializer):
     is_favorite = serializers.BooleanField(read_only=True)
     labels = serializers.ListField(
-        child=serializers.PrimaryKeyRelatedField(queryset=Label.objects.all()),
+        child=serializers.PrimaryKeyRelatedField(queryset=Label.objects.none()),
         write_only=True,
         required=False,
     )
@@ -57,6 +58,25 @@ class PageSerializer(BaseSerializer):
             "project_ids",
         ]
         read_only_fields = ["workspace", "owned_by"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        labels_field = self.fields.get("labels")
+        if labels_field is None:
+            return
+        workspace_id = self.context.get("workspace_id")
+        project_id = self.context.get("project_id")
+        if workspace_id is not None:
+            labels_field.child.queryset = Label.objects.filter(
+                workspace_id=workspace_id,
+                project__isnull=True,
+                deleted_at__isnull=True,
+            )
+        elif project_id is not None:
+            labels_field.child.queryset = Label.objects.filter(
+                project_id=project_id,
+                deleted_at__isnull=True,
+            )
 
     def create(self, validated_data):
         labels = validated_data.pop("labels", None)
@@ -152,6 +172,13 @@ class WorkspacePageSerializer(PageSerializer):
             "is_global",
         ]
         read_only_fields = ["workspace", "owned_by", "is_global", "label_ids"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if request is not None and instance.parent_id is not None:
+            data["parent"] = visible_page_parent_id(instance, request.user, instance.workspace)
+        return data
 
     def create(self, validated_data):
         labels = validated_data.pop("labels", None)

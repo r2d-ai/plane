@@ -14,6 +14,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from plane.db.models import (
+    Label,
     Page,
     PageVersion,
     Project,
@@ -333,6 +334,69 @@ class TestWorkspacePageHierarchy:
 
         assert response.status_code == 400
         assert response.json()["error_code"] == "PAGE_PARENT_NOT_FOUND"
+
+    @pytest.mark.django_db
+    def test_private_parent_hidden_from_non_owner(self, api_client, workspace, create_user):
+        member = _make_member(workspace, _make_user("hierarchy-member@plane.so"))
+        private_parent = _make_wiki_page(
+            workspace, create_user, name="Private parent", access=Page.PRIVATE_ACCESS
+        )
+        child = _make_wiki_page(workspace, create_user, name="Public child")
+
+        api_client.force_authenticate(user=member)
+        response = api_client.patch(
+            _page_url(workspace.slug, child.id), {"parent": str(private_parent.id)}, format="json"
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error_code"] == "PAGE_PARENT_NOT_FOUND"
+
+    @pytest.mark.django_db
+    def test_create_with_inaccessible_parent_matches_not_found(self, api_client, workspace, create_user):
+        member = _make_member(workspace, _make_user("create-member@plane.so"))
+        private_parent = _make_wiki_page(
+            workspace, create_user, name="Private parent", access=Page.PRIVATE_ACCESS
+        )
+
+        api_client.force_authenticate(user=member)
+        response = api_client.post(
+            _pages_url(workspace.slug),
+            {"name": "Child", "parent": str(private_parent.id)},
+            format="json",
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error_code"] == "PAGE_PARENT_NOT_FOUND"
+
+
+@pytest.mark.contract
+class TestWorkspacePageParentRedaction:
+    @pytest.mark.django_db
+    def test_retrieve_redacts_invisible_parent(self, api_client, workspace, create_user):
+        member = _make_member(workspace, _make_user("parent-redact@plane.so"))
+        private_parent = _make_wiki_page(
+            workspace, create_user, name="Private parent", access=Page.PRIVATE_ACCESS
+        )
+        child = _make_wiki_page(workspace, create_user, name="Public child", parent=private_parent)
+
+        api_client.force_authenticate(user=member)
+        body = api_client.get(_page_url(workspace.slug, child.id)).json()
+
+        assert body["parent"] is None
+
+    @pytest.mark.django_db
+    def test_labels_reject_foreign_workspace_ids(self, session_client, workspace, create_user):
+        other_workspace = Workspace.objects.create(name="Other Workspace", slug="other-workspace", owner=create_user)
+        foreign_label = Label.objects.create(workspace=other_workspace, name="Foreign")
+        page = _make_wiki_page(workspace, create_user, name="Label target")
+
+        response = session_client.patch(
+            _page_url(workspace.slug, page.id),
+            {"labels": [str(foreign_label.id)]},
+            format="json",
+        )
+
+        assert response.status_code == 400
 
 
 @pytest.mark.contract

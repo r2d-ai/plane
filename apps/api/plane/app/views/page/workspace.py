@@ -55,6 +55,7 @@ from plane.db.models import (
 )
 from plane.utils.error_codes import ERROR_CODES
 from plane.utils.page_access import (
+    can_edit_page,
     can_view_page,
     filter_visible_pages,
     resolve_workspace_role,
@@ -184,8 +185,11 @@ class WorkspacePageViewSet(BaseViewSet):
         Scope (project vs Wiki) is deliberately not filtered here so the shared
         hierarchy guard can reject project-vs-Wiki nesting with a stable error
         code instead of silently reporting the parent as missing.
+
+        A parent the caller cannot edit is treated as missing so existence of a
+        private or read-only page cannot be probed through reparenting.
         """
-        return (
+        parent = (
             Page.objects.filter(
                 id=parent_id,
                 workspace__slug=slug,
@@ -194,6 +198,11 @@ class WorkspacePageViewSet(BaseViewSet):
             .select_related("workspace")
             .first()
         )
+        if parent is None:
+            return None
+        if not can_edit_page(self.request.user, parent, parent.workspace):
+            return None
+        return parent
 
     def _get_page(self, slug, page_id, *, include_archived=False):
         """Resolve a page inside the URL workspace's Wiki scope.
@@ -235,13 +244,19 @@ class WorkspacePageViewSet(BaseViewSet):
                     PageHierarchyError("PAGE_PARENT_NOT_FOUND", "Parent page does not exist.")
                 )
             try:
-                validate_page_parent(Page(workspace_id=workspace.id, is_global=True), parent)
+                validate_page_parent(
+                    Page(workspace_id=workspace.id, is_global=True),
+                    parent,
+                    user=request.user,
+                    workspace=workspace,
+                )
             except PageHierarchyError as exc:
                 return _hierarchy_error_response(exc)
 
         serializer = WorkspacePageSerializer(
             data=request.data,
             context={
+                "request": request,
                 "workspace_id": workspace.id,
                 "owned_by_id": request.user.id,
                 "description_json": request.data.get("description_json", {}),
@@ -266,12 +281,15 @@ class WorkspacePageViewSet(BaseViewSet):
                     "access": page.access,
                 },
             )
-            return Response(WorkspacePageSerializer(page).data, status=status.HTTP_201_CREATED)
+            return Response(
+                WorkspacePageSerializer(page, context={"request": request}).data,
+                status=status.HTTP_201_CREATED,
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def list(self, request, slug):
         queryset = self.get_queryset()
-        pages = WorkspacePageSerializer(queryset, many=True).data
+        pages = WorkspacePageSerializer(queryset, many=True, context={"request": request}).data
         return Response(pages, status=status.HTTP_200_OK)
 
     def retrieve(self, request, slug, page_id=None):
@@ -279,7 +297,7 @@ class WorkspacePageViewSet(BaseViewSet):
         if page is None:
             return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        data = WorkspacePageSerializer(page).data
+        data = WorkspacePageSerializer(page, context={"request": request}).data
         data["issue_ids"] = list(
             PageLog.objects.filter(page_id=page_id, entity_name="issue").values_list("entity_identifier", flat=True)
         )
@@ -312,7 +330,7 @@ class WorkspacePageViewSet(BaseViewSet):
                         PageHierarchyError("PAGE_PARENT_NOT_FOUND", "Parent page does not exist.")
                     )
                 try:
-                    validate_page_parent(page, parent)
+                    validate_page_parent(page, parent, user=request.user, workspace=page.workspace)
                 except PageHierarchyError as exc:
                     return _hierarchy_error_response(exc)
 
@@ -322,7 +340,12 @@ class WorkspacePageViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = WorkspacePageSerializer(page, data=request.data, partial=True)
+        serializer = WorkspacePageSerializer(
+            page,
+            data=request.data,
+            partial=True,
+            context={"request": request, "workspace_id": page.workspace_id},
+        )
         page_description = page.description_html
         old_parent_id = page.parent_id
         old_access = page.access
@@ -710,4 +733,4 @@ class WorkspacePageDuplicateEndpoint(BaseAPIView):
             )
             .first()
         )
-        return Response(WorkspacePageSerializer(page).data, status=status.HTTP_201_CREATED)
+        return Response(WorkspacePageSerializer(page, context={"request": request}).data, status=status.HTTP_201_CREATED)

@@ -40,6 +40,7 @@ from plane.utils.page_access import (
     Capability,
     collection_member_role,
     effective_capability,
+    filter_visible_pages,
     is_workspace_admin,
     resolve_workspace_role,
 )
@@ -137,6 +138,14 @@ class PageCollectionViewSet(BaseViewSet):
         if not require_edit and capability < Capability.VIEW:
             return None, None
         return page, capability
+
+    def _reject_private_page_in_public_collection(self, page, collection):
+        if collection.access == PageCollection.ACCESS_PUBLIC and page.access == Page.PRIVATE_ACCESS:
+            return Response(
+                {"error": "Private pages cannot be added to a public collection"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return None
 
     # -- collection CRUD -------------------------------------------------
     def list(self, request, slug):
@@ -283,7 +292,15 @@ class PageCollectionViewSet(BaseViewSet):
         members = PageCollectionMember.objects.filter(collection=collection, deleted_at__isnull=True).select_related(
             "member"
         )
-        return Response(PageCollectionMemberSerializer(members, many=True).data, status=status.HTTP_200_OK)
+        include_member_email = resolve_workspace_role(workspace.id, request.user.id) is not None
+        return Response(
+            PageCollectionMemberSerializer(
+                members,
+                many=True,
+                context={"include_member_email": include_member_email},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
 
     def member_add(self, request, slug, collection_id):
         workspace = self._workspace(slug)
@@ -382,9 +399,25 @@ class PageCollectionViewSet(BaseViewSet):
             return Response({"error": "Collection not found"}, status=status.HTTP_404_NOT_FOUND)
 
         associations = PageCollectionPage.objects.filter(collection=collection, deleted_at__isnull=True).select_related(
-            "page"
+            "page", "page__parent", "page__workspace"
         )
-        return Response(PageCollectionPageSerializer(associations, many=True).data, status=status.HTTP_200_OK)
+        visible_ids = filter_visible_pages(
+            Page.objects.filter(
+                id__in=associations.values_list("page_id", flat=True),
+                workspace=workspace,
+            ),
+            request.user,
+            workspace,
+        ).values_list("id", flat=True)
+        associations = associations.filter(page_id__in=visible_ids)
+        return Response(
+            PageCollectionPageSerializer(
+                associations,
+                many=True,
+                context={"request": request, "workspace": workspace},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
 
     def page_add(self, request, slug, collection_id):
         workspace = self._workspace(slug)
@@ -398,6 +431,10 @@ class PageCollectionViewSet(BaseViewSet):
         page, _ = self._resolve_page(workspace, request.data.get("page"), require_edit=True)
         if page is None:
             return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        rejected = self._reject_private_page_in_public_collection(page, collection)
+        if rejected is not None:
+            return rejected
 
         association = move_page_to_collection(page, collection)
         return Response(PageCollectionPageSerializer(association).data, status=status.HTTP_201_CREATED)
@@ -414,6 +451,10 @@ class PageCollectionViewSet(BaseViewSet):
         page, _ = self._resolve_page(workspace, page_id, require_edit=True)
         if page is None:
             return Response({"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        rejected = self._reject_private_page_in_public_collection(page, collection)
+        if rejected is not None:
+            return rejected
 
         association = move_page_to_collection(page, collection)
         return Response(PageCollectionPageSerializer(association).data, status=status.HTTP_200_OK)

@@ -13,18 +13,21 @@ malformed legacy cycle that must fail safe).
 import pytest
 from django.utils import timezone
 
-from plane.db.models import Page, Workspace
+from plane.db.models import Page, User, Workspace, WorkspaceMember
 from plane.utils.page_hierarchy import PageHierarchyError, validate_page_parent
 
 
-def _make_page(workspace, owner, name="Page", is_global=False, parent=None):
-    return Page.objects.create(
-        workspace=workspace,
-        owned_by=owner,
-        name=name,
-        is_global=is_global,
-        parent=parent,
-    )
+def _make_page(workspace, owner, name="Page", is_global=False, parent=None, access=None):
+    kwargs = {
+        "workspace": workspace,
+        "owned_by": owner,
+        "name": name,
+        "is_global": is_global,
+        "parent": parent,
+    }
+    if access is not None:
+        kwargs["access"] = access
+    return Page.objects.create(**kwargs)
 
 
 @pytest.mark.unit
@@ -81,6 +84,25 @@ class TestValidatePageParent:
             validate_page_parent(child, parent)
 
         assert exc.value.code == "PAGE_PARENT_CROSS_SCOPE"
+
+    @pytest.mark.django_db
+    def test_inaccessible_parent_reported_as_not_found(self, workspace, create_user):
+        owner = create_user
+        viewer = User.objects.create(email="viewer@plane.so", username="viewer", first_name="V", last_name="U")
+        WorkspaceMember.objects.create(workspace=workspace, member=viewer, role=15)
+        private_parent = _make_page(
+            workspace,
+            owner,
+            name="Private parent",
+            is_global=True,
+            access=Page.PRIVATE_ACCESS,
+        )
+        child = _make_page(workspace, owner, name="Child", is_global=True)
+
+        with pytest.raises(PageHierarchyError) as exc:
+            validate_page_parent(child, private_parent, user=viewer, workspace=workspace)
+
+        assert exc.value.code == "PAGE_PARENT_NOT_FOUND"
 
     @pytest.mark.django_db
     def test_deleted_parent_rejected(self, workspace, create_user):

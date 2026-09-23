@@ -21,6 +21,7 @@ instance to :func:`validate_page_parent`.
 """
 
 from plane.db.models import Page
+from plane.utils.page_access import can_edit_page
 
 
 class PageHierarchyError(Exception):
@@ -60,15 +61,26 @@ def _is_self_or_descendant(candidate_parent, page):
     return False
 
 
-def validate_page_parent(page, parent):
+def validate_page_parent(page, parent, *, user=None, workspace=None):
     """Validate assigning ``parent`` as ``page.parent``.
 
     ``page`` may be unsaved (creation) or an existing instance; ``parent`` is a
     resolved ``Page`` instance or ``None`` to detach the page from the tree.
     Raises :class:`PageHierarchyError` with a stable ``code`` on failure.
+
+    When ``user`` is supplied, the caller must hold edit capability on
+    ``parent``; failure is reported as ``PAGE_PARENT_NOT_FOUND`` so a parent the
+    actor cannot edit is indistinguishable from a missing parent (spec §6.5).
     """
     if parent is None:
         return
+
+    if user is not None:
+        ws = workspace
+        if ws is None:
+            ws = getattr(page, "workspace", None) or parent.workspace
+        if not can_edit_page(user, parent, ws):
+            raise PageHierarchyError("PAGE_PARENT_NOT_FOUND", "Parent page does not exist.")
 
     if page.pk is not None and parent.pk == page.pk:
         raise PageHierarchyError("PAGE_SELF_PARENT", "A page cannot be its own parent.")

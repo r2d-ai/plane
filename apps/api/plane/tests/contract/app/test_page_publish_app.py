@@ -127,6 +127,9 @@ class TestPagePublishApi:
 
         revoke = session_client.delete(_publish_revoke_url(workspace.slug, page.id, publish_id))
         assert revoke.status_code == 204
+        publish = DeployBoard.objects.get(id=publish_id)
+        assert publish.is_disabled is True
+        assert publish.anchor != old_anchor
         assert session_client.get(_publish_url(workspace.slug, page.id)).json()["anchor"] is None
 
         api_client = APIClient()

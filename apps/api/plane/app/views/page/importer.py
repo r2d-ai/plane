@@ -17,7 +17,7 @@ from rest_framework.response import Response
 
 from plane.app.permissions import WorkspacePagePermission
 from plane.db.models import Page, Workspace
-from plane.utils.page_access import can_view_page
+from plane.utils.page_access import can_edit_page
 from plane.utils.page_hierarchy import PageHierarchyError, validate_page_parent
 from plane.utils.wiki_import import (
     WikiImportError,
@@ -55,10 +55,15 @@ class WorkspaceWikiImportEndpoint(BaseViewSet):
             .select_related("workspace")
             .first()
         )
-        if parent is None or not can_view_page(request.user, parent, workspace):
+        if parent is None or not can_edit_page(request.user, parent, workspace):
             return None, Response({"error": "Parent page not found"}, status=status.HTTP_404_NOT_FOUND)
         try:
-            validate_page_parent(Page(workspace_id=workspace.id, is_global=True), parent)
+            validate_page_parent(
+                Page(workspace_id=workspace.id, is_global=True),
+                parent,
+                user=request.user,
+                workspace=workspace,
+            )
         except PageHierarchyError as exc:
             return None, Response(
                 {"error": exc.message, "error_code": exc.code},

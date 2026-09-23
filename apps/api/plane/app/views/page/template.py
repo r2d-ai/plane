@@ -22,7 +22,7 @@ from rest_framework.response import Response
 from plane.app.permissions import PageTemplatePermission
 from plane.app.serializers import PageTemplateSerializer, WorkspacePageSerializer
 from plane.db.models import Page, PageTemplate, Workspace
-from plane.utils.page_access import is_workspace_admin, resolve_workspace_role
+from plane.utils.page_access import can_edit_page, is_workspace_admin, resolve_workspace_role
 from plane.utils.page_hierarchy import PageHierarchyError, validate_page_parent
 
 from plane.bgtasks.page_transaction_task import page_transaction
@@ -151,13 +151,18 @@ class PageTemplateViewSet(BaseViewSet):
                 workspace=workspace,
                 deleted_at__isnull=True,
             ).first()
-            if parent is None:
+            if parent is None or not can_edit_page(request.user, parent, workspace):
                 return Response(
                     {"error": "Parent page does not exist.", "error_code": "PAGE_PARENT_NOT_FOUND"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
-                validate_page_parent(Page(workspace_id=workspace.id, is_global=True), parent)
+                validate_page_parent(
+                    Page(workspace_id=workspace.id, is_global=True),
+                    parent,
+                    user=request.user,
+                    workspace=workspace,
+                )
             except PageHierarchyError as exc:
                 return Response(
                     {"error": exc.message, "error_code": exc.code},
@@ -185,4 +190,4 @@ class PageTemplateViewSet(BaseViewSet):
             page_id=page.id,
         )
 
-        return Response(WorkspacePageSerializer(page).data, status=status.HTTP_201_CREATED)
+        return Response(WorkspacePageSerializer(page, context={"request": request}).data, status=status.HTTP_201_CREATED)

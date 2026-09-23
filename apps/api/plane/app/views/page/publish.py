@@ -110,5 +110,6 @@ class PagePublishViewSet(BaseViewSet):
             return Response({"error": "Publish not found"}, status=status.HTTP_404_NOT_FOUND)
 
         publish.is_disabled = True
-        publish.save()
+        publish.anchor = get_anchor()
+        publish.save(update_fields=["is_disabled", "anchor"])
         return Response(status=status.HTTP_204_NO_CONTENT)
