@@ -183,6 +183,7 @@ from .page.workspace import (
 from .page.workspace_version import WorkspacePageVersionEndpoint
 from .page.collection import PageCollectionViewSet
 from .page.page_comment import PageCommentViewSet
+from .page.publish import PagePublishViewSet
 
 from .search.base import GlobalSearchEndpoint, SearchEndpoint
 from .search.issue import IssueSearchEndpoint

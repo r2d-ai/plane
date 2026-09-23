@@ -16,7 +16,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
-from plane.db.models import DeployBoard, FileAsset
+from plane.db.models import DeployBoard, FileAsset, Page
 from plane.settings.storage import S3Storage
 from plane.utils.path_validator import sanitize_filename
 
@@ -42,19 +42,47 @@ class EntityAssetEndpoint(BaseAPIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # get the asset id — scope to project to prevent cross-project IDOR
-        asset = FileAsset.objects.get(
-            workspace_id=deploy_board.workspace_id,
-            project_id=deploy_board.project_id,
-            pk=pk,
-            entity_type__in=[
-                FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
-                FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
-            ],
-        )
+        if deploy_board.entity_name == "page":
+            # WIKI-07b: an externally published Wiki page. Serve only assets
+            # attached to the published page itself — never a descendant's or
+            # another page's asset — and only while the publication is active.
+            if deploy_board.is_disabled or deploy_board.entity_identifier is None:
+                return Response(
+                    {"error": "Requested resource could not be found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            page_exists = Page.objects.filter(
+                id=deploy_board.entity_identifier,
+                workspace_id=deploy_board.workspace_id,
+                is_global=True,
+                deleted_at__isnull=True,
+                archived_at__isnull=True,
+            ).exists()
+            if not page_exists:
+                return Response(
+                    {"error": "Requested resource could not be found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            asset = FileAsset.objects.filter(
+                workspace_id=deploy_board.workspace_id,
+                page_id=deploy_board.entity_identifier,
+                pk=pk,
+                entity_type=FileAsset.EntityTypeContext.PAGE_DESCRIPTION,
+            ).first()
+        else:
+            # get the asset id — scope to project to prevent cross-project IDOR
+            asset = FileAsset.objects.filter(
+                workspace_id=deploy_board.workspace_id,
+                project_id=deploy_board.project_id,
+                pk=pk,
+                entity_type__in=[
+                    FileAsset.EntityTypeContext.ISSUE_DESCRIPTION,
+                    FileAsset.EntityTypeContext.COMMENT_DESCRIPTION,
+                ],
+            ).first()
 
-        # Check if the asset is uploaded
-        if not asset.is_uploaded:
+        # Check if the asset exists and is uploaded
+        if asset is None or not asset.is_uploaded:
             return Response(
                 {"error": "The requested asset could not be found."},
                 status=status.HTTP_404_NOT_FOUND,

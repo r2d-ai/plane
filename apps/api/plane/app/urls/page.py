@@ -18,6 +18,7 @@ from plane.app.views import (
     WorkspacePageVersionEndpoint,
     PageCollectionViewSet,
     PageCommentViewSet,
+    PagePublishViewSet,
 )
 
 urlpatterns = [
@@ -191,5 +192,17 @@ urlpatterns = [
         "workspaces/<str:slug>/pages/<uuid:page_id>/comments/<uuid:comment_id>/",
         PageCommentViewSet.as_view({"patch": "partial_update", "delete": "destroy"}),
         name="workspace-page-comment",
+    ),
+    # External publishing (WIKI-07b, spec §15, plan §10.2). The public
+    # retrieval endpoint lives in the space app under /api/public/.
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/publish/",
+        PagePublishViewSet.as_view({"get": "publish_state", "post": "publish"}),
+        name="workspace-page-publish",
+    ),
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/publish/<uuid:publish_id>/",
+        PagePublishViewSet.as_view({"delete": "publish_revoke"}),
+        name="workspace-page-publish-revoke",
     ),
 ]

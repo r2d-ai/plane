@@ -6,7 +6,7 @@
 
 // types
 import { API_BASE_URL } from "@plane/constants";
-import type { TDocumentPayload, TPage, TPageShare, TPageSharePayload } from "@plane/types";
+import type { TDocumentPayload, TPage, TPagePublish, TPageShare, TPageSharePayload } from "@plane/types";
 // helpers
 // services
 import { APIService } from "@/services/api.service";
@@ -199,6 +199,32 @@ export class WorkspacePageService extends APIService {
 
   async removeShare(workspaceSlug: string, pageId: string, shareId: string): Promise<void> {
     return this.delete(`/api/workspaces/${workspaceSlug}/pages/${pageId}/shares/${shareId}/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // -- external publishing (WIKI-07b) --
+
+  async fetchPublish(workspaceSlug: string, pageId: string): Promise<TPagePublish> {
+    return this.get(`/api/workspaces/${workspaceSlug}/pages/${pageId}/publish/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async publish(workspaceSlug: string, pageId: string): Promise<TPagePublish> {
+    return this.post(`/api/workspaces/${workspaceSlug}/pages/${pageId}/publish/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async unPublish(workspaceSlug: string, pageId: string, publishId: string): Promise<void> {
+    return this.delete(`/api/workspaces/${workspaceSlug}/pages/${pageId}/publish/${publishId}/`)
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

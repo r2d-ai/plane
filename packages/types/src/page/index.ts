@@ -9,3 +9,4 @@ export * from "./extended";
 export * from "./collection";
 export * from "./share";
 export * from "./comment";
+export * from "./publish";
