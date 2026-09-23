@@ -69,6 +69,35 @@ def test_search_visibility(context, api_client):
     assert {r["workspace_slug"] for r in response.json()["results"]} == {"home", "mkt"}
 
 
+def test_workspace_global_search_includes_visible_wiki_page(context, api_client):
+    _, owner, _, workspace, _ = context
+    page = make_wiki_page(workspace, owner, name="Handbook")
+    response = api_client.get(
+        f"/api/workspaces/{workspace.slug}/search/",
+        {"search": "Handbook", "workspace_search": "true"},
+    )
+    assert response.status_code == 200, response.content
+    assert any(str(item["id"]) == str(page.id) and item["project_ids"] == [] for item in response.json()["results"]["page"])
+
+
+def test_workspace_global_search_respects_private_pages_and_collections(context, api_client):
+    user, owner, _, workspace, _ = context
+    visible = make_wiki_page(workspace, owner, name="Handbook visible")
+    make_wiki_page(workspace, owner, name="Handbook private", access=Page.PRIVATE_ACCESS)
+    shared = make_wiki_page(workspace, owner, name="Handbook shared", access=Page.PRIVATE_ACCESS)
+    PageShare.objects.create(workspace=workspace, page=shared, member=user, role=PageShare.ROLE_VIEW)
+    hidden = make_wiki_page(workspace, owner, name="Handbook hidden")
+    collection = PageCollection.objects.create(workspace=workspace, name="Secret", access=PageCollection.ACCESS_PRIVATE)
+    PageCollectionPage.objects.create(workspace=workspace, collection=collection, page=hidden)
+
+    response = api_client.get(
+        f"/api/workspaces/{workspace.slug}/search/",
+        {"search": "Handbook", "workspace_search": "true", "entities": "page"},
+    )
+    assert response.status_code == 200, response.content
+    assert {str(item["id"]) for item in response.json()["results"]["page"]} == {str(visible.id), str(shared.id)}
+
+
 def test_owned_private_and_inherited_shares(context, api_client):
     user, owner, _, workspace, _ = context
     owned = make_wiki_page(workspace, user, access=Page.PRIVATE_ACCESS)

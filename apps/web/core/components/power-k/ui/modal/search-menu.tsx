@@ -5,21 +5,24 @@
  */
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 // plane imports
 import { WORKSPACE_DEFAULT_SEARCH_RESULT } from "@plane/constants";
-import type { IWorkspaceSearchResults } from "@plane/types";
+import type { IWorkspaceSearchResults, TWikiSearchResult } from "@plane/types";
 import { cn } from "@plane/utils";
 // hooks
 import { usePowerK } from "@/hooks/store/use-power-k";
 import useDebounce from "@/hooks/use-debounce";
 import { WorkspaceService } from "@/services/workspace.service";
+import { WikiService } from "@/services/wiki.service";
 // local imports
 import type { TPowerKContext, TPowerKPageType } from "../../core/types";
 import { PowerKModalNoSearchResultsCommand } from "./no-results-command";
 import { PowerKModalSearchResults } from "./search-results";
+import { isWikiPath } from "./wiki-search-map";
 // services init
 const workspaceService = new WorkspaceService();
+const wikiService = new WikiService();
 
 type Props = {
   activePage: TPowerKPageType | null;
@@ -36,42 +39,57 @@ export function PowerKModalSearchMenu(props: Props) {
   const [resultsCount, setResultsCount] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<IWorkspaceSearchResults>(WORKSPACE_DEFAULT_SEARCH_RESULT);
+  const [wikiResults, setWikiResults] = useState<TWikiSearchResult[]>([]);
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   // navigation
   const { workspaceSlug, projectId } = useParams();
+  const pathname = usePathname();
+  const isWiki = isWikiPath(pathname ?? "");
   // store hooks
   const { togglePowerKModal } = usePowerK();
 
   useEffect(() => {
-    if (activePage || !workspaceSlug) return;
-    setIsSearching(true);
-
-    if (debouncedSearchTerm) {
-      workspaceService
-        .searchWorkspace(workspaceSlug.toString(), {
-          ...(projectId ? { project_id: projectId.toString() } : {}),
-          search: debouncedSearchTerm,
-          workspace_search: !projectId ? true : isWorkspaceLevel,
-        })
-        // oxlint-disable-next-line no-shadow oxlint-disable-next-line promise/always-return
-        .then((results) => {
-          setResults(results);
-          const count = Object.keys(results.results).reduce(
-            (accumulator, key) => results.results[key as keyof typeof results.results]?.length + accumulator,
-            0
-          );
-          setResultsCount(count);
-        })
-        .catch(() => {
-          setResults(WORKSPACE_DEFAULT_SEARCH_RESULT);
-          setResultsCount(0);
-        })
-        .finally(() => setIsSearching(false));
-    } else {
+    if (activePage || (!workspaceSlug && !isWiki)) return;
+    if (!debouncedSearchTerm) {
       setResults(WORKSPACE_DEFAULT_SEARCH_RESULT);
+      setWikiResults([]);
+      setResultsCount(0);
       setIsSearching(false);
+      return;
     }
-  }, [debouncedSearchTerm, isWorkspaceLevel, projectId, workspaceSlug, activePage]);
+    let cancelled = false;
+    setIsSearching(true);
+    void (async () => {
+      try {
+        if (isWiki) {
+          const searchResponse = await wikiService.search(debouncedSearchTerm, 100);
+          if (cancelled) return;
+          setWikiResults(searchResponse.results);
+          setResultsCount(searchResponse.results.length);
+        } else {
+          const searchResponse = await workspaceService.searchWorkspace(workspaceSlug?.toString() ?? "", {
+            ...(projectId ? { project_id: projectId.toString() } : {}),
+            search: debouncedSearchTerm,
+            workspace_search: !projectId ? true : isWorkspaceLevel,
+          });
+          if (cancelled) return;
+          setResults(searchResponse);
+          const count = Object.values(searchResponse.results).reduce((total, section) => total + section.length, 0);
+          setResultsCount(count);
+        }
+      } catch {
+        if (cancelled) return;
+        setWikiResults([]);
+        setResults(WORKSPACE_DEFAULT_SEARCH_RESULT);
+        setResultsCount(0);
+      } finally {
+        if (!cancelled) setIsSearching(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearchTerm, isWorkspaceLevel, projectId, workspaceSlug, activePage, isWiki]);
 
   if (activePage) return null;
 
@@ -95,7 +113,7 @@ export function PowerKModalSearchMenu(props: Props) {
               {searchTerm}
               {'"'}
             </span>{" "}
-            in {isWorkspaceLevel ? "workspace" : "project"}:
+            in {isWiki ? "Wiki" : isWorkspaceLevel ? "workspace" : "project"}:
           </h5>
         </div>
       )}
@@ -109,7 +127,13 @@ export function PowerKModalSearchMenu(props: Props) {
         />
       )}
 
-      {searchTerm.trim() !== "" && <PowerKModalSearchResults closePalette={handleClosePalette} results={results} />}
+      {searchTerm.trim() !== "" && (
+        <PowerKModalSearchResults
+          closePalette={handleClosePalette}
+          results={results}
+          wikiResults={isWiki ? wikiResults : undefined}
+        />
+      )}
     </>
   );
 }
