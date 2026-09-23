@@ -62,6 +62,7 @@ from .page import (
     PageVersion,
     PageView,
     ProjectPage,
+    WikiEvent,
 )
 from .project import (
     Project,

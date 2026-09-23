@@ -55,6 +55,13 @@ READ_ACTIONS = {
     # Recording a view is a transparent side-effect of viewing a page, so it is
     # bound to the VIEW capability rather than to EDIT (WIKI-09b §12.3).
     "record_view",
+    # Wiki <-> AI read surface (WIKI-10 §13.1): context, summary, label
+    # suggestions, natural-language search and the event feed are all reads.
+    "ai_context",
+    "ai_summarize",
+    "ai_label_suggestions",
+    "ai_search",
+    "ai_events",
 }
 # Actions that add discussion without changing page content/metadata.
 COMMENT_ACTIONS = {
@@ -86,6 +93,13 @@ EDIT_ACTIONS = {
     "favorite_destroy",
     "comment_update",
     "save_as_template",
+    # Agent-applied page edits go through the same EDIT gate as user edits
+    # (WIKI-10 §13.1).
+    "ai_apply",
+    # Importers create pages, so they need a write role. They carry no
+    # page_id; the workspace-membership gate above still applies.
+    "wiki_import_notion",
+    "wiki_import_confluence",
 }
 # Access-management actions reserved for the page owner or workspace admin.
 MANAGE_ACTIONS = {

@@ -49,6 +49,7 @@ from plane.db.models import (
     PageShare,
     PageTemplate,
     UserFavorite,
+    WikiEvent,
     Workspace,
     WorkspaceMember,
 )
@@ -59,6 +60,7 @@ from plane.utils.page_access import (
     resolve_workspace_role,
 )
 from plane.utils.page_hierarchy import PageHierarchyError, validate_page_parent
+from plane.utils.wiki_ai import emit_wiki_event
 
 from plane.bgtasks.page_transaction_task import page_transaction
 from plane.bgtasks.page_version_task import track_page_version
@@ -255,6 +257,15 @@ class WorkspacePageViewSet(BaseViewSet):
                 page_id=serializer.data["id"],
             )
             page = self.get_queryset().filter(pk=serializer.data["id"]).first()
+            emit_wiki_event(
+                page,
+                WikiEvent.PAGE_CREATED,
+                actor=request.user,
+                payload={
+                    "parent_page_id": str(page.parent_id) if page.parent_id else None,
+                    "access": page.access,
+                },
+            )
             return Response(WorkspacePageSerializer(page).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -313,6 +324,8 @@ class WorkspacePageViewSet(BaseViewSet):
 
         serializer = WorkspacePageSerializer(page, data=request.data, partial=True)
         page_description = page.description_html
+        old_parent_id = page.parent_id
+        old_access = page.access
         if serializer.is_valid():
             serializer.save()
             if request.data.get("description_html"):
@@ -320,6 +333,21 @@ class WorkspacePageViewSet(BaseViewSet):
                     new_description_html=request.data.get("description_html", "<p></p>"),
                     old_description_html=page_description,
                     page_id=page_id,
+                )
+            emit_wiki_event(page, WikiEvent.PAGE_UPDATED, actor=request.user)
+            if page.parent_id != old_parent_id:
+                emit_wiki_event(
+                    page,
+                    WikiEvent.PAGE_MOVED,
+                    actor=request.user,
+                    payload={"old_parent_page_id": str(old_parent_id) if old_parent_id else None},
+                )
+            if page.access != old_access:
+                emit_wiki_event(
+                    page,
+                    WikiEvent.PAGE_ACCESS_CHANGED,
+                    actor=request.user,
+                    payload={"old_access": old_access, "access": page.access},
                 )
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -336,6 +364,7 @@ class WorkspacePageViewSet(BaseViewSet):
         ).delete()
 
         unarchive_archive_page_and_descendants(page_id, datetime.now())
+        emit_wiki_event(page, WikiEvent.PAGE_ARCHIVED, actor=request.user)
         return Response({"archived_at": str(datetime.now())}, status=status.HTTP_200_OK)
 
     def unarchive(self, request, slug, page_id):
@@ -349,6 +378,7 @@ class WorkspacePageViewSet(BaseViewSet):
             page.save(update_fields=["parent"])
 
         unarchive_archive_page_and_descendants(page_id, None)
+        emit_wiki_event(page, WikiEvent.PAGE_RESTORED, actor=request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def lock(self, request, slug, page_id):
@@ -381,6 +411,12 @@ class WorkspacePageViewSet(BaseViewSet):
 
         page.access = access
         page.save(update_fields=["access"])
+        emit_wiki_event(
+            page,
+            WikiEvent.PAGE_ACCESS_CHANGED,
+            actor=request.user,
+            payload={"access": access},
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     # -- direct sharing (WIKI-06, plan §9.1) -----------------------------
@@ -423,9 +459,10 @@ class WorkspacePageViewSet(BaseViewSet):
 
         # Same-workspace validation (spec §5.3): only active members of the
         # page's workspace can be shared with.
-        if not member_id or not WorkspaceMember.objects.filter(
-            workspace=workspace, member_id=member_id, is_active=True
-        ).exists():
+        if (
+            not member_id
+            or not WorkspaceMember.objects.filter(workspace=workspace, member_id=member_id, is_active=True).exists()
+        ):
             return Response(
                 {"error": "Member must be an active member of this workspace"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -493,6 +530,7 @@ class WorkspacePageViewSet(BaseViewSet):
         # Detach children so no Wiki branch is orphaned into a deleted subtree.
         Page.objects.filter(parent_id=page_id, workspace__slug=slug, is_global=True).update(parent=None)
 
+        emit_wiki_event(page, WikiEvent.PAGE_DELETED, actor=request.user)
         page.delete()
         UserFavorite.objects.filter(
             workspace__slug=slug,
