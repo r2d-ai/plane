@@ -27,7 +27,7 @@ export const buildAppRailItems = ({
   wikiWorkspaceSlug,
   pathname,
 }: BuildAppRailItemsParams): AppRailItem[] => {
-  const wikiHref = getDefaultWikiPath(wikiWorkspaceSlug);
+  const wikiHref = wikiWorkspaceSlug.trim() ? getDefaultWikiPath(wikiWorkspaceSlug) : "/wiki";
   const isWikiActive = pathname === "/wiki" || pathname.startsWith("/wiki/");
 
   const workHref = `/${workWorkspaceSlug}/`;

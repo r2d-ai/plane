@@ -2,6 +2,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { observable, runInAction } from "mobx";
 
 import type { TPage } from "@plane/types";
+import { EPageAccess } from "@plane/constants";
 
 import { WorkspacePageService } from "@/services/page";
 import type { CoreRootStore, RootStore } from "@/store/root.store";
@@ -253,4 +254,16 @@ test("workspace page links use the canonical Wiki route", () => {
   const page = new WorkspacePage(root as unknown as RootStore, mktPage, "mkt");
   expect(page.getRedirectionLink()).toBe("/wiki/mkt/mkt-page");
   page.cleanup();
+});
+
+test("a server-returned private shared page is readable without an edit role", () => {
+  const { root } = createFakeRootStore("mkt");
+  const shared = new WorkspacePage(
+    root as unknown as RootStore,
+    { ...mktPage, access: EPageAccess.PRIVATE, owned_by: "owner-2" },
+    "mkt"
+  );
+  expect(shared.canCurrentUserAccessPage).toBe(true);
+  expect(shared.canCurrentUserEditPage).toBe(false);
+  shared.cleanup();
 });

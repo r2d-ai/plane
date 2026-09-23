@@ -58,12 +58,18 @@ const VersionHistoryItem = observer(function VersionHistoryItem(props: VersionHi
               "size-4 rounded-sm border transition-colors",
               isCompareSelected
                 ? "border-accent-primary bg-accent-primary"
-                : "border-subtle bg-surface-2 hover:border-secondary"
+                : "hover:border-secondary border-subtle bg-surface-2"
             )}
           >
             {isCompareSelected && (
               <svg className="size-3 text-white" viewBox="0 0 12 12" fill="none">
-                <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M2 6l3 3 5-6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             )}
           </button>
@@ -163,20 +169,17 @@ export const PageNavigationPaneInfoTabVersionHistory = observer(function PageNav
     [updateQueryParams]
   );
 
-  const handleToggleCompare = useCallback(
-    (versionId: string) => {
-      setSelectedForCompare((prev) => {
-        if (prev.includes(versionId)) {
-          return prev.filter((vid) => vid !== versionId);
-        }
-        if (prev.length >= 2) {
-          return [prev[1], versionId];
-        }
-        return [...prev, versionId];
-      });
-    },
-    []
-  );
+  const handleToggleCompare = useCallback((versionId: string) => {
+    setSelectedForCompare((prev) => {
+      if (prev.includes(versionId)) {
+        return prev.filter((vid) => vid !== versionId);
+      }
+      if (prev.length >= 2) {
+        return [prev[1], versionId];
+      }
+      return [...prev, versionId];
+    });
+  }, []);
 
   const handleCompare = useCallback(() => {
     if (selectedForCompare.length === 2 && id) {
@@ -194,7 +197,9 @@ export const PageNavigationPaneInfoTabVersionHistory = observer(function PageNav
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="text-11 font-medium text-secondary">{t("page_navigation_pane.tabs.info.version_history.label")}</p>
+        <p className="text-11 font-medium text-secondary">
+          {t("page_navigation_pane.tabs.info.version_history.label")}
+        </p>
         {versionsList && versionsList.length > 0 && !isCompareMode && (
           <button
             type="button"
@@ -210,12 +215,7 @@ export const PageNavigationPaneInfoTabVersionHistory = observer(function PageNav
         <div className="mt-2 rounded-sm bg-accent-primary/10 px-2 py-1.5 text-11 text-accent-primary">
           <p>Select 2 versions to compare</p>
           <div className="mt-1 flex gap-1">
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={selectedForCompare.length !== 2}
-              onClick={handleCompare}
-            >
+            <Button variant="primary" size="sm" disabled={selectedForCompare.length !== 2} onClick={handleCompare}>
               Compare ({selectedForCompare.length}/2)
             </Button>
             <Button variant="outline-primary" size="sm" onClick={handleCancelCompare}>

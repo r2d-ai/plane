@@ -98,13 +98,7 @@ export const PageNavigationPaneInfoTabLabels = observer(function PageNavigationP
         {/* Label selector */}
         <Combobox as="div" value={selectedLabelIds} onChange={handleSelect} multiple>
           <Combobox.Button as={Fragment}>
-            <Button
-              type="button"
-              variant="tertiary"
-              size="sm"
-              prependIcon={<PlusIcon />}
-              className="w-full"
-            >
+            <Button type="button" variant="tertiary" size="sm" prependIcon={<PlusIcon />} className="w-full">
               <span className="text-11 text-placeholder">{t("label.select")}</span>
             </Button>
           </Combobox.Button>

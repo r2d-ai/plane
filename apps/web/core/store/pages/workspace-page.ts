@@ -100,11 +100,13 @@ export class WorkspacePage extends BasePage implements TWorkspacePage {
   });
 
   /**
-   * @description returns true if the current logged in user can access the page
+   * WorkspacePage entities are created only from the workspace Page list or
+   * detail API, both of which apply the effective Wiki read ACL. Private
+   * pages can be readable through a direct or inherited share, even when the
+   * viewer is neither the owner nor a workspace member.
    */
   get canCurrentUserAccessPage() {
-    const isPagePublic = this.access === EPageAccess.PUBLIC;
-    return isPagePublic || this.isCurrentUserOwner;
+    return true;
   }
 
   /**

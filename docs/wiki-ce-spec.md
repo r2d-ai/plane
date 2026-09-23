@@ -10,6 +10,8 @@
 >
 > Goal: implement a workspace-level Wiki in Plane CE with behavior and UX as close as practical to Plane Commercial, while reusing CE's existing Page/editor/live-collaboration foundations and minimizing long-term upstream merge conflicts.
 
+> **Current UI contract (2026-09-24):** The unified Wiki app uses `/wiki/:workspaceSlug` for Home and `/wiki/:workspaceSlug/:pageId` for page detail. `/wiki` redirects to the configured default workspace, labeled **Instance Wiki**. `/company-wiki/*` and `/:workspaceSlug/wiki/*` are replace redirects to those canonical paths. The app rail contains Work and Wiki; the Wiki sidebar groups only ACL-visible workspaces, and the top-navigation search aggregates visible Wiki pages across them. Project Pages remain in Work. No AI sidecar or simulated AI conversation is part of this migration. This contract supersedes older route and navigation statements below; see [the unified app design](./superpowers/specs/2026-09-23-unified-wiki-app-design.md).
+
 ---
 
 ## 1. Executive decision
@@ -61,7 +63,7 @@ This keeps all three surfaces on the same editor, versioning, asset, activity, e
 
 The **Company Wiki** is a fork-specific extension. Plane's public Commercial documentation describes Wiki as **workspace-level**, even when it is positioned as company-wide knowledge. Because this deployment intentionally uses multiple workspaces for separate departments, a single canonical knowledge surface above any one department workspace is required.
 
-Company Wiki is implemented as **Workspace Wiki on a designated real workspace** rather than as a separate `workspace=NULL` scope. The designated workspace is fixed by the `COMPANY_WIKI_WORKSPACE_SLUG` configuration value and is not user-selectable. The canonical route `/company-wiki` maps to that workspace and never contains a workspace slug.
+Instance Wiki is implemented as **Workspace Wiki on a designated real workspace** rather than as a separate `workspace=NULL` scope. The designated workspace is fixed by the `COMPANY_WIKI_WORKSPACE_SLUG` configuration value and is not user-selectable. Its canonical route is `/wiki/:workspaceSlug` with the configured slug; `/company-wiki` redirects there.
 
 Rationale for the designated-workspace model (decision D1, revised 2026-09-22):
 
@@ -140,44 +142,44 @@ The target is behavioral parity with the public Plane Wiki feature set as of 202
 
 ### 3.1 Core Wiki
 
-| Capability | Commercial behavior / public description | CE target |
-| --- | --- | --- |
-| Workspace Wiki | Wiki pages live at workspace level | Required |
-| Nested pages | Deep parent/child hierarchy | Required |
-| Reordering | Drag-and-drop/order within hierarchy | Required |
-| Public pages | Workspace-visible documentation | Required |
-| Private pages | Creator/private visibility | Required |
-| Shared pages | Named users with scoped access | Required after core |
-| Archive | Archived Wiki section | Required |
-| Favorites | Dedicated favorite access | Required |
-| Search | Search Wiki by title/content | Required |
-| Rich editor | Existing Page editor | Required |
-| Realtime collaboration | Collaborative editing | Required |
-| Work embeds | Link/embed work items and related execution context | Required |
-| Automatic outline/TOC | Existing editor outline | Required |
-| Page locking | Lock a page against edits | Required |
-| Version history | Browse and restore prior versions | Required |
-| Version comparison | Compare changes between versions | Parity phase |
-| Page comments | Collaborative review/comments | Parity phase |
-| Publish externally | Public URL, external viewing/commenting where supported | Parity phase |
-| Templates | Workspace/page templates | Parity phase |
-| Export | Page export | Required |
-| Nested export | Export page hierarchy as ZIP with PDF/DOCX output | Parity phase |
-| Labels | Labels on Wiki pages | Parity phase |
-| Page analytics | Page/Collection view analytics | Later parity |
-| Collections | Group pages into Collections | Required parity |
-| Collection ACL | Public/private collection and View/Comment/Edit roles | Required parity |
-| ACL inheritance | Collection -> Page -> child page inheritance | Required parity |
-| Tabs/toggles | Rich page organization blocks | Editor parity |
-| Page hierarchy embeds | Embed parent/children or page lists | Editor parity |
-| Mermaid | Diagram rendering | Editor parity |
-| Draw.io | Diagram integration | Optional integration parity |
-| LaTeX | Formula/document block support | Editor parity where feasible |
-| URL media embeds | Images/video and rich embeds | Editor parity |
-| MS Office in-place editing | Edit attached Office files via desktop Office | Later/optional |
-| AI Block | Inline generated content | Deferred to Plane AI/provider work |
-| AI editing/search | AI native Wiki assistance | Deferred |
-| Confluence/Notion import | Documentation import | Deferred integration phase |
+| Capability                 | Commercial behavior / public description                | CE target                          |
+| -------------------------- | ------------------------------------------------------- | ---------------------------------- |
+| Workspace Wiki             | Wiki pages live at workspace level                      | Required                           |
+| Nested pages               | Deep parent/child hierarchy                             | Required                           |
+| Reordering                 | Drag-and-drop/order within hierarchy                    | Required                           |
+| Public pages               | Workspace-visible documentation                         | Required                           |
+| Private pages              | Creator/private visibility                              | Required                           |
+| Shared pages               | Named users with scoped access                          | Required after core                |
+| Archive                    | Archived Wiki section                                   | Required                           |
+| Favorites                  | Dedicated favorite access                               | Required                           |
+| Search                     | Search Wiki by title/content                            | Required                           |
+| Rich editor                | Existing Page editor                                    | Required                           |
+| Realtime collaboration     | Collaborative editing                                   | Required                           |
+| Work embeds                | Link/embed work items and related execution context     | Required                           |
+| Automatic outline/TOC      | Existing editor outline                                 | Required                           |
+| Page locking               | Lock a page against edits                               | Required                           |
+| Version history            | Browse and restore prior versions                       | Required                           |
+| Version comparison         | Compare changes between versions                        | Parity phase                       |
+| Page comments              | Collaborative review/comments                           | Parity phase                       |
+| Publish externally         | Public URL, external viewing/commenting where supported | Parity phase                       |
+| Templates                  | Workspace/page templates                                | Parity phase                       |
+| Export                     | Page export                                             | Required                           |
+| Nested export              | Export page hierarchy as ZIP with PDF/DOCX output       | Parity phase                       |
+| Labels                     | Labels on Wiki pages                                    | Parity phase                       |
+| Page analytics             | Page/Collection view analytics                          | Later parity                       |
+| Collections                | Group pages into Collections                            | Required parity                    |
+| Collection ACL             | Public/private collection and View/Comment/Edit roles   | Required parity                    |
+| ACL inheritance            | Collection -> Page -> child page inheritance            | Required parity                    |
+| Tabs/toggles               | Rich page organization blocks                           | Editor parity                      |
+| Page hierarchy embeds      | Embed parent/children or page lists                     | Editor parity                      |
+| Mermaid                    | Diagram rendering                                       | Editor parity                      |
+| Draw.io                    | Diagram integration                                     | Optional integration parity        |
+| LaTeX                      | Formula/document block support                          | Editor parity where feasible       |
+| URL media embeds           | Images/video and rich embeds                            | Editor parity                      |
+| MS Office in-place editing | Edit attached Office files via desktop Office           | Later/optional                     |
+| AI Block                   | Inline generated content                                | Deferred to Plane AI/provider work |
+| AI editing/search          | AI native Wiki assistance                               | Deferred                           |
+| Confluence/Notion import   | Documentation import                                    | Deferred integration phase         |
 
 ### 3.2 Minimum production milestone
 
@@ -1233,7 +1235,6 @@ These should be resolved by observing current Commercial behavior or public docs
 
 None of these questions block the core Wiki milestone; the architecture above intentionally keeps room for the parity features.
 
-
 ---
 
 ## 29. Company Wiki (fork extension, designated-workspace model)
@@ -1256,25 +1257,21 @@ Examples:
 - emergency/contact procedures;
 - company forms and references.
 
-Add a separate **Company Wiki** surface with canonical routes:
+Expose the configured default workspace as **Instance Wiki** through the unified Wiki app:
 
 ```text
-/company-wiki
-/company-wiki/:pageId
+/wiki/:workspaceSlug
+/wiki/:workspaceSlug/:pageId
 ```
 
-The same Company Wiki is reachable from every workspace, and the URL never contains a workspace slug. This prevents the same company document from acquiring different canonical URLs depending on which workspace the user happened to enter from.
+The configured Instance Wiki has one canonical workspace slug, independent of the user's current Work workspace. `/company-wiki` and `/company-wiki/:pageId` are compatibility redirects.
 
-Recommended navigation:
+Navigation:
 
 ```text
-Company Wiki        <- company-wide (designated workspace)
-Wiki                <- current workspace
-Projects
-...
+Work    <- projects and Project Pages
+Wiki    <- Instance Wiki and every authorized workspace Wiki
 ```
-
-A later navigation redesign may group both under a single Knowledge/Wiki entry, but the two scopes must remain visually distinguishable.
 
 ### 29.2 Scope semantics — designated workspace
 
@@ -1460,17 +1457,17 @@ Company Wiki should reuse the same Page editor and navigation components as Work
 
 Distinct UI cues are required:
 
-- header/breadcrumb says **Company Wiki**;
+- sidebar labels the configured default workspace **Instance Wiki**;
 - workspace switcher does not change the loaded Company Wiki Page;
-- copied links use `/company-wiki/:pageId` (no workspace slug);
+- copied links use `/wiki/:workspaceSlug/:pageId` with the configured default slug;
 - create-page controls are hidden for users without Company Wiki write capability (non-admin/owner of the designated workspace, or any non-member when `COMPANY_WIKI_OPEN_READ=true`);
 - read-only users still get search, outline, version browsing, copy link, export where permitted.
 
-The designated workspace slug must be added to `RESTRICTED_URLS` (`packages/constants/src/workspace.ts`) so no user can create a workspace that squats the `company-wiki` route or the configured Company Wiki slug. The `/company-wiki` route is a standalone route under the authenticated app shell, not nested under `:workspaceSlug`; internally it resolves `COMPANY_WIKI_WORKSPACE_SLUG` and renders the Workspace Wiki UI against that workspace.
+The designated workspace slug must be added to `RESTRICTED_URLS` (`packages/constants/src/workspace.ts`) so no user can squat the configured Instance Wiki slug. `/company-wiki/*` remains a standalone authenticated compatibility redirect to `/wiki/:workspaceSlug/*`.
 
 ### 29.14 Company Wiki Core definition of done
 
-- [ ] Canonical `/company-wiki` route exists outside workspace scope and resolves `COMPANY_WIKI_WORKSPACE_SLUG`.
+- [ ] Canonical `/wiki/:workspaceSlug` route resolves the configured default workspace; `/company-wiki` redirects to it.
 - [ ] Link is reachable from every workspace.
 - [ ] When `COMPANY_WIKI_OPEN_READ=true`, every authenticated active user can read Company Wiki; anonymous access is denied.
 - [ ] Write/manage (create/edit/lock/archive/delete) is restricted to admin/owner of the designated workspace via `WorkspacePagePermission`.
@@ -1499,7 +1496,7 @@ WIKI-01 Workspace Wiki backend core (with COMPANY_WIKI_WORKSPACE_SLUG + open-rea
         ↓
 WIKI-02 workspace_page realtime collaboration
         ↓
-WIKI-03 Workspace Wiki + Company Wiki web surfaces (/company-wiki route alias)
+WIKI-03 Unified Work and Wiki app surfaces (/company-wiki compatibility redirect)
         ↓
 WIKI-04 hierarchy/search/export/security hardening
         ↓
@@ -1507,7 +1504,6 @@ WIKI-05 Collections (Core milestone)
 ```
 
 Core Wiki production milestone = WIKI-00..05. Parity/advanced track (sharing & comments, templates/publishing/nested export, editor parity, advanced parity, AI/importers) follows.
-
 
 ---
 
@@ -1801,17 +1797,17 @@ Use existing dark/light Wiki empty-state artwork rather than recoloring assets i
 
 Before each Wiki UI PR is accepted, compare it side by side with the nearest native Plane surface.
 
-| Wiki surface | Native Plane reference |
-| --- | --- |
-| Workspace Wiki list | Project Pages list |
-| Wiki page detail | Project Page detail |
-| Header/breadcrumb | Project Page list/detail headers |
-| Search/filter/order | Existing Page list controls |
-| Document editor | Existing Project Page editor |
-| Navigation pane | Existing Page navigation pane |
-| Empty state | Existing Page/Wiki empty states |
-| Sidebar item | Existing Projects/Views sidebar items |
-| Share dialog | Closest current Plane member/access dialog |
+| Wiki surface         | Native Plane reference                                       |
+| -------------------- | ------------------------------------------------------------ |
+| Workspace Wiki list  | Project Pages list                                           |
+| Wiki page detail     | Project Page detail                                          |
+| Header/breadcrumb    | Project Page list/detail headers                             |
+| Search/filter/order  | Existing Page list controls                                  |
+| Document editor      | Existing Project Page editor                                 |
+| Navigation pane      | Existing Page navigation pane                                |
+| Empty state          | Existing Page/Wiki empty states                              |
+| Sidebar item         | Existing Projects/Views sidebar items                        |
+| Share dialog         | Closest current Plane member/access dialog                   |
 | Collection list/tree | Existing Plane list/sidebar/tree density and Propel controls |
 
 Any visual deviation must be justified by a Wiki-specific interaction requirement.

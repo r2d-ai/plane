@@ -31,8 +31,14 @@ export function computeHtmlDiff(oldHtml: string, newHtml: string): TDiffSegment[
   if (!oldHtml) return [{ type: "added", newText: newHtml }];
   if (!newHtml) return [{ type: "removed", oldText: oldHtml }];
 
-  const oldText = oldHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  const newText = newHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const oldText = oldHtml
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const newText = newHtml
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   if (oldText === newText) return [{ type: "equal", oldText, newText }];
 
@@ -47,8 +53,13 @@ export function computeHtmlDiff(oldHtml: string, newHtml: string): TDiffSegment[
   let lcsIdx = 0;
 
   while (oldIdx < oldWords.length || newIdx < newWords.length) {
-    if (lcsIdx < lcs.length && oldIdx < oldWords.length && newIdx < newWords.length &&
-        oldWords[oldIdx] === lcs[lcsIdx] && newWords[newIdx] === lcs[lcsIdx]) {
+    if (
+      lcsIdx < lcs.length &&
+      oldIdx < oldWords.length &&
+      newIdx < newWords.length &&
+      oldWords[oldIdx] === lcs[lcsIdx] &&
+      newWords[newIdx] === lcs[lcsIdx]
+    ) {
       segments.push({ type: "equal", oldText: oldWords[oldIdx], newText: newWords[newIdx] });
       oldIdx++;
       newIdx++;

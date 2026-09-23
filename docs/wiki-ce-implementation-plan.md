@@ -7,6 +7,8 @@
 > Implementation baseline: create feature branches from `r2d-ai/plane:master` (upstream `makeplane/plane:master`, release v1.4.2, SHA `5f7d92784c403f76284f0f16718f320221dc7fec`). Do not automatically follow a moving `master`.
 >
 > Planning principle: small reviewable PRs, no large “Wiki mega-PR”.
+
+> **Current UI implementation (2026-09-24):** The unified Wiki app is specified in [the current implementation plan](./superpowers/plans/2026-09-23-unified-wiki-app.md). Canonical routes are `/wiki/:workspaceSlug` and `/wiki/:workspaceSlug/:pageId`; `/wiki` selects the configured default workspace, labeled **Instance Wiki**. `/company-wiki/*` and `/:workspaceSlug/wiki/*` are compatibility redirects. The app rail contains Work and Wiki, Wiki scopes are server-authorized, and top-navigation search aggregates visible Wiki pages. Project Pages remain in Work. An AI sidecar and simulated AI conversation are excluded. This supersedes the older WIKI-03 route and navigation steps below.
 >
 > **Company Wiki model (spec §29, revised 2026-09-22).** Company Wiki is **Workspace Wiki on a designated real workspace** fixed by `COMPANY_WIKI_WORKSPACE_SLUG`, not a `workspace=NULL` instance scope. `Page.workspace` stays non-null: there is **no** nullable-workspace migration, no `/api/instance/wiki/...` API path, no `instance_page` live document type, no `InstancePagePermission` and no `InstancePageService`. Company Wiki reuses the Workspace Wiki REST API, the `workspace_page` live document type and the workspace asset routes against the designated workspace; `COMPANY_WIKI_OPEN_READ` controls the read-only open-read override. The normative reference is [wiki-ce-spec.md §29](./wiki-ce-spec.md#29-company-wiki-fork-extension-designated-workspace-model); [§29.15](./wiki-ce-spec.md#2915-core-architecture-consequence) is the canonical ordering.
 >
@@ -626,10 +628,11 @@ Wiki and Project Pages can use the same live service concurrently with separate 
 
 ## Goal
 
-Expose two first-class Wiki surfaces using existing Page components:
+Expose one first-class Wiki app using existing Page components:
 
-- Workspace Wiki: `/:workspaceSlug/wiki`;
-- Company Wiki: `/company-wiki`, independent of workspace context.
+- Workspace Home: `/wiki/:workspaceSlug`;
+- Workspace page detail: `/wiki/:workspaceSlug/:pageId`;
+- default Instance Wiki: `/wiki` redirects to the configured workspace slug.
 
 ## 6.1 Routes through existing extension seam
 
@@ -642,21 +645,19 @@ apps/web/app/routes/extended.ts
 Target:
 
 ```text
-/:workspaceSlug/wiki
-/:workspaceSlug/wiki/:pageId
-
-/company-wiki
-/company-wiki/:pageId
+/wiki
+/wiki/:workspaceSlug
+/wiki/:workspaceSlug/:pageId
 ```
 
-`/company-wiki` must be a standalone route under the authenticated app shell, not nested under `:workspaceSlug`. Internally it resolves `COMPANY_WIKI_WORKSPACE_SLUG` and renders the Workspace Wiki UI against that workspace; copied links stay `/company-wiki/:pageId` (no workspace slug). Add `company-wiki` **and** the configured Company Wiki workspace slug to `RESTRICTED_URLS` (`packages/constants/src/workspace.ts`) to avoid route ambiguity and slug squatting.
+`/company-wiki/*` and `/:workspaceSlug/wiki/*` remain authenticated replace redirects. The configured default workspace is labeled Instance Wiki and remains a real workspace. Copied links use `/wiki/:workspaceSlug/:pageId`. Keep `company-wiki` and the configured default slug reserved in `RESTRICTED_URLS` (`packages/constants/src/workspace.ts`).
 
 Create route components in an isolated Wiki area, for example:
 
 ```text
-apps/web/app/(all)/[workspaceSlug]/wiki/
-  (list)/page.tsx
-  (detail)/[pageId]/page.tsx
+apps/web/app/(all)/wiki/
+  [workspaceSlug]/page.tsx
+  [workspaceSlug]/[pageId]/page.tsx
   ...
 ```
 
@@ -842,7 +843,7 @@ Reuse the Workspace Wiki store/service, parameterized by the designated workspac
 
 Required behavior:
 
-- [ ] canonical links are `/company-wiki/:pageId`;
+- [ ] canonical links are `/wiki/:workspaceSlug/:pageId` for the configured default workspace;
 - [ ] the route resolves `COMPANY_WIKI_WORKSPACE_SLUG` and renders the Workspace Wiki UI against that workspace;
 - [ ] workspace switcher does not change loaded Company Wiki content;
 - [ ] Company Wiki link is visible/reachable from every workspace;
@@ -851,7 +852,7 @@ Required behavior:
 - [ ] editor connects with `documentType: "workspace_page"` and `workspaceSlug = COMPANY_WIKI_WORKSPACE_SLUG`;
 - [ ] `projectId` is null for Company Wiki collaboration;
 - [ ] search/favorites/recents are user-global (keyed on the page, which lives in the designated workspace);
-- [ ] header/breadcrumb visibly says **Company Wiki** to avoid confusing it with current workspace Wiki.
+- [ ] sidebar visibly labels the configured default workspace **Instance Wiki**.
 
 ## 6.12 UI conformity implementation tasks
 

@@ -23,4 +23,10 @@ describe("App rail items", () => {
       { label: "Wiki", href: "/wiki/home", isActive: false },
     ]);
   });
+
+  test("keeps Wiki reachable when the default workspace is not configured", () => {
+    expect(buildAppRailItems({ workWorkspaceSlug: "test", wikiWorkspaceSlug: "", pathname: "/test" })[1].href).toBe(
+      "/wiki"
+    );
+  });
 });
