@@ -247,3 +247,10 @@ test("a same-scope refetch keeps existing data and the user's search query", asy
   expect(store.getPageById("home-page")).toBeDefined();
   expect(store.filters.searchQuery).toBe("handbook");
 });
+
+test("workspace page links use the canonical Wiki route", () => {
+  const { root } = createFakeRootStore("mkt");
+  const page = new WorkspacePage(root as unknown as RootStore, mktPage, "mkt");
+  expect(page.getRedirectionLink()).toBe("/wiki/mkt/mkt-page");
+  page.cleanup();
+});

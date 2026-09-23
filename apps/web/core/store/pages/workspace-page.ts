@@ -10,6 +10,7 @@ import { computedFn } from "mobx-utils";
 import { EPageAccess, EUserPermissions } from "@plane/constants";
 import type { TPage } from "@plane/types";
 import { EUserWorkspaceRoles } from "@plane/types";
+import { getWikiHomePath, getWikiPagePath } from "../../helpers/wiki-routes";
 // plane web store
 import type { RootStore } from "@/store/root.store";
 // services
@@ -189,7 +190,7 @@ export class WorkspacePage extends BasePage implements TWorkspacePage {
     );
   }
 
-  getRedirectionLink = computedFn(() => {
-    return `/${this.sourceWorkspaceSlug}/wiki/${this.id}`;
-  });
+  getRedirectionLink = computedFn(() =>
+    this.id ? getWikiPagePath(this.sourceWorkspaceSlug, this.id) : getWikiHomePath(this.sourceWorkspaceSlug)
+  );
 }
