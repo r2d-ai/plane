@@ -37,6 +37,29 @@ function countNestedPages(pageId: string, pages: TPage[]): number {
   return count;
 }
 
+function collectionSubtreeIds(boundaryIds: string[], pages: TPage[]): string[] {
+  const childrenByParent = new Map<string, string[]>();
+  for (const page of pages) {
+    if (!page.id || !page.parent) continue;
+    const children = childrenByParent.get(page.parent) ?? [];
+    children.push(page.id);
+    childrenByParent.set(page.parent, children);
+  }
+
+  const included = new Set(boundaryIds);
+  const stack = [...boundaryIds];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) continue;
+    for (const child of childrenByParent.get(current) ?? []) {
+      if (included.has(child)) continue;
+      included.add(child);
+      stack.push(child);
+    }
+  }
+  return [...included];
+}
+
 function formatLastActivity(value?: string): string {
   if (!value) return "—";
   const date = new Date(value);
@@ -204,7 +227,10 @@ export const WikiCollectionView = observer(function WikiCollectionView({
         workspaceSlug={scope.slug}
         collectionId={collectionId}
         pages={visiblePages}
-        currentPageIds={pages.map((item) => item.page)}
+        currentPageIds={collectionSubtreeIds(
+          pages.map((item) => item.page),
+          visiblePages
+        )}
         onAdded={async () => {
           await Promise.all([mutate(), navigation.invalidateScope(scope.slug)]);
         }}
