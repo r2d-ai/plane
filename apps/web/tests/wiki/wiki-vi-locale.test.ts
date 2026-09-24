@@ -36,4 +36,10 @@ describe("Vietnamese Wiki translations", () => {
   test("uses the same term for Wiki page groups", () => {
     expect(JSON.stringify([vi, viPage, viCommon])).not.toMatch(/bộ sưu tập|nhóm trang/i);
   });
+
+  test("labels collection access choices", () => {
+    expect(viCommon.common.access.label).toBe("Quyền truy cập");
+    expect(viCommon.common.access.public).toBe("Công khai");
+    expect(viCommon.common.access.private).toBe("Riêng tư");
+  });
 });

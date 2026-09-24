@@ -83,7 +83,7 @@ export const CollectionForm = observer(function CollectionForm(props: Props) {
       </div>
 
       <div className="space-y-1">
-        <label className="text-13 font-medium text-secondary">{t("common.access")}</label>
+        <label className="text-13 font-medium text-secondary">{t("common.access.label")}</label>
         <div className="flex gap-2">
           <button
             type="button"

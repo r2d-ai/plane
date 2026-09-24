@@ -511,6 +511,7 @@
     "archiving": "Archiving",
     "archive": "Archive",
     "access": {
+      "label": "Access",
       "public": "Public",
       "private": "Private"
     },

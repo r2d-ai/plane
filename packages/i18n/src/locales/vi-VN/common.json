@@ -510,6 +510,7 @@
     "archiving": "Đang lưu trữ",
     "archive": "Lưu trữ",
     "access": {
+      "label": "Quyền truy cập",
       "public": "Công khai",
       "private": "Riêng tư"
     },
