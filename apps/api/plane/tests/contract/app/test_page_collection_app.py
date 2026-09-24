@@ -322,6 +322,25 @@ class TestCollectionPageMoves:
         assert _client_for(member).get(_page_url(workspace.slug, page.id)).status_code == 200
 
     @pytest.mark.django_db
+    def test_collection_page_list_includes_table_metadata_without_owner_email(
+        self, session_client, workspace, create_user
+    ):
+        collection = _collection(workspace, "General", PageCollection.ACCESS_PUBLIC, created_by=create_user)
+        page = _wiki_page(workspace, create_user, name="Handbook")
+        PageCollectionPage.objects.create(collection=collection, page=page, workspace=workspace)
+
+        response = session_client.get(_collection_pages_url(workspace.slug, collection.id))
+
+        assert response.status_code == 200
+        detail = response.json()[0]["page_detail"]
+        assert detail["id"] == str(page.id)
+        assert detail["updated_at"] is not None
+        assert detail["owned_by"] == str(create_user.id)
+        assert detail["owner_detail"]["id"] == str(create_user.id)
+        assert detail["owner_detail"]["display_name"] == create_user.display_name
+        assert "email" not in detail["owner_detail"]
+
+    @pytest.mark.django_db
     def test_reorder_collection_pages(self, session_client, workspace, create_user):
         collection = _collection(workspace, "C", PageCollection.ACCESS_PUBLIC, created_by=create_user)
         first = _wiki_page(workspace, create_user, name="First")
