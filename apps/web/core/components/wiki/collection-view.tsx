@@ -70,9 +70,13 @@ function CollectionTableRow({
         <span className="truncate">{detail.name || "Untitled"}</span>
       </div>
       <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 text-secondary">
-        <span className="grid size-5 flex-shrink-0 place-items-center rounded-full bg-layer-2 text-10 font-medium text-tertiary">
-          {(owner?.display_name || "?").slice(0, 1).toUpperCase()}
-        </span>
+        {owner?.avatar_url ? (
+          <img src={owner.avatar_url} alt="" className="size-5 flex-shrink-0 rounded-full object-cover" />
+        ) : (
+          <span className="grid size-5 flex-shrink-0 place-items-center rounded-full bg-layer-2 text-10 font-medium text-tertiary">
+            {(owner?.display_name || "?").slice(0, 1).toUpperCase()}
+          </span>
+        )}
         <span className="truncate">{owner?.display_name || "—"}</span>
       </div>
       <div className="px-3 py-2.5 text-secondary">{nestedPages}</div>
@@ -153,7 +157,7 @@ export const WikiCollectionView = observer(function WikiCollectionView({
           </div>
         </div>
 
-        <div className="mt-7 overflow-x-auto rounded-lg border border-subtle bg-surface-1">
+        <div className="mt-7 overflow-x-auto rounded-lg border border-subtle">
           <div className="min-w-[760px]">
             <div className="grid h-10 grid-cols-[minmax(220px,1fr)_180px_120px_150px] items-center border-b border-subtle bg-layer-1 text-11 font-semibold text-tertiary">
               <div className="px-3">{t("wiki_collections.list.columns.page_name")}</div>
