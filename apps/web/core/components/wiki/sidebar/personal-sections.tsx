@@ -22,6 +22,7 @@ function PersonalSection({
   label: string;
   onNavigate: () => void;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const { data, error, isLoading, mutate } = useSWR(expanded ? `WIKI_PERSONAL_${section}` : null, () =>
     wikiService.fetchPersonalPages(section)
@@ -41,7 +42,7 @@ function PersonalSection({
           {isLoading && <div className="h-4 w-3/4 animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />}
           {error && (
             <button type="button" onClick={() => void mutate()} className="text-12 text-accent-primary">
-              Retry
+              {t("wiki.sidebar.retry")}
             </button>
           )}
           {data?.results.map((page) => (
@@ -51,7 +52,7 @@ function PersonalSection({
               onClick={onNavigate}
               className="focus-visible:outline-accent-primary block truncate rounded px-2 py-1 text-13 text-secondary hover:bg-layer-1 focus-visible:outline-2"
             >
-              {page.page_name || "Untitled"}
+              {page.page_name || t("wiki.untitled")}
             </Link>
           ))}
         </div>

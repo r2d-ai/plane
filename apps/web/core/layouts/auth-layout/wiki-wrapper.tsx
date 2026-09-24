@@ -6,6 +6,7 @@
 
 import type { ReactNode } from "react";
 import useSWR from "swr";
+import { useTranslation } from "@plane/i18n";
 import {
   WORKSPACE_MEMBER_ME_INFORMATION,
   WORKSPACE_MEMBERS,
@@ -23,14 +24,15 @@ const wikiService = new WikiService();
 const userService = new UserService();
 
 export function WikiNotConfigured() {
+  const { t } = useTranslation();
   const { data: adminStatus } = useSWR("CURRENT_USER_INSTANCE_ADMIN_STATUS", () =>
     userService.currentUserInstanceAdminStatus()
   );
   return (
     <div className="flex size-full flex-col items-center justify-center gap-2 text-center">
-      <h1 className="text-18 font-medium text-primary">Wiki is not configured</h1>
+      <h1 className="text-18 font-medium text-primary">{t("wiki.errors.not_configured_title")}</h1>
       {adminStatus?.is_instance_admin && (
-        <p className="text-13 text-secondary">Set COMPANY_WIKI_WORKSPACE_SLUG on the API to enable it.</p>
+        <p className="text-13 text-secondary">{t("wiki.errors.not_configured_admin_hint")}</p>
       )}
     </div>
   );
@@ -50,6 +52,7 @@ function MemberPreload({ workspaceSlug, children }: WikiAuthWrapperProps) {
 }
 
 export function WikiAuthWrapper({ workspaceSlug, children }: WikiAuthWrapperProps) {
+  const { t } = useTranslation();
   const { data: scopes, error, isLoading } = useSWR("WIKI_SCOPES", () => wikiService.fetchScopes());
   if (isLoading || (!scopes && !error))
     return (
@@ -57,7 +60,7 @@ export function WikiAuthWrapper({ workspaceSlug, children }: WikiAuthWrapperProp
         <LogoSpinner />
       </div>
     );
-  if (error) return <div role="alert">Could not load Wiki access. Please try again.</div>;
+  if (error) return <div role="alert">{t("wiki.errors.access_load_failed")}</div>;
   const scope = resolveWikiScopeAccess(scopes ?? [], workspaceSlug);
   // Scopes is the source of truth: a reachable designated workspace is returned
   // by the API with is_default/is_member, so an absent scope here means the

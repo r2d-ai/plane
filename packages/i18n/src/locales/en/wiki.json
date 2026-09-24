@@ -96,7 +96,13 @@
       "shared_with_me": "Shared with me",
       "retry": "Retry",
       "home": "Home",
-      "archived": "Archived"
+      "archived": "Archived",
+      "loading": "Loading Wiki",
+      "load_failed": "Could not load Wiki sections.",
+      "loading_section": "Loading {{name}}",
+      "resize": "Resize Wiki sidebar",
+      "open_navigation": "Open Wiki navigation",
+      "navigation": "Wiki navigation"
     },
     "untitled": "Untitled",
     "hierarchy": {
@@ -116,7 +122,17 @@
       "workspace_description": "Browse, organize, and link your team's knowledge in a hierarchical page tree.",
       "company_title": "Company Wiki",
       "company_description": "Instance-wide documentation shared across every workspace.",
-      "page_count": "{count} {count, plural, one {page} other {pages}}"
+      "page_count": "{count} {count, plural, one {page} other {pages}}",
+      "archived_description": "Pages archived from this Wiki.",
+      "loading_archived": "Loading archived Wiki pages",
+      "archived_load_failed": "Could not load archived Wiki pages.",
+      "no_archived": "No archived pages.",
+      "recents": "Recents",
+      "recently_updated": "Recently updated",
+      "loading_recents": "Loading Wiki recents",
+      "recents_load_failed": "Could not load recent Wiki pages.",
+      "loading_recently_updated": "Loading recently updated Wiki pages",
+      "recently_updated_load_failed": "Could not load recently updated Wiki pages."
     },
     "tree": {
       "root_label": "Wiki pages",
@@ -131,7 +147,9 @@
       "move": "Move",
       "add_page": "Add page",
       "expand": "Expand",
-      "collapse": "Collapse"
+      "collapse": "Collapse",
+      "hide_comments": "Hide comments",
+      "show_comments": "Comments"
     },
     "collections": {
       "section_title": "Collections",
@@ -161,7 +179,8 @@
       "pages": "pages",
       "default": "Default",
       "name_placeholder": "Collection name",
-      "description_placeholder": "Description (optional)"
+      "description_placeholder": "Description (optional)",
+      "load_failed": "Could not load this collection."
     },
     "upgrade_flow": {
       "title": "Upgrade to unlock Wiki",
@@ -198,7 +217,10 @@
       "permission_denied": "You don't have permission to perform this action.",
       "load_failed": "Wiki page could not be loaded. Please try again.",
       "move_failed": "Couldn't move the page",
-      "move_failed_description": "The page could not be moved. Please try again."
+      "move_failed_description": "The page could not be moved. Please try again.",
+      "not_configured_title": "Wiki is not configured",
+      "not_configured_admin_hint": "Set COMPANY_WIKI_WORKSPACE_SLUG on the API to enable it.",
+      "access_load_failed": "Could not load Wiki access. Please try again."
     },
     "templates": {
       "title": "Templates",
@@ -231,6 +253,9 @@
         "deleted": "Template deleted.",
         "delete_error": "Template could not be deleted. Please try again."
       }
+    },
+    "editor": {
+      "placeholder": "Press '/' for commands..."
     }
   }
 }

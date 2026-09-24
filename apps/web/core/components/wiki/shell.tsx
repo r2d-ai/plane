@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 import { Dialog } from "@headlessui/react";
+import { useTranslation } from "@plane/i18n";
 import { WikiSidebar } from "./sidebar/root";
 
 export function WikiShell({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(256);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -36,7 +38,7 @@ export function WikiShell({ children }: { children: ReactNode }) {
         <div
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize Wiki sidebar"
+          aria-label={t("wiki.sidebar.resize")}
           className="focus-visible:outline-accent-primary absolute top-0 -right-1 z-10 h-full w-2 cursor-col-resize focus-visible:outline-2"
           onPointerDown={startResize}
           tabIndex={0}
@@ -51,11 +53,11 @@ export function WikiShell({ children }: { children: ReactNode }) {
           <button
             ref={triggerRef}
             type="button"
-            aria-label="Open Wiki navigation"
+            aria-label={t("wiki.sidebar.open_navigation")}
             onClick={() => setDrawerOpen(true)}
             className="focus-visible:outline-accent-primary rounded px-2 py-1 text-13 font-medium focus-visible:outline-2"
           >
-            ☰ Wiki
+            ☰ {t("wiki.sidebar.title")}
           </button>
         </div>
         <main className="min-h-0 flex-1 overflow-auto">{children}</main>
@@ -64,7 +66,7 @@ export function WikiShell({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 bg-black/40 motion-reduce:transition-none" aria-hidden="true" />
         <div className="fixed inset-0 flex">
           <Dialog.Panel className="shadow-lg h-full w-[min(86vw,320px)] border-r border-subtle bg-surface-1 motion-reduce:transition-none">
-            <Dialog.Title className="sr-only">Wiki navigation</Dialog.Title>
+            <Dialog.Title className="sr-only">{t("wiki.sidebar.navigation")}</Dialog.Title>
             <WikiSidebar onNavigate={handleNavigate} />
           </Dialog.Panel>
         </div>

@@ -9,6 +9,7 @@ import { ALargeSmall, Ban } from "lucide-react";
 import { Popover } from "@headlessui/react";
 // plane editor
 import { COLORS_LIST } from "@plane/editor";
+import { useTranslation } from "@plane/i18n";
 import type { TEditorCommands } from "@plane/editor";
 // helpers
 import { cn } from "@plane/utils";
@@ -25,6 +26,7 @@ type Props = {
 };
 
 export const ColorDropdown = memo(function ColorDropdown(props: Props) {
+  const { t } = useTranslation();
   const { handleColorSelect, isColorActive } = props;
 
   const activeTextColor = COLORS_LIST.find((c) => isColorActive("text-color", c.key));
@@ -44,7 +46,7 @@ export const ColorDropdown = memo(function ColorDropdown(props: Props) {
               }
             )}
           >
-            Color
+            {t("page_controls.color")}
             <span
               className={cn("grid size-6 shrink-0 place-items-center rounded-sm border-[0.5px] border-strong", {
                 "bg-surface-1": !activeBackgroundColor,
@@ -68,7 +70,7 @@ export const ColorDropdown = memo(function ColorDropdown(props: Props) {
             className="fixed z-20 mt-1 space-y-2 rounded-md border-[0.5px] border-strong bg-surface-1 p-2 shadow-raised-200"
           >
             <div className="space-y-1.5">
-              <p className="text-11 font-semibold text-tertiary">Text colors</p>
+              <p className="text-11 font-semibold text-tertiary">{t("page_controls.text_colors")}</p>
               <div className="flex items-center gap-2">
                 {COLORS_LIST.map((color) => (
                   <button
@@ -91,7 +93,7 @@ export const ColorDropdown = memo(function ColorDropdown(props: Props) {
               </div>
             </div>
             <div className="space-y-1.5">
-              <p className="text-11 font-semibold text-tertiary">Background colors</p>
+              <p className="text-11 font-semibold text-tertiary">{t("page_controls.background_colors")}</p>
               <div className="flex items-center gap-2">
                 {COLORS_LIST.map((color) => (
                   <button

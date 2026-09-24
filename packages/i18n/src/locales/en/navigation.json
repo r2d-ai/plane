@@ -4,7 +4,8 @@
       "search": {
         "title": "No results found"
       }
-    }
+    },
+    "search_placeholder": "Search commands..."
   },
   "sidebar": {
     "stickies": "Stickies",
@@ -32,6 +33,10 @@
     "business": "Business",
     "work": "Work",
     "wiki": "Wiki",
-    "company_wiki": "Company Wiki"
+    "company_wiki": "Company Wiki",
+    "icon_only": "Icon only",
+    "icon_with_name": "Icon with name",
+    "dock_app_rail": "Dock App Rail",
+    "undock_app_rail": "Undock App Rail"
   }
 }

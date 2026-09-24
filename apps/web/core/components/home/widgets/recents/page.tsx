@@ -5,6 +5,9 @@
  */
 
 import { useRouter } from "next/navigation";
+import { formatDistanceToNow } from "date-fns";
+import { vi } from "date-fns/locale";
+import { useTranslation } from "@plane/i18n";
 import { Logo } from "@plane/propel/emoji-icon-picker";
 import { PageIcon } from "@plane/propel/icons";
 // plane import
@@ -23,6 +26,7 @@ type BlockProps = {
 };
 
 export function RecentPage(props: BlockProps) {
+  const { currentLocale } = useTranslation();
   const { activity, ref, workspaceSlug } = props;
   // router
   const router = useRouter();
@@ -61,7 +65,9 @@ export function RecentPage(props: BlockProps) {
       }
       appendTitleElement={
         <div className="flex-shrink-0 text-11 font-medium text-placeholder">
-          {calculateTimeAgo(activity.visited_at)}
+          {currentLocale === "vi-VN"
+            ? formatDistanceToNow(new Date(activity.visited_at), { addSuffix: true, locale: vi })
+            : calculateTimeAgo(activity.visited_at)}
         </div>
       }
       quickActionElement={

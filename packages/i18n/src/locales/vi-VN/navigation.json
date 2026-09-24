@@ -4,7 +4,8 @@
       "search": {
         "title": "Không tìm thấy kết quả"
       }
-    }
+    },
+    "search_placeholder": "Tìm lệnh..."
   },
   "sidebar": {
     "stickies": "Ghi chú nhanh",
@@ -31,6 +32,11 @@
     "plane_pro": "Plane Pro",
     "business": "Doanh nghiệp",
     "wiki": "Wiki",
-    "company_wiki": "Company Wiki"
+    "company_wiki": "Wiki chung",
+    "work": "Công việc",
+    "icon_only": "Chỉ biểu tượng",
+    "icon_with_name": "Biểu tượng và tên",
+    "dock_app_rail": "Ghim thanh ứng dụng",
+    "undock_app_rail": "Bỏ ghim thanh ứng dụng"
   }
 }

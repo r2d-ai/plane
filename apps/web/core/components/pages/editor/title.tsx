@@ -8,9 +8,10 @@ import { useState } from "react";
 import { observer } from "mobx-react";
 // editor
 import type { EditorRefApi } from "@plane/editor";
+import { useTranslation } from "@plane/i18n";
 // ui
 import { TextArea } from "@plane/ui";
-import { cn, getPageName } from "@plane/utils";
+import { cn } from "@plane/utils";
 // helpers
 // hooks
 import { usePageFilters } from "@/hooks/use-page-filters";
@@ -23,6 +24,7 @@ type Props = {
 };
 
 export const PageEditorTitle = observer(function PageEditorTitle(props: Props) {
+  const { t } = useTranslation();
   const { editorRef, readOnly, title, updateTitle } = props;
   // states
   const [isLengthVisible, setIsLengthVisible] = useState(false);
@@ -46,13 +48,13 @@ export const PageEditorTitle = observer(function PageEditorTitle(props: Props) {
             "break-words"
           )}
         >
-          {getPageName(title)}
+          {title?.trim() || t("page_controls.untitled")}
         </h6>
       ) : (
         <div className="relative">
           <TextArea
             className={cn(titleFontClassName, "block w-full resize-none rounded-none border-none p-0 outline-none")}
-            placeholder="Untitled"
+            placeholder={t("page_controls.untitled")}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();

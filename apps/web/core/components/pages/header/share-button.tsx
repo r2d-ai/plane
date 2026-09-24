@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { observer } from "mobx-react";
 import { Button } from "@plane/ui";
+import { useTranslation } from "@plane/i18n";
 import type { TPageInstance } from "@/store/pages/base-page";
 import { PageShareDialog } from "../page-share-dialog";
 
@@ -15,6 +16,7 @@ type Props = {
 };
 
 export const PageShareButton = observer(function PageShareButton(props: Props) {
+  const { t } = useTranslation();
   const { page } = props;
   const [isShareOpen, setIsShareOpen] = useState(false);
 
@@ -23,7 +25,7 @@ export const PageShareButton = observer(function PageShareButton(props: Props) {
   return (
     <>
       <Button variant="outline-primary" size="sm" onClick={() => setIsShareOpen(true)}>
-        Share
+        {t("page_controls.share")}
       </Button>
       {isShareOpen && page.id && (
         <PageShareDialog isOpen={isShareOpen} onClose={() => setIsShareOpen(false)} pageId={page.id} />

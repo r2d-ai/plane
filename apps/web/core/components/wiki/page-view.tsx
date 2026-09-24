@@ -123,6 +123,7 @@ export const WorkspaceWikiPageView = observer(function WorkspaceWikiPageView({
   // page root config (workspace-scoped assets; no project id)
   const pageRootConfig: TPageRootConfig = useMemo(
     () => ({
+      placeholder: t("wiki.editor.placeholder"),
       fileHandler: getEditorFileHandlers({
         uploadFile: async (blockId, file) => {
           const { asset_id } = await uploadEditorAsset({
@@ -149,7 +150,7 @@ export const WorkspaceWikiPageView = observer(function WorkspaceWikiPageView({
         workspaceSlug,
       }),
     }),
-    [getEditorFileHandlers, workspaceId, workspaceSlug, uploadEditorAsset, id, duplicateEditorAsset]
+    [getEditorFileHandlers, workspaceId, workspaceSlug, uploadEditorAsset, id, duplicateEditorAsset, t]
   );
 
   const webhookConnectionParams: TWebhookConnectionQueryParams = useMemo(
@@ -217,7 +218,7 @@ export const WorkspaceWikiPageView = observer(function WorkspaceWikiPageView({
             showComments && "bg-primary text-white"
           )}
         >
-          {showComments ? "Hide Comments" : "Comments"}
+          {showComments ? t("wiki.actions.hide_comments") : t("wiki.actions.show_comments")}
         </button>
       </div>
     </>

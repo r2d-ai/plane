@@ -511,6 +511,7 @@
     "archiving": "Archiving",
     "archive": "Archive",
     "access": {
+      "label": "Access",
       "public": "Public",
       "private": "Private"
     },
@@ -875,5 +876,48 @@
       "description": "Export work items to a JSON file.",
       "short_description": "Export as json"
     }
+  },
+  "page_controls": {
+    "lock": "Lock",
+    "locked": "Locked",
+    "unlocked": "Unlocked",
+    "share": "Share",
+    "remove_favorite": "Remove favorite",
+    "copied": "Copied!",
+    "copied_link": "Copied link",
+    "syncing": "Syncing...",
+    "syncing_description": "Your changes are being synced with the server. You can continue making changes.",
+    "connection_lost": "Connection lost",
+    "connection_lost_description": "We're having trouble connecting to the websocket server. Your changes will be synced and saved every 10 seconds.",
+    "version_restored": "Page version restored.",
+    "version_restore_failed": "Failed to restore page version.",
+    "version_error_title": "Something went wrong!",
+    "version_load_failed": "The version could not be loaded, please try again.",
+    "try_again": "Try again",
+    "loading_version_details": "Loading version details",
+    "view_only": "View only",
+    "restoring": "Restoring",
+    "color": "Color",
+    "text_colors": "Text colors",
+    "background_colors": "Background colors",
+    "untitled": "Untitled",
+    "icon": "Icon",
+    "typography": {
+      "text": "Text",
+      "h1": "Heading 1",
+      "h2": "Heading 2",
+      "h3": "Heading 3",
+      "h4": "Heading 4",
+      "h5": "Heading 5",
+      "h6": "Heading 6"
+    },
+    "full_width": "Full width",
+    "sticky_toolbar": "Sticky toolbar",
+    "markdown_copied": "Markdown copied to clipboard.",
+    "unlock": "Unlock",
+    "make_private": "Make private",
+    "make_public": "Make public",
+    "move_to_group": "Move to collection",
+    "export_page": "Export page"
   }
 }

@@ -6,31 +6,31 @@
       "shared": "Được chia sẻ",
       "archived": "Đã lưu trữ"
     },
-    "fallback_name": "Bộ sưu tập",
+    "fallback_name": "Chuyên mục",
     "form": {
-      "name_required": "Tiêu đề bộ sưu tập là bắt buộc",
-      "name_max_length": "Tên bộ sưu tập phải ít hơn 255 ký tự",
-      "name_placeholder_create": "Đặt tiêu đề cho bộ sưu tập",
-      "name_placeholder_edit": "Tên bộ sưu tập"
+      "name_required": "Tiêu đề chuyên mục là bắt buộc",
+      "name_max_length": "Tên chuyên mục phải ít hơn 255 ký tự",
+      "name_placeholder_create": "Đặt tiêu đề cho chuyên mục",
+      "name_placeholder_edit": "Tên chuyên mục"
     },
     "create_modal": {
-      "title": "Tạo bộ sưu tập",
-      "submit": "Tạo bộ sưu tập"
+      "title": "Tạo chuyên mục",
+      "submit": "Tạo chuyên mục"
     },
     "edit_modal": {
-      "title": "Chỉnh sửa bộ sưu tập"
+      "title": "Chỉnh sửa chuyên mục"
     },
     "delete_modal": {
-      "title": "Xóa bộ sưu tập",
-      "page_count": "Bộ sưu tập này có {pageCount} trang. Chọn điều sẽ xảy ra với chúng.",
-      "transfer_title": "Chuyển trang và xóa bộ sưu tập",
-      "transfer_description": "Di chuyển tất cả các trang sang bộ sưu tập khác trước khi xóa. Các trang và quyền của chúng sẽ được giữ nguyên.",
-      "transfer_warning": "Các trang được chuyển sẽ kế thừa quyền của bộ sưu tập đã chọn.",
+      "title": "Xóa chuyên mục",
+      "page_count": "Chuyên mục này có {pageCount} trang. Chọn điều sẽ xảy ra với chúng.",
+      "transfer_title": "Chuyển trang và xóa chuyên mục",
+      "transfer_description": "Di chuyển tất cả các trang sang chuyên mục khác trước khi xóa. Các trang và quyền của chúng sẽ được giữ nguyên.",
+      "transfer_warning": "Các trang được chuyển sẽ kế thừa quyền của chuyên mục đã chọn.",
       "transfer_target_label": "Chuyển trang đến",
-      "transfer_target_placeholder": "Chọn một bộ sưu tập",
-      "delete_with_pages_title": "Xóa bộ sưu tập cùng các trang",
-      "delete_with_pages_description": "Xóa vĩnh viễn bộ sưu tập và tất cả các trang của nó. Hành động này không thể hoàn tác.",
-      "submit": "Xóa bộ sưu tập"
+      "transfer_target_placeholder": "Chọn một chuyên mục",
+      "delete_with_pages_title": "Xóa chuyên mục cùng các trang",
+      "delete_with_pages_description": "Xóa vĩnh viễn chuyên mục và tất cả các trang của nó. Hành động này không thể hoàn tác.",
+      "submit": "Xóa chuyên mục"
     },
     "header": {
       "add_page": "Thêm trang"
@@ -38,12 +38,12 @@
     "menu": {
       "create_new_page": "Tạo trang mới",
       "add_existing_page": "Thêm trang hiện có",
-      "edit_collection": "Chỉnh sửa bộ sưu tập",
-      "collection_options": "Tùy chọn bộ sưu tập"
+      "edit_collection": "Chỉnh sửa chuyên mục",
+      "collection_options": "Tùy chọn chuyên mục"
     },
     "add_existing_page_modal": {
       "search_placeholder": "Tìm kiếm trang",
-      "success_message": "Đã thêm {count} trang vào bộ sưu tập.",
+      "success_message": "Đã thêm {count} trang vào chuyên mục.",
       "error_message": "Không thể di chuyển các trang. Vui lòng thử lại.",
       "no_pages_found": "Không tìm thấy trang nào khớp với tìm kiếm của bạn",
       "no_pages_available": "Không có trang nào để di chuyển",
@@ -51,12 +51,12 @@
     },
     "list": {
       "invite_only": "Chỉ dành cho người được mời",
-      "remove_error": "Không thể xóa trang khỏi bộ sưu tập.",
+      "remove_error": "Không thể xóa trang khỏi chuyên mục.",
       "no_matching_pages": "Không có trang nào phù hợp",
       "remove_search_criteria": "Xóa tiêu chí tìm kiếm để xem tất cả các trang",
       "remove_filters": "Xóa bộ lọc để xem tất cả các trang",
       "no_pages_title": "Chưa có trang nào",
-      "no_pages_description": "Bộ sưu tập này hiện chưa có trang nào.",
+      "no_pages_description": "Chuyên mục này hiện chưa có trang nào.",
       "untitled": "Không tiêu đề",
       "restricted_access": "Truy cập bị hạn chế",
       "collapse_page": "Thu gọn trang",
@@ -72,20 +72,116 @@
       }
     },
     "toasts": {
-      "created": "Đã tạo bộ sưu tập thành công.",
-      "create_error": "Không thể tạo bộ sưu tập. Vui lòng thử lại.",
-      "renamed": "Đã đổi tên bộ sưu tập thành công.",
-      "rename_error": "Không thể cập nhật bộ sưu tập. Vui lòng thử lại.",
-      "transferred_deleted": "Các trang đã được chuyển và bộ sưu tập đã bị xóa.",
-      "deleted_with_pages": "Bộ sưu tập và các trang của nó đã bị xóa.",
-      "delete_error": "Không thể xóa bộ sưu tập. Vui lòng thử lại.",
-      "target_required": "Vui lòng chọn một bộ sưu tập để chuyển các trang đến.",
+      "created": "Đã tạo chuyên mục thành công.",
+      "create_error": "Không thể tạo chuyên mục. Vui lòng thử lại.",
+      "renamed": "Đã đổi tên chuyên mục thành công.",
+      "rename_error": "Không thể cập nhật chuyên mục. Vui lòng thử lại.",
+      "transferred_deleted": "Các trang đã được chuyển và chuyên mục đã bị xóa.",
+      "deleted_with_pages": "Chuyên mục và các trang của nó đã bị xóa.",
+      "delete_error": "Không thể xóa chuyên mục. Vui lòng thử lại.",
+      "target_required": "Vui lòng chọn một chuyên mục để chuyển các trang đến.",
       "create_page_error": "Không thể tạo trang. Vui lòng thử lại.",
-      "create_page_in_collection_error": "Không thể tạo trang hoặc thêm trang vào bộ sưu tập. Vui lòng thử lại.",
-      "collection_link_copied": "Đã sao chép liên kết bộ sưu tập vào bộ nhớ tạm."
+      "create_page_in_collection_error": "Không thể tạo trang hoặc thêm trang vào chuyên mục. Vui lòng thử lại.",
+      "collection_link_copied": "Đã sao chép liên kết chuyên mục vào bộ nhớ tạm."
     }
   },
   "wiki": {
+    "sidebar": {
+      "title": "Wiki",
+      "new_page": "Trang mới",
+      "instance_wiki": "Wiki chung",
+      "workspaces": "Không gian làm việc",
+      "favorites": "Yêu thích",
+      "my_pages": "Trang của tôi",
+      "shared_with_me": "Được chia sẻ với tôi",
+      "retry": "Thử lại",
+      "home": "Trang chủ",
+      "archived": "Đã lưu trữ",
+      "loading": "Đang tải Wiki",
+      "load_failed": "Không thể tải các mục Wiki.",
+      "loading_section": "Đang tải {{name}}",
+      "resize": "Thay đổi độ rộng thanh bên Wiki",
+      "open_navigation": "Mở thanh điều hướng Wiki",
+      "navigation": "Điều hướng Wiki"
+    },
+    "untitled": "Chưa đặt tên",
+    "hierarchy": {
+      "wiki": "Wiki",
+      "company_wiki": "Wiki chung",
+      "untitled_parent": "Chưa đặt tên"
+    },
+    "search_placeholder": "Tìm trang Wiki",
+    "search_no_results": "Không có trang nào khớp với tìm kiếm.",
+    "search_unified_label": "Tìm trang",
+    "search_unified_hint": "Dùng thanh tìm kiếm phía trên (⌘F) để tìm trang Wiki trong các không gian làm việc.",
+    "mentions": {
+      "section_title": "Trang Wiki"
+    },
+    "home": {
+      "workspace_title": "Wiki không gian làm việc",
+      "workspace_description": "Duyệt, sắp xếp và liên kết kiến thức của nhóm trong cây trang phân cấp.",
+      "company_title": "Wiki chung",
+      "company_description": "Tài liệu chung được chia sẻ giữa các không gian làm việc.",
+      "page_count": "{count} trang",
+      "archived_description": "Các trang đã lưu trữ trong Wiki này.",
+      "loading_archived": "Đang tải các trang Wiki đã lưu trữ",
+      "archived_load_failed": "Không thể tải các trang Wiki đã lưu trữ.",
+      "no_archived": "Không có trang đã lưu trữ.",
+      "recents": "Gần đây",
+      "recently_updated": "Mới cập nhật",
+      "loading_recents": "Đang tải các trang Wiki gần đây",
+      "recents_load_failed": "Không thể tải các trang Wiki gần đây.",
+      "loading_recently_updated": "Đang tải các trang Wiki mới cập nhật",
+      "recently_updated_load_failed": "Không thể tải các trang Wiki mới cập nhật."
+    },
+    "tree": {
+      "root_label": "Trang Wiki",
+      "empty_state": "Chưa có trang nào trong mục này.",
+      "child_count_label": "{count} trang con",
+      "expand_all": "Mở rộng tất cả",
+      "collapse_all": "Thu gọn tất cả"
+    },
+    "actions": {
+      "create_page": "Tạo trang",
+      "create_sub_page": "Tạo trang con",
+      "move": "Di chuyển",
+      "add_page": "Thêm trang",
+      "expand": "Mở rộng",
+      "collapse": "Thu gọn",
+      "hide_comments": "Ẩn bình luận",
+      "show_comments": "Bình luận"
+    },
+    "collections": {
+      "section_title": "Chuyên mục",
+      "create_collection": "Tạo chuyên mục",
+      "edit_collection": "Sửa chuyên mục",
+      "delete_collection": "Xóa chuyên mục",
+      "delete_collection_description": "Bạn có chắc muốn xóa \"{{name}}\"? Các trang trong chuyên mục sẽ được bỏ liên kết.",
+      "manage_members": "Quản lý thành viên",
+      "move_page_to_collection": "Chuyển vào chuyên mục",
+      "search_members": "Tìm thành viên...",
+      "member_added": "Đã thêm thành viên.",
+      "member_add_failed": "Không thể thêm thành viên.",
+      "member_updated": "Đã cập nhật vai trò thành viên.",
+      "member_update_failed": "Không thể cập nhật vai trò thành viên.",
+      "member_removed": "Đã xóa thành viên.",
+      "member_remove_failed": "Không thể xóa thành viên.",
+      "no_members": "Chưa có thành viên.",
+      "no_pages": "Chưa có trang nào trong chuyên mục này.",
+      "no_collections": "Chưa có chuyên mục nào trong không gian làm việc này.",
+      "add_page": "Thêm trang",
+      "page_moved": "Đã chuyển trang vào chuyên mục.",
+      "page_move_failed": "Không thể chuyển trang vào chuyên mục.",
+      "page_removed_from_collection": "Đã bỏ trang khỏi chuyên mục.",
+      "page_remove_failed": "Không thể bỏ trang khỏi chuyên mục.",
+      "remove_from_collection": "Bỏ khỏi chuyên mục",
+      "reorder_failed": "Không thể thay đổi thứ tự trang.",
+      "pages": "trang",
+      "default": "Mặc định",
+      "name_placeholder": "Tên chuyên mục",
+      "description_placeholder": "Mô tả (không bắt buộc)",
+      "load_failed": "Không thể tải chuyên mục này."
+    },
     "upgrade_flow": {
       "title": "Nâng cấp để mở khóa Wiki",
       "description": "Mở khóa trang công khai, lịch sử phiên bản, trang được chia sẻ, cộng tác thời gian thực và trang không gian làm việc cho wiki, tài liệu toàn công ty và cơ sở kiến thức với Plane Pro.",
@@ -110,22 +206,21 @@
       "title": "Trang lồng nhau yêu cầu gói trả phí. Nâng cấp để mở khóa."
     },
     "tabs": {
-      "public": "Public",
-      "private": "Private",
-      "archived": "Archived",
-      "favorites": "Favorites"
-    },
-    "actions": {
-      "create_page": "Create page",
-      "create_sub_page": "Create sub-page",
-      "move": "Move",
-      "add_page": "Add page"
+      "public": "Công khai",
+      "private": "Riêng tư",
+      "archived": "Đã lưu trữ",
+      "favorites": "Yêu thích"
     },
     "errors": {
-      "no_designated_workspace": "Company Wiki is not configured. Set COMPANY_WIKI_WORKSPACE_SLUG on the API to enable it.",
-      "read_only": "You only have read access to this page.",
-      "permission_denied": "You don't have permission to perform this action.",
-      "load_failed": "Wiki page could not be loaded. Please try again."
+      "no_designated_workspace": "Wiki chung chưa được cấu hình. Đặt COMPANY_WIKI_WORKSPACE_SLUG trên API để bật tính năng này.",
+      "read_only": "Bạn chỉ có quyền xem trang này.",
+      "permission_denied": "Bạn không có quyền thực hiện thao tác này.",
+      "load_failed": "Không thể tải trang Wiki. Vui lòng thử lại.",
+      "move_failed": "Không thể di chuyển trang",
+      "move_failed_description": "Không thể di chuyển trang. Vui lòng thử lại.",
+      "not_configured_title": "Wiki chưa được cấu hình",
+      "not_configured_admin_hint": "Đặt COMPANY_WIKI_WORKSPACE_SLUG trên API để bật tính năng này.",
+      "access_load_failed": "Không thể tải quyền truy cập Wiki. Vui lòng thử lại."
     },
     "templates": {
       "title": "Biểu mẫu",
@@ -158,6 +253,9 @@
         "deleted": "Đã xoá biểu mẫu.",
         "delete_error": "Không thể xoá biểu mẫu. Vui lòng thử lại."
       }
+    },
+    "editor": {
+      "placeholder": "Nhập '/' để xem các lệnh..."
     }
   }
 }

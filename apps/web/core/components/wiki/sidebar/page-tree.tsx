@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Link from "next/link";
+import { useTranslation } from "@plane/i18n";
 import type { TPage } from "@plane/types";
 import { cn } from "@plane/utils";
 import { getWikiPagePath } from "../../../helpers/wiki-routes";
@@ -14,6 +15,7 @@ type Props = {
 };
 
 export function WikiPageTree({ pages, workspaceSlug, activePageId, onNavigate, parentId = null, depth = 0 }: Props) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const children = pages.filter((page) => {
     if (!page.id || page.deleted_at || page.archived_at) return false;
@@ -35,7 +37,7 @@ export function WikiPageTree({ pages, workspaceSlug, activePageId, onNavigate, p
               {hasChildren ? (
                 <button
                   type="button"
-                  aria-label={`${expanded[pageId] ? "Collapse" : "Expand"} ${page.name || "Untitled"}`}
+                  aria-label={`${t(expanded[pageId] ? "wiki.actions.collapse" : "wiki.actions.expand")} ${page.name || t("wiki.untitled")}`}
                   aria-expanded={!!expanded[pageId]}
                   className="focus-visible:outline-accent-primary size-6 rounded focus-visible:outline-2"
                   onClick={() => setExpanded((current) => ({ ...current, [pageId]: !current[pageId] }))}
@@ -54,7 +56,7 @@ export function WikiPageTree({ pages, workspaceSlug, activePageId, onNavigate, p
                   activePageId === pageId && "bg-layer-1 font-medium text-primary"
                 )}
               >
-                {page.name || "Untitled"}
+                {page.name || t("wiki.untitled")}
               </Link>
             </div>
             {expanded[pageId] && (
