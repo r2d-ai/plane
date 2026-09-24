@@ -7,21 +7,21 @@
 import type { RefObject } from "react";
 import { useState } from "react";
 import { observer } from "mobx-react";
-// ui
 import { GANTT_TIMELINE_TYPE } from "@plane/types";
 import type { IBlockUpdateData } from "@plane/types";
 import { Loader } from "@plane/ui";
-// components
 import RenderIfVisible from "@/components/core/render-if-visible-HOC";
 import { GanttLayoutListItemLoader } from "@/components/ui/loader/layouts/gantt-layout-loader";
-//hooks
+import type { TGanttColumnKey } from "@/hooks/use-gantt-preferences";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useIssuesStore } from "@/hooks/use-issue-layout-store";
 import type { TSelectionHelper } from "@/hooks/use-multiple-select";
-// local imports
 import { useTimeLineChart } from "../../../../hooks/use-timeline-chart";
+import type { TimelineRow } from "../../types/timeline-row";
+import { isTimelineGroupRow, isTimelineIssueRow } from "../../types/timeline-row";
 import { GanttDnDHOC } from "../gantt-dnd-HOC";
 import { handleOrderChange } from "../utils";
+import { TimelineGroupRowSidebar } from "../timeline-group-row";
 import { IssuesSidebarBlock } from "./block";
 
 type Props = {
@@ -30,10 +30,14 @@ type Props = {
   loadMoreBlocks?: () => void;
   ganttContainerRef: RefObject<HTMLDivElement>;
   blockIds: string[];
+  timelineRows: TimelineRow[];
+  sidebarWidth: number;
+  visibleColumns: TGanttColumnKey[];
   enableReorder: boolean;
   enableSelection: boolean;
   showAllBlocks?: boolean;
   selectionHelpers?: TSelectionHelper;
+  onToggleGroupCollapse?: (groupId: string) => void;
   isEpic?: boolean;
 };
 
@@ -41,6 +45,9 @@ export const IssueGanttSidebar = observer(function IssueGanttSidebar(props: Prop
   const {
     blockUpdateHandler,
     blockIds,
+    timelineRows,
+    sidebarWidth,
+    visibleColumns,
     enableReorder,
     enableSelection,
     loadMoreBlocks,
@@ -48,6 +55,7 @@ export const IssueGanttSidebar = observer(function IssueGanttSidebar(props: Prop
     ganttContainerRef,
     showAllBlocks = false,
     selectionHelpers,
+    onToggleGroupCollapse,
     isEpic = false,
   } = props;
 
@@ -78,18 +86,30 @@ export const IssueGanttSidebar = observer(function IssueGanttSidebar(props: Prop
 
   return (
     <div>
-      {blockIds ? (
+      {timelineRows ? (
         <>
-          {blockIds.map((blockId, index) => {
-            const block = getBlockById(blockId);
+          {timelineRows.map((row, index) => {
+            if (isTimelineGroupRow(row)) {
+              return (
+                <TimelineGroupRowSidebar
+                  key={row.rowId}
+                  row={row}
+                  onToggle={onToggleGroupCollapse}
+                  sidebarWidth={sidebarWidth}
+                />
+              );
+            }
+
+            if (!isTimelineIssueRow(row)) return null;
+
+            const block = getBlockById(row.issueId);
             const isBlockVisibleOnSidebar = block?.start_date && block?.target_date;
 
-            // hide the block if it doesn't have start and target dates and showAllBlocks is false
-            if (!block || (!showAllBlocks && !isBlockVisibleOnSidebar)) return;
+            if (!block || (!showAllBlocks && !isBlockVisibleOnSidebar)) return null;
 
             return (
               <RenderIfVisible
-                key={block.id}
+                key={row.rowId}
                 root={ganttContainerRef}
                 horizontalOffset={100}
                 verticalOffset={200}
@@ -98,13 +118,14 @@ export const IssueGanttSidebar = observer(function IssueGanttSidebar(props: Prop
               >
                 <GanttDnDHOC
                   id={block.id}
-                  isLastChild={index === blockIds.length - 1}
+                  isLastChild={index === timelineRows.length - 1}
                   isDragEnabled={enableReorder}
                   onDrop={handleOnDrop}
                 >
                   {(isDragging: boolean) => (
                     <IssuesSidebarBlock
                       block={block}
+                      visibleColumns={visibleColumns}
                       enableSelection={enableSelection}
                       isDragging={isDragging}
                       selectionHelpers={selectionHelpers}

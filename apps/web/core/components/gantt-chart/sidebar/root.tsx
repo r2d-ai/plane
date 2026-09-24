@@ -7,19 +7,22 @@
 import type { RefObject } from "react";
 import { observer } from "mobx-react";
 import { useTranslation } from "@plane/i18n";
-// components
 import type { IBlockUpdateData } from "@plane/types";
 import { Row, ERowVariant } from "@plane/ui";
 import { cn } from "@plane/utils";
 import { MultipleSelectGroupAction } from "@/components/core/multiple-select";
-// helpers
-// hooks
+import type { TGanttColumnKey } from "@/hooks/use-gantt-preferences";
 import type { TSelectionHelper } from "@/hooks/use-multiple-select";
-// constants
-import { GANTT_SELECT_GROUP, HEADER_HEIGHT, SIDEBAR_WIDTH } from "../constants";
+import { GANTT_SELECT_GROUP, HEADER_HEIGHT } from "../constants";
+import type { TimelineRow } from "../types/timeline-row";
+import { GANTT_COLUMN_DEFINITIONS } from "./timeline-columns";
+import { SidebarSplitter } from "./sidebar-splitter";
 
 type Props = {
   blockIds: string[];
+  timelineRows: TimelineRow[];
+  sidebarWidth: number;
+  visibleColumns: TGanttColumnKey[];
   blockUpdateHandler: (block: any, payload: IBlockUpdateData) => void;
   canLoadMoreBlocks?: boolean;
   loadMoreBlocks?: () => void;
@@ -30,6 +33,8 @@ type Props = {
   title: string;
   selectionHelpers: TSelectionHelper;
   showAllBlocks?: boolean;
+  onSidebarWidthChange: (width: number) => void;
+  onToggleGroupCollapse?: (groupId: string) => void;
   isEpic?: boolean;
 };
 
@@ -37,6 +42,9 @@ export const GanttChartSidebar = observer(function GanttChartSidebar(props: Prop
   const { t } = useTranslation();
   const {
     blockIds,
+    timelineRows,
+    sidebarWidth,
+    visibleColumns,
     blockUpdateHandler,
     enableReorder,
     enableSelection,
@@ -47,28 +55,28 @@ export const GanttChartSidebar = observer(function GanttChartSidebar(props: Prop
     title,
     selectionHelpers,
     showAllBlocks = false,
+    onSidebarWidthChange,
+    onToggleGroupCollapse,
     isEpic = false,
   } = props;
 
   const isGroupSelectionEmpty = selectionHelpers.isGroupSelected(GANTT_SELECT_GROUP) === "empty";
 
+  const columnHeaders = GANTT_COLUMN_DEFINITIONS.filter((col) => visibleColumns.includes(col.key));
+
   return (
     <Row
-      // DO NOT REMOVE THE ID
       id="gantt-sidebar"
       className="sticky left-0 z-10 h-max min-h-full flex-shrink-0 border-r-[0.5px] border-subtle-1 bg-surface-1"
-      style={{
-        width: `${SIDEBAR_WIDTH}px`,
-      }}
+      style={{ width: `${sidebarWidth}px` }}
       variant={ERowVariant.HUGGING}
     >
+      <SidebarSplitter onResize={onSidebarWidthChange} />
       <Row
-        className="group/list-header sticky top-0 z-10 box-border flex flex-shrink-0 items-end justify-between gap-2 border-b-[0.5px] border-subtle-1 bg-surface-1 pr-4 pb-2 text-13 font-medium text-tertiary"
-        style={{
-          height: `${HEADER_HEIGHT}px`,
-        }}
+        className="group/list-header sticky top-0 z-10 box-border flex flex-shrink-0 items-end gap-2 border-b-[0.5px] border-subtle-1 bg-surface-1 pr-4 pb-2 text-13 font-medium text-tertiary"
+        style={{ height: `${HEADER_HEIGHT}px`, width: `${sidebarWidth}px` }}
       >
-        <div className={cn("flex items-center gap-2")}>
+        <div className={cn("flex min-w-0 flex-1 items-center gap-2")}>
           {enableSelection && (
             <div className="absolute left-1 flex w-3.5 flex-shrink-0 items-center">
               <MultipleSelectGroupAction
@@ -83,9 +91,19 @@ export const GanttChartSidebar = observer(function GanttChartSidebar(props: Prop
               />
             </div>
           )}
-          <h6>{title}</h6>
+          {columnHeaders.map((col, index) => (
+            <h6
+              key={col.key}
+              className={cn("truncate", {
+                "flex-[2]": col.key === "work_item",
+                "flex-1": col.key !== "work_item",
+                "pl-4": index === 0 && enableSelection,
+              })}
+            >
+              {col.key === "work_item" ? title : t(col.i18nKey)}
+            </h6>
+          ))}
         </div>
-        <h6>{t("common.duration")}</h6>
       </Row>
 
       <Row variant={ERowVariant.HUGGING} className="h-max min-h-full bg-surface-1">
@@ -94,6 +112,9 @@ export const GanttChartSidebar = observer(function GanttChartSidebar(props: Prop
             title,
             blockUpdateHandler,
             blockIds,
+            timelineRows,
+            sidebarWidth,
+            visibleColumns,
             enableReorder,
             enableSelection,
             canLoadMoreBlocks,
@@ -101,6 +122,7 @@ export const GanttChartSidebar = observer(function GanttChartSidebar(props: Prop
             loadMoreBlocks,
             selectionHelpers,
             showAllBlocks,
+            onToggleGroupCollapse,
             isEpic,
           })}
       </Row>

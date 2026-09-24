@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+export * from "./day";
 export * from "./month";
 export * from "./quarter";
 export * from "./week";

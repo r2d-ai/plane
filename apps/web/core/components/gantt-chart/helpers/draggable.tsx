@@ -48,6 +48,7 @@ export const ChartDraggable = observer(function ChartDraggable(props: Props) {
       />
       {/* oxlint-disable-next-line jsx_a11y/no-static-element-interactions */}
       <div
+        data-gantt-block-move
         className={cn("relative z-[6] flex h-8 w-full items-center rounded-sm", {
           "pointer-events-none": isMoving,
         })}

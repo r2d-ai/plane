@@ -43,6 +43,9 @@ export const LeftResizable = observer(function LeftResizable(props: LeftResizabl
         </div>
       )}
       <div
+        data-gantt-resize-handle
+        role="separator"
+        aria-orientation="vertical"
         onMouseDown={(e) => {
           handleBlockDrag(e, "left");
         }}
@@ -50,6 +53,12 @@ export const LeftResizable = observer(function LeftResizable(props: LeftResizabl
           setIsHovering(true);
         }}
         onMouseOut={() => {
+          setIsHovering(false);
+        }}
+        onFocus={() => {
+          setIsHovering(true);
+        }}
+        onBlur={() => {
           setIsHovering(false);
         }}
         className="absolute top-1/2 -left-1.5 z-[6] h-full w-3 -translate-y-1/2 cursor-col-resize rounded-md"

@@ -16,23 +16,31 @@ import type {
   TGanttViews,
 } from "@plane/types";
 import { cn, getDate } from "@plane/utils";
-// components
 import { MultipleSelectGroup } from "@/components/core/multiple-select";
-import { GanttChartSidebar, MonthChartView, QuarterChartView, WeekChartView } from "@/components/gantt-chart";
-// helpers
-// hooks
-import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
+import {
+  DayChartView,
+  GanttChartSidebar,
+  MonthChartView,
+  QuarterChartView,
+  WeekChartView,
+} from "@/components/gantt-chart";
 import { GanttChartRowList } from "@/components/gantt-chart/blocks/block-row-list";
 import { GanttChartBlocksList } from "@/components/gantt-chart/blocks/blocks-list";
+import type { TimelineRow } from "@/components/gantt-chart/types/timeline-row";
 import { IssueBulkOperationsRoot } from "@/components/issues/bulk-operations";
+import type { TGanttColumnKey } from "@/hooks/use-gantt-preferences";
 import { useBulkOperationStatus } from "@/hooks/use-bulk-operation-status";
-// local imports
+import { useTimelinePan } from "@/hooks/use-timeline-pan";
+import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 import { DEFAULT_BLOCK_WIDTH, GANTT_SELECT_GROUP, HEADER_HEIGHT } from "../constants";
 import { getItemPositionWidth } from "../views";
 import { TimelineDragHelper } from "./timeline-drag-helper";
 
 type Props = {
   blockIds: string[];
+  timelineRows: TimelineRow[];
+  sidebarWidth: number;
+  visibleColumns: TGanttColumnKey[];
   canLoadMoreBlocks?: boolean;
   loadMoreBlocks?: () => void;
   updateBlockDates?: (updates: IBlockUpdateDependencyData[]) => Promise<void>;
@@ -55,6 +63,8 @@ type Props = {
     currentView: TGanttViews,
     targetDate?: Date
   ) => ChartDataType | undefined;
+  onSidebarWidthChange: (width: number) => void;
+  onToggleGroupCollapse?: (groupId: string) => void;
   quickAdd?: React.ReactNode | undefined;
   isEpic?: boolean;
 };
@@ -62,6 +72,9 @@ type Props = {
 export const GanttChartMainContent = observer(function GanttChartMainContent(props: Props) {
   const {
     blockIds,
+    timelineRows,
+    sidebarWidth,
+    visibleColumns,
     loadMoreBlocks,
     blockToRender,
     blockUpdateHandler,
@@ -79,21 +92,20 @@ export const GanttChartMainContent = observer(function GanttChartMainContent(pro
     title,
     canLoadMoreBlocks,
     updateCurrentViewRenderPayload,
+    onSidebarWidthChange,
+    onToggleGroupCollapse,
     quickAdd,
     updateBlockDates,
     isEpic = false,
   } = props;
-  // refs
-  const ganttContainerRef = useRef<HTMLDivElement>(null);
-  // chart hook
-  const { currentView, currentViewData } = useTimeLineChartStore();
-  // plane web hooks
-  const isBulkOperationsEnabled = useBulkOperationStatus();
 
-  // Enable Auto Scroll for Ganttlist
+  const ganttContainerRef = useRef<HTMLDivElement>(null);
+  const { currentView, currentViewData } = useTimeLineChartStore();
+  const isBulkOperationsEnabled = useBulkOperationStatus();
+  const { isPanning, containerProps: panProps } = useTimelinePan({ containerRef: ganttContainerRef });
+
   useEffect(() => {
     const element = ganttContainerRef.current;
-
     if (!element) return;
 
     return combine(
@@ -103,10 +115,8 @@ export const GanttChartMainContent = observer(function GanttChartMainContent(pro
         canScroll: ({ source }) => source.data.dragInstanceId === "GANTT_REORDER",
       })
     );
-    // oxlint-disable-next-line eslint-plugin-react-hooks/exhaustive-deps
-  }, [ganttContainerRef?.current]);
+  }, [ganttContainerRef]);
 
-  // handling scroll functionality
   const onScroll = (e: React.UIEvent<HTMLDivElement, UIEvent>) => {
     const { clientWidth, scrollLeft, scrollWidth } = e.currentTarget;
 
@@ -135,7 +145,7 @@ export const GanttChartMainContent = observer(function GanttChartMainContent(pro
     } else if (scrollToDate.getTime() > currentViewData.data.endDate.getTime()) {
       chartData = updateCurrentViewRenderPayload("right", currentView, scrollToDate);
     }
-    // update container's scroll position to the block's position
+
     const updatedPosition = getItemPositionWidth(chartData ?? currentViewData, block);
 
     setTimeout(() => {
@@ -147,6 +157,7 @@ export const GanttChartMainContent = observer(function GanttChartMainContent(pro
   const CHART_VIEW_COMPONENTS: {
     [key in TGanttViews]: React.FC;
   } = {
+    day: DayChartView,
     week: WeekChartView,
     month: MonthChartView,
     quarter: QuarterChartView,
@@ -168,19 +179,23 @@ export const GanttChartMainContent = observer(function GanttChartMainContent(pro
         {(helpers) => (
           <>
             <div
-              // DO NOT REMOVE THE ID
               id="gantt-container"
               className={cn(
-                "vertical-scrollbar horizontal-scrollbar flex scrollbar-lg h-full w-full overflow-auto border-t-[0.5px] border-subtle",
+                "vertical-scrollbar horizontal-scrollbar flex scrollbar-lg h-full w-full overflow-auto overscroll-contain border-t-[0.5px] border-subtle outline-none",
                 {
                   "mb-8": bottomSpacing,
+                  "cursor-grabbing select-none": isPanning,
                 }
               )}
               ref={ganttContainerRef}
               onScroll={onScroll}
+              {...panProps}
             >
               <GanttChartSidebar
                 blockIds={blockIds}
+                timelineRows={timelineRows}
+                sidebarWidth={sidebarWidth}
+                visibleColumns={visibleColumns}
                 loadMoreBlocks={loadMoreBlocks}
                 canLoadMoreBlocks={canLoadMoreBlocks}
                 ganttContainerRef={ganttContainerRef}
@@ -191,6 +206,8 @@ export const GanttChartMainContent = observer(function GanttChartMainContent(pro
                 title={title}
                 selectionHelpers={helpers}
                 showAllBlocks={showAllBlocks}
+                onSidebarWidthChange={onSidebarWidthChange}
+                onToggleGroupCollapse={onToggleGroupCollapse}
                 isEpic={isEpic}
               />
               <div className="relative h-max min-h-full flex-shrink-0 flex-grow">
@@ -205,16 +222,18 @@ export const GanttChartMainContent = observer(function GanttChartMainContent(pro
                     }}
                   >
                     <GanttChartRowList
-                      blockIds={blockIds}
+                      timelineRows={timelineRows}
+                      sidebarWidth={sidebarWidth}
                       blockUpdateHandler={blockUpdateHandler}
                       handleScrollToBlock={handleScrollToBlock}
                       enableAddBlock={enableAddBlock}
                       showAllBlocks={showAllBlocks}
                       selectionHelpers={helpers}
                       ganttContainerRef={ganttContainerRef}
+                      onToggleGroupCollapse={onToggleGroupCollapse}
                     />
                     <GanttChartBlocksList
-                      blockIds={blockIds}
+                      timelineRows={timelineRows}
                       blockToRender={blockToRender}
                       enableBlockLeftResize={enableBlockLeftResize}
                       enableBlockRightResize={enableBlockRightResize}

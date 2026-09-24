@@ -265,8 +265,20 @@ export const ISSUE_DISPLAY_FILTERS_BY_PAGE: TIssueFiltersToDisplayByPageType = {
         },
       },
       gantt_chart: {
-        display_properties: ["key", "issue_type"],
+        display_properties: [
+          "key",
+          "issue_type",
+          "state",
+          "assignee",
+          "priority",
+          "modules",
+          "labels",
+          "start_date",
+          "due_date",
+          "estimate",
+        ],
         display_filters: {
+          group_by: ["module", "cycle", "labels", "assignees", "state", "priority", "project", null],
           order_by: ["sort_order", "-created_at", "-updated_at", "start_date", "-priority"],
           type: ["active", "backlog"],
         },
@@ -353,9 +365,9 @@ export const filterActivityOnSelectedFilters = (
   activity: TIssueActivityComment[],
   filters: TActivityFilters[]
 ): TIssueActivityComment[] =>
-  activity.filter((activity) => {
-    if (activity.activity_type === EActivityFilterType.DEFAULT) return true;
-    return filters.includes(activity.activity_type as TActivityFilters);
+  activity.filter((activityItem) => {
+    if (activityItem.activity_type === EActivityFilterType.DEFAULT) return true;
+    return filters.includes(activityItem.activity_type as TActivityFilters);
   });
 
 export const ENABLE_ISSUE_DEPENDENCIES = false;

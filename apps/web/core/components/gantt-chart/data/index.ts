@@ -74,6 +74,17 @@ export const datePreview = (date: Date, includeTime: boolean = false) => {
 // context data
 export const VIEWS_LIST: ChartDataType[] = [
   {
+    key: "day",
+    i18n_title: "common.day",
+    data: {
+      startDate: new Date(),
+      currentDate: new Date(),
+      endDate: new Date(),
+      approxFilterRange: 2,
+      dayWidth: 120,
+    },
+  },
+  {
     key: "week",
     i18n_title: "common.week",
     data: {

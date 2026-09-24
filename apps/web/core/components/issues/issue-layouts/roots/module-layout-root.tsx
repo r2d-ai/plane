@@ -89,7 +89,10 @@ export const ModuleLayoutRoot = observer(function ModuleLayoutRoot() {
                 }}
               />
             )}
-            <Row variant={ERowVariant.HUGGING} className="h-full w-full overflow-auto">
+            <Row
+              variant={ERowVariant.HUGGING}
+              className={`h-full w-full ${activeLayout === EIssueLayoutTypes.GANTT ? "overflow-hidden" : "overflow-auto"}`}
+            >
               <ModuleIssueLayout activeLayout={activeLayout} moduleId={moduleId} />
             </Row>
             {/* peek overview */}
