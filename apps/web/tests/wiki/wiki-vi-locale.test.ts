@@ -21,7 +21,7 @@ describe("Vietnamese Wiki translations", () => {
   test("translates the primary Wiki navigation", () => {
     expect(vi.wiki.sidebar.new_page).toBe("Trang mới");
     expect(vi.wiki.sidebar.workspaces).toBe("Không gian làm việc");
-    expect(vi.wiki.collections.section_title).toBe("Nhóm trang");
+    expect(vi.wiki.collections.section_title).toBe("Chuyên mục");
     expect(viNavigation.sidebar.work).toBe("Công việc");
   });
 
@@ -34,6 +34,6 @@ describe("Vietnamese Wiki translations", () => {
   });
 
   test("uses the same term for Wiki page groups", () => {
-    expect(JSON.stringify([vi, viPage])).not.toMatch(/bộ sưu tập/i);
+    expect(JSON.stringify([vi, viPage, viCommon])).not.toMatch(/bộ sưu tập|nhóm trang/i);
   });
 });

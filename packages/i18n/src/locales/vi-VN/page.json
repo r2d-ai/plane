@@ -88,8 +88,8 @@
         "workspace_to_project": "Tìm dự án",
         "project_to_all": "Tìm dự án và không gian nhóm",
         "project_to_project": "Tìm dự án",
-        "project_to_all_with_wiki": "Tìm nhóm trang wiki, dự án và không gian nhóm",
-        "project_to_project_with_wiki": "Tìm nhóm trang wiki và dự án"
+        "project_to_all_with_wiki": "Tìm chuyên mục wiki, dự án và không gian nhóm",
+        "project_to_project_with_wiki": "Tìm chuyên mục wiki và dự án"
       },
       "toasts": {
         "success": {
@@ -102,14 +102,14 @@
         },
         "collection_error": {
           "title": "Đã chuyển vào wiki",
-          "message": "Trang đã được chuyển vào wiki, nhưng không thể thêm vào nhóm trang đã chọn. Trang vẫn nằm trong nhóm Chung."
+          "message": "Trang đã được chuyển vào wiki, nhưng không thể thêm vào chuyên mục đã chọn. Trang vẫn nằm trong nhóm Chung."
         }
       }
     },
     "remove_from_collection": {
-      "label": "Xóa khỏi nhóm trang",
-      "success_message": "Đã xóa trang khỏi nhóm trang.",
-      "error_message": "Không thể xóa trang khỏi nhóm trang. Vui lòng thử lại."
+      "label": "Xóa khỏi chuyên mục",
+      "success_message": "Đã xóa trang khỏi chuyên mục.",
+      "error_message": "Không thể xóa trang khỏi chuyên mục. Vui lòng thử lại."
     }
   }
 }

@@ -11,12 +11,7 @@ const scope: TWikiScope = {
   can_create: false,
 };
 
-const page = (
-  id: string,
-  workspace: string,
-  updated_at: string,
-  extra: Partial<TPage> = {}
-): TPage =>
+const page = (id: string, workspace: string, updated_at: string, extra: Partial<TPage> = {}): TPage =>
   ({
     id,
     workspace,
@@ -53,5 +48,17 @@ describe("Wiki Home model", () => {
     });
 
     expect(model.recentlyUpdated.map((item) => item.id)).toEqual(["a", "b"]);
+  });
+
+  test("sorts pages with Date timestamps", () => {
+    const model = buildWikiHomeModel({
+      scope,
+      pages: [
+        page("old", "1", "2026-09-20T00:00:00Z", { updated_at: new Date("2026-09-20T00:00:00Z") }),
+        page("new", "1", "2026-09-24T00:00:00Z", { updated_at: new Date("2026-09-24T00:00:00Z") }),
+      ],
+    });
+
+    expect(model.recentlyUpdated.map((item) => item.id)).toEqual(["new", "old"]);
   });
 });
