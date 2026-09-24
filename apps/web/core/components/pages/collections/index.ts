@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+export { AddExistingPageToCollectionModal } from "./add-existing-page-to-collection-modal";
 export { CollectionCreateEditModal } from "./collection-create-edit-modal";
 export { CollectionDeleteModal } from "./collection-delete-modal";
 export { CollectionMembersModal } from "./collection-members-modal";
