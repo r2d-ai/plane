@@ -18,6 +18,12 @@ export const getWikiPagePath = (workspaceSlug: string, pageId: string): string =
   return `${getWikiHomePath(workspaceSlug)}/${id}`;
 };
 
+export const getWikiCollectionPath = (workspaceSlug: string, collectionId: string): string => {
+  const id = cleanSegment(collectionId);
+  if (!id) throw new Error("Wiki collection id is required");
+  return `${getWikiHomePath(workspaceSlug)}/collections/${id}`;
+};
+
 export const resolveLegacyWikiPath = (pathname: string, defaultWorkspaceSlug: string): string | null => {
   const companyMatch = pathname.match(/^\/company-wiki(?:\/([^/]+))?\/?$/);
   if (companyMatch) {
