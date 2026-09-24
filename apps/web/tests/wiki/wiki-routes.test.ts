@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   getDefaultWikiPath,
+  getWikiCollectionPath,
   getWikiHomePath,
   getWikiPagePath,
   resolveLegacyWikiPath,
@@ -11,6 +12,7 @@ describe("Wiki routes", () => {
     expect(getDefaultWikiPath("home")).toBe("/wiki/home");
     expect(getWikiHomePath("mkt")).toBe("/wiki/mkt");
     expect(getWikiPagePath("mkt", "page-1")).toBe("/wiki/mkt/page-1");
+    expect(getWikiCollectionPath("mkt", "general")).toBe("/wiki/mkt/collections/general");
   });
 
   test("maps legacy company and workspace Wiki URLs", () => {
@@ -23,5 +25,6 @@ describe("Wiki routes", () => {
   test("rejects empty path segments", () => {
     expect(() => getDefaultWikiPath("")).toThrow("Default Wiki workspace slug is not configured");
     expect(() => getWikiPagePath("mkt", "")).toThrow("Wiki page id is required");
+    expect(() => getWikiCollectionPath("mkt", "")).toThrow("Wiki collection id is required");
   });
 });
