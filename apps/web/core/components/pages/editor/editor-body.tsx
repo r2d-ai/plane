@@ -48,6 +48,7 @@ import { EditorAIMenu } from "./ai/menu";
 
 export type TEditorBodyConfig = {
   fileHandler: TFileHandler;
+  placeholder?: string;
 };
 
 export type TEditorBodyHandlers = {
@@ -277,6 +278,7 @@ export const PageEditorBody = observer(function PageEditorBody(props: Props) {
             editable={isContentEditable}
             id={pageId}
             fileHandler={config.fileHandler}
+            placeholder={config.placeholder}
             handleEditorReady={handleEditorReady}
             ref={editorForwardRef}
             titleRef={titleEditorRef}

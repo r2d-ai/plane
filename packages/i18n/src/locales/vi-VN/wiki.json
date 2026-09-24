@@ -253,6 +253,9 @@
         "deleted": "Đã xoá biểu mẫu.",
         "delete_error": "Không thể xoá biểu mẫu. Vui lòng thử lại."
       }
+    },
+    "editor": {
+      "placeholder": "Nhập '/' để xem các lệnh..."
     }
   }
 }

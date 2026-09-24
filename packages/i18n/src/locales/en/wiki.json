@@ -253,6 +253,9 @@
         "deleted": "Template deleted.",
         "delete_error": "Template could not be deleted. Please try again."
       }
+    },
+    "editor": {
+      "placeholder": "Press '/' for commands..."
     }
   }
 }
