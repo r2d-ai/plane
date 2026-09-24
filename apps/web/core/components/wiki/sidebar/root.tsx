@@ -2,10 +2,11 @@ import { useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "react-router";
 import useSWR from "swr";
-import { COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG, EPageAccess } from "@plane/constants";
+import { EPageAccess } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { EPageStoreType, usePageStore } from "../../../hooks/store";
 import { useAppRouter } from "../../../hooks/use-app-router";
+import { resolveDefaultWikiScope } from "../../../helpers/wiki-access";
 import { getWikiPagePath } from "../../../helpers/wiki-routes";
 import { WikiService } from "../../../services/wiki.service";
 import { buildWikiSidebarModel } from "./model";
@@ -21,7 +22,8 @@ export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNav
   const { t } = useTranslation();
   const router = useAppRouter();
   const [isCreating, setCreating] = useState(false);
-  const model = buildWikiSidebarModel(scopes ?? [], COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG, workspaceSlug, pageId);
+  const defaultSlug = resolveDefaultWikiScope(scopes ?? [])?.slug ?? "";
+  const model = buildWikiSidebarModel(scopes ?? [], defaultSlug, workspaceSlug, pageId);
   const activeScope = scopes?.find((scope) => scope.slug === workspaceSlug);
 
   const createPage = async () => {

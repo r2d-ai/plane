@@ -1,7 +1,7 @@
 import { Navigate } from "react-router";
 import useSWR from "swr";
-import { COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG } from "@plane/constants";
 import { LogoSpinner } from "@/components/common/logo-spinner";
+import { resolveDefaultWikiScope } from "../../../core/helpers/wiki-access";
 import { getDefaultWikiPath } from "../../../core/helpers/wiki-routes";
 import { WikiNotConfigured } from "@/layouts/auth-layout/wiki-wrapper";
 import { WikiService } from "@/services/wiki.service";
@@ -17,9 +17,7 @@ export default function WikiRootRedirect() {
       </div>
     );
   if (error) return <div role="alert">Could not load Wiki access. Please try again.</div>;
-  const defaultScope = scopes?.find(
-    (scope) => scope.is_default && scope.slug === COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG
-  );
+  const defaultScope = resolveDefaultWikiScope(scopes ?? []);
   if (!defaultScope) return <WikiNotConfigured />;
   return <Navigate to={getDefaultWikiPath(defaultScope.slug)} replace />;
 }

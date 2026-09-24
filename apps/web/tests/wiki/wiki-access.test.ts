@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { resolveWikiScopeAccess } from "../../core/helpers/wiki-access";
+import { resolveDefaultWikiScope, resolveWikiScopeAccess } from "../../core/helpers/wiki-access";
 
 const scopes = [
   { id: "1", slug: "home", name: "Instance", is_default: true, is_member: false, can_create: false },
@@ -20,5 +20,27 @@ describe("Wiki scope access", () => {
         "other"
       )
     ).toBeUndefined();
+  });
+});
+
+describe("Default Wiki scope resolution", () => {
+  test("picks the scope the API marks as default, independent of any frontend constant", () => {
+    const mixedScopes = [
+      { id: "1", slug: "acme", name: "Acme", is_default: true, is_member: false, can_create: false },
+      { id: "2", slug: "mkt", name: "Marketing", is_default: false, is_member: true, can_create: true },
+    ];
+    expect(resolveDefaultWikiScope(mixedScopes)?.slug).toBe("acme");
+    expect(resolveDefaultWikiScope(mixedScopes)?.is_default).toBe(true);
+  });
+
+  test("returns undefined when no workspace is designated for Company Wiki", () => {
+    const memberOnlyScopes = [
+      { id: "2", slug: "mkt", name: "Marketing", is_default: false, is_member: true, can_create: true },
+    ];
+    expect(resolveDefaultWikiScope(memberOnlyScopes)).toBeUndefined();
+  });
+
+  test("returns undefined for an empty scope list", () => {
+    expect(resolveDefaultWikiScope([])).toBeUndefined();
   });
 });

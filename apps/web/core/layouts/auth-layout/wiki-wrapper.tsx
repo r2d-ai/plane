@@ -7,7 +7,6 @@
 import type { ReactNode } from "react";
 import useSWR from "swr";
 import {
-  COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG,
   WORKSPACE_MEMBER_ME_INFORMATION,
   WORKSPACE_MEMBERS,
   WORKSPACE_PROJECTS_ROLES_INFORMATION,
@@ -31,7 +30,7 @@ export function WikiNotConfigured() {
     <div className="flex size-full flex-col items-center justify-center gap-2 text-center">
       <h1 className="text-18 font-medium text-primary">Wiki is not configured</h1>
       {adminStatus?.is_instance_admin && (
-        <p className="text-13 text-secondary">Set COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG to an accessible workspace.</p>
+        <p className="text-13 text-secondary">Set COMPANY_WIKI_WORKSPACE_SLUG on the API to enable it.</p>
       )}
     </div>
   );
@@ -60,15 +59,11 @@ export function WikiAuthWrapper({ workspaceSlug, children }: WikiAuthWrapperProp
     );
   if (error) return <div role="alert">Could not load Wiki access. Please try again.</div>;
   const scope = resolveWikiScopeAccess(scopes ?? [], workspaceSlug);
-  if (!scope) {
-    if (
-      workspaceSlug === COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG &&
-      !scopes?.some((item) => item.is_default && item.slug === workspaceSlug)
-    ) {
-      return <WikiNotConfigured />;
-    }
-    return <NotAuthorizedView />;
-  }
+  // Scopes is the source of truth: a reachable designated workspace is returned
+  // by the API with is_default/is_member, so an absent scope here means the
+  // user has no access (not that Company Wiki is unconfigured — the root
+  // `/wiki` and `/company-wiki` routes own that "not configured" state).
+  if (!scope) return <NotAuthorizedView />;
   if (scope.is_member) return <MemberPreload workspaceSlug={workspaceSlug}>{children}</MemberPreload>;
   return <>{children}</>;
 }
