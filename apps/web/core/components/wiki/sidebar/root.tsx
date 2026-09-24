@@ -75,7 +75,7 @@ export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNav
       {model.defaultScope && (
         <WikiWorkspaceSection
           scope={model.defaultScope}
-          label={t("wiki.sidebar.instance_wiki")}
+          label={model.defaultScope.label}
           activeSlug={workspaceSlug}
           activePageId={pageId}
           initiallyExpanded

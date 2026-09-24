@@ -17,7 +17,7 @@ export function buildWikiSidebarModel(
   const available = scopes.filter((scope) => scope.is_default || scope.is_member);
   const decorate = (scope: TWikiScope): WikiSidebarScope => ({
     ...scope,
-    label: scope.slug === defaultSlug && scope.is_default ? "Instance Wiki" : scope.name,
+    label: scope.name,
     href: getWikiHomePath(scope.slug),
     active: scope.slug === activeSlug,
   });

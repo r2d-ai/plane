@@ -76,7 +76,7 @@ export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScop
     <div className="h-full overflow-y-auto p-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-20 font-semibold text-primary">{scope.is_default ? "Instance Wiki" : scope.name}</h1>
+          <h1 className="text-20 font-semibold text-primary">{scope.name}</h1>
           <p className="text-13 text-secondary">Browse pages and collections in this workspace.</p>
         </div>
         <div className="flex items-center gap-2">

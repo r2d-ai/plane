@@ -8,9 +8,9 @@ const scopes = [
 ];
 
 describe("Wiki sidebar model", () => {
-  test("places Instance Wiki first and keeps it out of ordinary workspaces", () => {
+  test("places the default workspace first and labels it with the workspace name", () => {
     const model = buildWikiSidebarModel(scopes, "home", "mkt", "page-1");
-    expect(model.defaultScope?.label).toBe("Instance Wiki");
+    expect(model.defaultScope?.label).toBe("Home");
     expect(model.defaultScope?.href).toBe("/wiki/home");
     expect(model.workspaces.map((scope) => scope.slug)).toEqual(["mkt"]);
     expect(model.workspaces[0].active).toBe(true);
