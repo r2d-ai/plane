@@ -156,7 +156,7 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
               loading={isMoving}
               disabled={!selectedCollectionId || selectedCollectionId === effectiveCurrentCollectionId}
             >
-              {t("common.move")}
+              {t("wiki_collections.add_existing_page_modal.submit")}
             </Button>
           </div>
         </div>
