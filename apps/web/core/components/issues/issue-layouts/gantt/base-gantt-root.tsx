@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import { EIssueFilterType, EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
@@ -90,35 +90,34 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
 
   const groupedIssueIds = issues.groupedIssueIds as TGroupedIssues | undefined;
 
-  const groups = useMemo(
-    () =>
-      getGroupByColumns({
-        groupBy: group_by,
-        includeNone: true,
-        isWorkspaceLevel: isWorkspaceLevel(storeType),
-        isEpic,
-        projectId: projectId?.toString(),
-      }),
-    [group_by, storeType, isEpic, projectId]
-  );
+  // NOTE: `groups`, `groupedIssueIds` and `collapsedGroups` all read from MobX observables that are
+  // mutated in place (e.g. `set(this.filters, [projectId, "kanbanFilters", "group_by"], ...)` and
+  // `update(this, ["groupedIssueIds", ...])`), so their references stay stable across updates.
+  // Memoizing derivations on those references returns stale rows — which is why collapsing a group
+  // updated the store but never re-rendered. Derive them inline instead; this observer tracks every
+  // observable read during render, so the rows are rebuilt whenever any of them change.
+  const groups = getGroupByColumns({
+    groupBy: group_by,
+    includeNone: true,
+    isWorkspaceLevel: isWorkspaceLevel(storeType),
+    isEpic,
+    projectId: projectId?.toString(),
+  });
 
-  const timelineRows = useMemo(
-    () =>
-      buildTimelineRows({
-        groupBy: group_by,
-        groups,
-        groupedIssueIds,
-        collapsedGroups: collapsedGroups ?? { group_by: [], sub_group_by: [] },
-        showEmptyGroups: showEmptyGroup,
-      }),
-    [group_by, groups, groupedIssueIds, collapsedGroups, showEmptyGroup]
-  );
+  const timelineRows = buildTimelineRows({
+    groupBy: group_by,
+    groups,
+    groupedIssueIds,
+    collapsedGroups: collapsedGroups ?? { group_by: [], sub_group_by: [] },
+    showEmptyGroups: showEmptyGroup,
+  });
 
-  const blockIds = useMemo(() => getIssueIdsFromTimelineRows(timelineRows), [timelineRows]);
-  const visibleColumns = useMemo(
-    () => getGanttVisibleColumnsFromDisplayProperties(displayProperties),
-    [displayProperties]
-  );
+  const blockIds = getIssueIdsFromTimelineRows(timelineRows);
+  // NOTE: `displayProperties` is a MobX observable mutated in place on update, so its reference
+  // never changes. Memoizing on it would keep returning stale columns. The flags read inside
+  // `getGanttVisibleColumnsFromDisplayProperties` are tracked by this observer, so recomputing
+  // inline re-renders with fresh columns whenever a display property is toggled.
+  const visibleColumns = getGanttVisibleColumnsFromDisplayProperties(displayProperties);
   const nextPageResults = issues.getPaginationData(undefined, undefined)?.nextPageResults;
 
   const { enableIssueCreation } = issues?.viewFlags || {};

@@ -6,6 +6,7 @@
 
 import type { IBlockUpdateDependencyData } from "@plane/types";
 import { GanttChartBlock } from "@/components/gantt-chart/blocks/block";
+import { BLOCK_HEIGHT } from "@/components/gantt-chart/constants";
 import type { TimelineRow } from "@/components/gantt-chart/types/timeline-row";
 import { isTimelineIssueRow } from "@/components/gantt-chart/types/timeline-row";
 
@@ -36,25 +37,35 @@ export function GanttChartBlocksList(props: GanttChartBlocksProps) {
 
   return (
     <>
-      {timelineRows?.filter(isTimelineIssueRow).map((row) => (
-        <GanttChartBlock
-          key={row.rowId}
-          rowId={row.rowId}
-          blockId={row.issueId}
-          showAllBlocks={showAllBlocks}
-          blockToRender={blockToRender}
-          enableBlockLeftResize={
-            typeof enableBlockLeftResize === "function" ? enableBlockLeftResize(row.issueId) : enableBlockLeftResize
-          }
-          enableBlockRightResize={
-            typeof enableBlockRightResize === "function" ? enableBlockRightResize(row.issueId) : enableBlockRightResize
-          }
-          enableBlockMove={typeof enableBlockMove === "function" ? enableBlockMove(row.issueId) : enableBlockMove}
-          enableDependency={typeof enableDependency === "function" ? enableDependency(row.issueId) : enableDependency}
-          ganttContainerRef={ganttContainerRef}
-          updateBlockDates={updateBlockDates}
-        />
-      ))}
+      {/* Group rows occupy a row in the row layer (GanttChartRowList), so they need a matching
+          spacer here to keep each block aligned with its sidebar row. */}
+      {timelineRows?.map((row) => {
+        if (!isTimelineIssueRow(row)) {
+          return <div key={row.rowId} style={{ height: `${BLOCK_HEIGHT}px` }} />;
+        }
+
+        return (
+          <GanttChartBlock
+            key={row.rowId}
+            rowId={row.rowId}
+            blockId={row.issueId}
+            showAllBlocks={showAllBlocks}
+            blockToRender={blockToRender}
+            enableBlockLeftResize={
+              typeof enableBlockLeftResize === "function" ? enableBlockLeftResize(row.issueId) : enableBlockLeftResize
+            }
+            enableBlockRightResize={
+              typeof enableBlockRightResize === "function"
+                ? enableBlockRightResize(row.issueId)
+                : enableBlockRightResize
+            }
+            enableBlockMove={typeof enableBlockMove === "function" ? enableBlockMove(row.issueId) : enableBlockMove}
+            enableDependency={typeof enableDependency === "function" ? enableDependency(row.issueId) : enableDependency}
+            ganttContainerRef={ganttContainerRef}
+            updateBlockDates={updateBlockDates}
+          />
+        );
+      })}
     </>
   );
 }

@@ -45,7 +45,7 @@ type UseTimelinePanReturn = {
     onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => void;
     onPointerCancel: (e: React.PointerEvent<HTMLDivElement>) => void;
     onLostPointerCapture: (e: React.PointerEvent<HTMLDivElement>) => void;
-    style: React.CSSProperties;
+    style: React.CSSProperties | undefined;
     "data-timeline-pan-active": string | undefined;
   };
 };
@@ -145,7 +145,11 @@ export function useTimelinePan(options: UseTimelinePanOptions): UseTimelinePanRe
         forcePan,
       };
 
-      container.setPointerCapture(e.pointerId);
+      // NOTE: intentionally NOT capturing the pointer here. Capturing on pointerdown retargets the
+      // subsequent pointerup (and therefore `click`) to the container, which swallows clicks on
+      // controls in the chart area such as the "scroll to work item" arrow and the add-block button.
+      // The pointer is captured in `onPointerMove` instead, once the gesture has crossed the pan
+      // threshold and is therefore a drag rather than a click.
     },
     [containerRef, enabled, isSpacePressed]
   );
@@ -164,6 +168,14 @@ export function useTimelinePan(options: UseTimelinePanOptions): UseTimelinePanRe
         state.isActive = true;
         setIsPanning(true);
         e.preventDefault();
+
+        // Capture only now that this is a real drag, so plain clicks keep reaching the controls
+        // underneath (see the note in `onPointerDown`).
+        try {
+          container.setPointerCapture(e.pointerId);
+        } catch {
+          // pointer may already be gone
+        }
       }
 
       container.scrollLeft = state.startScrollLeft - deltaX;
@@ -193,11 +205,17 @@ export function useTimelinePan(options: UseTimelinePanOptions): UseTimelinePanRe
     resetPan();
   }, [resetPan]);
 
-  const cursorStyle: React.CSSProperties = isPanning
+  // Only advertise a grab cursor where the gesture is actually available:
+  // - `grabbing` while a pan is in progress
+  // - `grab` everywhere while Space is held (force-pan works over any target)
+  // Otherwise fall through to the natural cursor; the pannable chart surface opts into `grab`
+  // itself (see GanttChartRowList). Previously this always returned `grab`, so the sidebar columns
+  // and work item bars showed a hand cursor even though dragging them does not pan.
+  const cursorStyle: React.CSSProperties | undefined = isPanning
     ? { cursor: "grabbing" }
     : isSpacePressed
       ? { cursor: "grab" }
-      : { cursor: "grab" };
+      : undefined;
 
   return {
     isPanning,

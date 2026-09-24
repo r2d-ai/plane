@@ -38,7 +38,7 @@ export function GanttChartRowList(props: GanttChartBlocksProps) {
   } = props;
 
   return (
-    <div className="absolute top-0 left-0 w-max min-w-full">
+    <div className="absolute top-0 left-0 w-max min-w-full cursor-grab">
       {timelineRows?.map((row) => {
         if (isTimelineGroupRow(row)) {
           return (
