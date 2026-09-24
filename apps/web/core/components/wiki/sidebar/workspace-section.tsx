@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { TWikiScope } from "@plane/types";
 import { cn } from "@plane/utils";
 import { useTranslation } from "@plane/i18n";
+import { getWikiCollectionPath } from "../../../helpers/wiki-routes";
 import { useWikiNavigation } from "../../../hooks/store/use-wiki-navigation";
 import {
   expandWikiWorkspace,
@@ -17,6 +18,7 @@ type Props = {
   label: string;
   activeSlug?: string;
   activePageId?: string;
+  activeCollectionId?: string;
   onNavigate: () => void;
   initiallyExpanded?: boolean;
   isDefaultScope?: boolean;
@@ -27,6 +29,7 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
   label,
   activeSlug,
   activePageId,
+  activeCollectionId,
   onNavigate,
   initiallyExpanded = false,
   isDefaultScope = false,
@@ -170,14 +173,30 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
                 const collectionPages = getCollectionSubtreePages(allPages, data.collectionPagesById[id] ?? []);
                 return (
                   <div key={id}>
-                    <button
-                      type="button"
-                      aria-expanded={!!expandedCollections[id]}
-                      onClick={() => toggleCollection(id)}
-                      className="focus-visible:outline-accent-primary w-full rounded px-3 py-1 text-left text-13 text-secondary hover:bg-layer-1 focus-visible:outline-2"
+                    <div
+                      className={cn(
+                        "flex items-center rounded text-13 text-secondary hover:bg-layer-1",
+                        activeCollectionId === id && "bg-layer-1 font-medium text-primary"
+                      )}
                     >
-                      {expandedCollections[id] ? "⌄" : "›"} {collection.name}
-                    </button>
+                      <button
+                        type="button"
+                        aria-label={`${expandedCollections[id] ? "Collapse" : "Expand"} ${collection.name}`}
+                        aria-expanded={!!expandedCollections[id]}
+                        onClick={() => toggleCollection(id)}
+                        className="focus-visible:outline-accent-primary grid size-7 flex-shrink-0 place-items-center rounded focus-visible:outline-2"
+                      >
+                        {expandedCollections[id] ? "⌄" : "›"}
+                      </button>
+                      <Link
+                        href={getWikiCollectionPath(scope.slug, id)}
+                        onClick={onNavigate}
+                        aria-current={activeCollectionId === id ? "page" : undefined}
+                        className="focus-visible:outline-accent-primary min-w-0 flex-1 truncate rounded py-1 pr-2 focus-visible:outline-2"
+                      >
+                        {collection.name}
+                      </Link>
+                    </div>
                     {expandedCollections[id] && (
                       <div className="pl-5">
                         {collectionLoading[id] && (
