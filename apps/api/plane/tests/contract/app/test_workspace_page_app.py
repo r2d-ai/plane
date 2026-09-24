@@ -158,6 +158,28 @@ class TestWorkspacePageCrud:
         assert response.json()[0]["entity_data"]["name"] == page.name
 
     @pytest.mark.django_db
+    def test_workspace_page_recents_recheck_current_visibility(self, api_client, workspace, create_user):
+        member = _make_member(workspace, _make_user("recent-member@plane.so"))
+        private_page = _make_wiki_page(
+            workspace,
+            create_user,
+            name="Revoked secret",
+            access=Page.PRIVATE_ACCESS,
+        )
+        UserRecentVisit.objects.create(
+            workspace=workspace,
+            user=member,
+            entity_name="workspace_page",
+            entity_identifier=private_page.id,
+        )
+
+        api_client.force_authenticate(user=member)
+        response = api_client.get(_recent_visits_url(workspace.slug), {"entity_name": "workspace_page"})
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    @pytest.mark.django_db
     def test_patch_scoped_to_workspace(self, session_client, workspace, create_user):
         page = _make_wiki_page(workspace, create_user)
 
