@@ -170,17 +170,17 @@ export const WikiCollectionView = observer(function WikiCollectionView({
       <div className="mx-auto w-full max-w-[1100px] px-6 py-8">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-          <span className="mt-0.5 grid size-8 place-items-center rounded-md bg-layer-1 text-tertiary">
+            <span className="mt-0.5 grid size-8 place-items-center rounded-md bg-layer-1 text-tertiary">
             {collection.access === EPageCollectionAccess.PUBLIC ? (
               <Globe2 className="size-4" />
             ) : (
               <Lock className="size-4" />
             )}
-          </span>
-          <div className="min-w-0">
-            <h1 className="truncate text-20 font-semibold text-primary">{collection.name}</h1>
-            {collection.description && <p className="mt-1 text-13 text-secondary">{collection.description}</p>}
-          </div>
+            </span>
+            <div className="min-w-0">
+              <h1 className="truncate text-20 font-semibold text-primary">{collection.name}</h1>
+              {collection.description && <p className="mt-1 text-13 text-secondary">{collection.description}</p>}
+            </div>
           </div>
           {scope.can_create && (
             <button
