@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import { Check, Folder } from "lucide-react";
 import useSWR from "swr";
@@ -48,6 +48,11 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
   );
 
   const effectiveCurrentCollectionId = currentPageCollectionId ?? detectedCollectionId ?? undefined;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedCollectionId(effectiveCurrentCollectionId ?? null);
+  }, [isOpen, effectiveCurrentCollectionId]);
 
   const handleMove = useCallback(async () => {
     if (!selectedCollectionId) return;
