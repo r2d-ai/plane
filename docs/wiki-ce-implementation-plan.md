@@ -1790,3 +1790,35 @@ Use dedicated upstream-sync PRs:
 4. merge the upstream sync only after review.
 
 This keeps coding-agent work deterministic and avoids mixing feature defects with upstream churn.
+
+---
+
+# 23. Commercial-style Wiki Home and legacy bootstrap
+
+Normative design:
+`docs/superpowers/specs/2026-09-24-wiki-home-bootstrap-design.md`.
+
+Implementation order:
+
+1. Refactor `WikiHome` into a system dashboard using existing Plane greeting,
+   Wiki-only recents, and stickies primitives.
+2. Keep Home as a leaf route; Collections/pages remain separate sidebar
+   navigation.
+3. Add idempotent runtime `ensure_wiki_defaults(workspace)` behavior for new
+   workspaces.
+4. Add data migration
+   `apps/api/plane/db/migrations/0130_wiki_bootstrap_defaults.py` after
+   `0129_wikievent`.
+5. Migrate every active pre-WikiCE workspace, including the designated Company
+   Wiki workspace:
+   - create/promote default Collection;
+   - create/reuse Welcome page;
+   - attach legacy uncollected public root Wiki pages only when General had to
+     be newly created;
+   - preserve private/shared/archived/already-collected data and Project Pages.
+6. Use per-workspace transactions, historical migration models, idempotent
+   operations, and a no-op reverse migration.
+7. Add migration, Home, and sidebar regression tests from the normative spec.
+
+This work requires **no new database model or column**. Do not introduce
+`entry_page_id` or special Home Page lifecycle semantics.

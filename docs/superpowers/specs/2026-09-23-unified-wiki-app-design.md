@@ -172,22 +172,40 @@ Rules:
 - Creation controls are shown only when the current user can create in the
   selected workspace.
 
-## 8. Workspace Home
+## 8. Workspace Home and default bootstrap
 
-`/wiki/:workspaceSlug` renders Home for the selected scope, not a flat list
-with a decorative hero.
+`/wiki/:workspaceSlug` renders a **system Home dashboard**, not a flat list and
+not a special editable Page.
 
-Home contains:
+Home is intentionally separate from durable Wiki content:
 
-- a Wiki title and the selected scope name;
-- Templates and New page actions when authorized;
-- recently viewed Wiki pages for the selected scope, capped to a compact set;
-- favorite Wiki pages for the selected scope;
-- collections with page counts and public/private state;
-- an empty state with a create-page action when the scope has no content.
+- member view: existing Plane greeting, Wiki-only recents
+  (`workspace_page`), and workspace stickies;
+- Company Wiki open-read non-members: greeting plus an authorized
+  recently-updated fallback; member-only recents/stickies APIs are not called;
+- Favorites, Collections, Shared, Private, Archived, and the page hierarchy
+  stay in navigation and are not duplicated in the Home body;
+- Home is a leaf navigation destination and never owns child pages.
 
-The full page hierarchy remains in the sidebar and is not duplicated as the
-main Home body.
+Every Wiki scope gets a durable starting point in the content hierarchy:
+
+```text
+Collections
+  General
+    Welcome to ...
+```
+
+For fresh workspaces, `General` is a public default Collection and the Welcome
+document is an ordinary editable Workspace Wiki Page. Existing installations
+are normalized by a one-time idempotent data migration: every active
+pre-WikiCE workspace receives defaults, legacy uncollected **public root** Wiki
+pages are attached to a newly-created General Collection, while private,
+shared, archived, Project Page, and already-collected data is preserved.
+
+No `entry_page_id` or special Home Page entity is introduced.
+
+The normative Home/bootstrap/migration rules are specified in
+[Wiki Home, Default Collection, and Legacy Bootstrap Design](./2026-09-24-wiki-home-bootstrap-design.md).
 
 ## 9. Page view
 
