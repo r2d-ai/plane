@@ -232,7 +232,8 @@ export const CollectionsSection = observer(function CollectionsSection(props: TP
     setDeleteCollection(null);
   }, [collectionStore, workspaceSlug, deleteCollection]);
 
-  if (!collections || collections.length === 0) return null;
+  if (!collections) return null;
+  if (collections.length === 0 && (!canCreatePage || isCompanyWiki)) return null;
 
   return (
     <div className="flex flex-col gap-1">
