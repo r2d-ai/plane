@@ -29,7 +29,7 @@ export interface IWikiNavigationStore {
   scopes: Record<string, TWikiNavigationScopeState>;
   getScope: (workspaceSlug: string) => TWikiNavigationScopeState;
   fetchScope: (workspaceSlug: string) => Promise<TWikiNavigationScopeState>;
-  invalidateScope: (workspaceSlug: string) => Promise<TWikiNavigationScopeState | undefined>;
+  invalidateScope: (workspaceSlug: string, affectedCollectionIds?: string[]) => Promise<TWikiNavigationScopeState | undefined>;
   fetchCollectionPages: (workspaceSlug: string, collectionId: string) => Promise<TPageCollectionPage[]>;
 }
 
@@ -83,12 +83,35 @@ export class WikiNavigationStore implements IWikiNavigationStore {
    * restore, delete). A scope that was never loaded has no stale UI to fix, so
    * it is left untouched.
    */
-  invalidateScope = async (workspaceSlug: string): Promise<TWikiNavigationScopeState | undefined> => {
-    if (!this.scopes[workspaceSlug]) return undefined;
-    // wait out an in-flight load so a stale response cannot land after the
-    // mutation that invalidated this scope
+  invalidateScope = async (
+    workspaceSlug: string,
+    affectedCollectionIds: string[] = []
+  ): Promise<TWikiNavigationScopeState | undefined> => {
+    const currentScope = this.scopes[workspaceSlug];
+    if (!currentScope) return undefined;
+
+    // Keep track of Collection trees already materialized in the sidebar.
+    // A page move/add/remove changes Collection membership without changing
+    // the page or Collection list, so refreshing only fetchScope() would leave
+    // collectionPagesById stale and the sidebar would keep rendering the old
+    // membership until a full reload.
+    const loadedCollectionIds = [...new Set([...Object.keys(currentScope.collectionPagesById), ...affectedCollectionIds])];
+
+    // Wait out an in-flight load so a stale response cannot land after the
+    // mutation that invalidated this scope.
     await this.inFlight.get(workspaceSlug)?.catch(() => undefined);
-    return await this.fetchScope(workspaceSlug);
+    const refreshedScope = await this.fetchScope(workspaceSlug);
+
+    const collectionIdsToRefresh = loadedCollectionIds.filter((collectionId) =>
+      refreshedScope.collectionIds.includes(collectionId)
+    );
+    if (collectionIdsToRefresh.length > 0) {
+      await Promise.all(
+        collectionIdsToRefresh.map((collectionId) => this.fetchCollectionPages(workspaceSlug, collectionId))
+      );
+    }
+
+    return this.getScope(workspaceSlug);
   };
 
   private loadScope = async (workspaceSlug: string): Promise<TWikiNavigationScopeState> => {
