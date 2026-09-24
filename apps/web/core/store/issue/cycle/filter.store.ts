@@ -24,6 +24,7 @@ import { EIssuesStoreType } from "@plane/types";
 import { handleIssueQueryParamsByLayout } from "@plane/utils";
 import { IssueFiltersService } from "@/services/issue_filter.service";
 import type { IBaseIssueFilterStore } from "../helpers/issue-filter-helper.store";
+import { applyGanttLayoutFilterDefaults } from "../helpers/gantt-layout-filter-defaults";
 import { IssueFilterHelperStore } from "../helpers/issue-filter-helper.store";
 // helpers
 // types
@@ -238,10 +239,16 @@ export class CycleIssuesFilter extends IssueFilterHelperStore implements ICycleI
             _filters.displayFilters.group_by = "state";
             updatedDisplayFilters.group_by = "state";
           }
-          // reset group_by when switching to gantt layout
-          if (_filters.displayFilters.layout === "gantt_chart" && previousLayout !== "gantt_chart") {
-            _filters.displayFilters.group_by = null;
-            updatedDisplayFilters.group_by = null;
+          const ganttDefaults = applyGanttLayoutFilterDefaults(
+            _filters.displayFilters,
+            _filters.displayProperties,
+            previousLayout
+          );
+          _filters.displayFilters = ganttDefaults.displayFilters;
+          _filters.displayProperties = ganttDefaults.displayProperties;
+          if (ganttDefaults.didUpdateDisplayProperties) {
+            updatedDisplayFilters.group_by = ganttDefaults.displayFilters.group_by;
+            updatedDisplayFilters.sub_group_by = ganttDefaults.displayFilters.sub_group_by;
           }
 
           runInAction(() => {
@@ -252,6 +259,15 @@ export class CycleIssuesFilter extends IssueFilterHelperStore implements ICycleI
                 updatedDisplayFilters[_key as keyof IIssueDisplayFilterOptions]
               );
             });
+            if (ganttDefaults.didUpdateDisplayProperties) {
+              Object.keys(ganttDefaults.displayProperties).forEach((_key) => {
+                set(
+                  this.filters,
+                  [cycleId, "displayProperties", _key],
+                  ganttDefaults.displayProperties[_key as keyof IIssueDisplayProperties]
+                );
+              });
+            }
           });
 
           if (this.getShouldClearIssues(updatedDisplayFilters)) {
@@ -269,6 +285,7 @@ export class CycleIssuesFilter extends IssueFilterHelperStore implements ICycleI
 
           await this.issueFilterService.patchCycleIssueFilters(workspaceSlug, projectId, cycleId, {
             display_filters: _filters.displayFilters,
+            ...(ganttDefaults.didUpdateDisplayProperties ? { display_properties: _filters.displayProperties } : {}),
           });
 
           break;

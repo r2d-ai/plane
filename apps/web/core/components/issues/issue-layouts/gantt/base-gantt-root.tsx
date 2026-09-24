@@ -212,7 +212,9 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
             onToggleGroupCollapse={handleCollapsedGroups}
             onScaleChange={handleScaleChange}
             blockUpdateHandler={updateIssueBlockStructure}
-            blockToRender={(data: TIssue) => <IssueGanttBlock issueId={data.id} isEpic={isEpic} />}
+            blockToRender={(data: TIssue & { barWidth?: number }) => (
+              <IssueGanttBlock issueId={data.id} barWidth={data.barWidth} isEpic={isEpic} />
+            )}
             sidebarToRender={(sidebarProps) => <IssueGanttSidebar {...sidebarProps} showAllBlocks isEpic={isEpic} />}
             enableBlockLeftResize={isAllowed}
             enableBlockRightResize={isAllowed}

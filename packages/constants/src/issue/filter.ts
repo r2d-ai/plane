@@ -275,10 +275,9 @@ export const ISSUE_DISPLAY_FILTERS_BY_PAGE: TIssueFiltersToDisplayByPageType = {
           "labels",
           "start_date",
           "due_date",
-          "estimate",
         ],
         display_filters: {
-          group_by: ["state", "priority", "cycle", "module", "labels", "assignees", "created_by", "project", null],
+          group_by: ["module", "cycle", "labels", "assignees", "state", "priority", "project", null],
           order_by: ["sort_order", "-created_at", "-updated_at", "start_date", "-priority", "target_date"],
           type: ["active", "backlog"],
         },
@@ -309,7 +308,11 @@ export const ISSUE_DISPLAY_FILTERS_BY_PAGE: TIssueFiltersToDisplayByPageType = {
 
 export const ISSUE_STORE_TO_FILTERS_MAP: Partial<Record<EIssuesStoreType, TFilterPropertiesByPageType>> = {
   [EIssuesStoreType.PROJECT]: ISSUE_DISPLAY_FILTERS_BY_PAGE.issues,
+  [EIssuesStoreType.EPIC]: ISSUE_DISPLAY_FILTERS_BY_PAGE.issues,
 };
+
+export const getIssueLayoutDisplayFiltersOptions = (layout: string | undefined) =>
+  layout ? ISSUE_DISPLAY_FILTERS_BY_PAGE.issues.layoutOptions[layout] : undefined;
 
 export const SUB_WORK_ITEM_AVAILABLE_FILTERS_FOR_WORK_ITEM_PAGE: (keyof IIssueFilterOptions)[] = [
   "priority",

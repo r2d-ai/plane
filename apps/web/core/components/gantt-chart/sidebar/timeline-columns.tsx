@@ -5,6 +5,8 @@
  */
 
 import { observer } from "mobx-react";
+import { EIconSize } from "@plane/constants";
+import { MembersPropertyIcon, PriorityIcon, StateGroupIcon } from "@plane/propel/icons";
 import { useTranslation } from "@plane/i18n";
 import type { TIssue } from "@plane/types";
 import { Avatar } from "@plane/ui";
@@ -58,17 +60,27 @@ export const TimelineColumnCell = observer(function TimelineColumnCell(props: Co
         />
       );
     case "status":
+      if (!stateDetails) return <span className="text-13 text-tertiary">—</span>;
       return (
-        <span className="truncate text-13 text-secondary" title={stateDetails?.name}>
-          {stateDetails?.name ?? "—"}
-        </span>
+        <div className="flex min-w-0 items-center gap-1.5 truncate" title={stateDetails.name}>
+          <StateGroupIcon
+            stateGroup={stateDetails.group}
+            color={stateDetails.color}
+            size={EIconSize.SM}
+            percentage={stateDetails.order}
+            className="flex-shrink-0"
+          />
+          <span className="truncate text-13 text-secondary">{stateDetails.name}</span>
+        </div>
       );
     case "assignee": {
       const assigneeIds = issue.assignee_ids ?? [];
-      if (assigneeIds.length === 0) return <span className="text-13 text-tertiary">{t("common.none")}</span>;
+      if (assigneeIds.length === 0) {
+        return <MembersPropertyIcon className="h-4 w-4 flex-shrink-0 text-tertiary" />;
+      }
       const first = getUserDetails(assigneeIds[0]);
       return (
-        <div className="flex items-center gap-1 truncate">
+        <div className="flex min-w-0 items-center gap-1 truncate">
           {first && <Avatar name={first.display_name} src={getFileURL(first.avatar_url)} size="sm" showTooltip />}
           {assigneeIds.length > 1 && <span className="text-11 text-tertiary">+{assigneeIds.length - 1}</span>}
         </div>
@@ -84,7 +96,7 @@ export const TimelineColumnCell = observer(function TimelineColumnCell(props: Co
       );
     }
     case "priority":
-      return <span className="truncate text-13 text-secondary capitalize">{issue.priority ?? "—"}</span>;
+      return <PriorityIcon priority={issue.priority} withContainer className="flex-shrink-0" />;
     case "start_date":
       return <span className="truncate text-13 text-secondary">{issue.start_date ?? "—"}</span>;
     case "target_date":

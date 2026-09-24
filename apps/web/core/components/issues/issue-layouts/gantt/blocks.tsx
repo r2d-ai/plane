@@ -4,13 +4,14 @@
  * See the LICENSE file for details.
  */
 
+import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import { Popover } from "@plane/propel/popover";
 import { Tooltip } from "@plane/propel/tooltip";
 import { ControlLink } from "@plane/ui";
 import { Avatar } from "@plane/ui";
-import { generateWorkItemLink, getFileURL } from "@plane/utils";
+import { cn, generateWorkItemLink, getFileURL } from "@plane/utils";
 import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
@@ -18,7 +19,6 @@ import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
-import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 import useIssuePeekOverviewRedirection from "@/hooks/use-issue-peek-overview-redirection";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 import { WorkItemPreviewCard } from "../../preview-card";
@@ -28,10 +28,14 @@ import type { GanttStoreType } from "./base-gantt-root";
 type Props = {
   issueId: string;
   isEpic?: boolean;
+  barWidth?: number;
 };
 
+const NARROW_BAR_WIDTH = 80;
+const MEDIUM_BAR_WIDTH = 200;
+
 export const IssueGanttBlock = observer(function IssueGanttBlock(props: Props) {
-  const { issueId, isEpic } = props;
+  const { issueId, isEpic, barWidth: barWidthProp = 0 } = props;
   const { workspaceSlug: routerWorkspaceSlug } = useParams();
   const workspaceSlug = routerWorkspaceSlug?.toString();
   const { getProjectStates } = useProjectState();
@@ -41,9 +45,8 @@ export const IssueGanttBlock = observer(function IssueGanttBlock(props: Props) {
   } = useIssueDetail();
   const { isMobile } = usePlatformOS();
   const { handleRedirection } = useIssuePeekOverviewRedirection(isEpic);
-  const storeType = useIssueStoreType() as GanttStoreType;
-  const { issuesFilter } = useIssues(storeType);
-  const { getBlockById } = useTimeLineChartStore();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [measuredWidth, setMeasuredWidth] = useState(0);
 
   const issueDetails = getIssueById(issueId);
   const stateDetails =
@@ -53,12 +56,30 @@ export const IssueGanttBlock = observer(function IssueGanttBlock(props: Props) {
 
   const handleIssuePeekOverview = () => handleRedirection(workspaceSlug, issueDetails, isMobile);
 
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    const updateWidth = () => {
+      setMeasuredWidth(element.clientWidth);
+    };
+
+    updateWidth();
+    const resizeObserver = new ResizeObserver(updateWidth);
+    resizeObserver.observe(element);
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  const barWidth = measuredWidth || barWidthProp;
   const assigneeIds = issueDetails?.assignee_ids ?? [];
-  const barWidth = getBlockById(issueId)?.position?.width ?? 0;
-  const showAssignees =
-    (issuesFilter?.issueFilters?.displayProperties?.assignee ?? true) && assigneeIds.length > 0 && barWidth > 48;
-  const showAssigneeName = barWidth > 200;
-  const showTitle = barWidth > 80;
+  const hasAssignees = assigneeIds.length > 0;
+  const isWideBar = barWidth > MEDIUM_BAR_WIDTH;
+  const isMediumBar = barWidth > NARROW_BAR_WIDTH;
+  const showTitle = isWideBar;
+  const showAssignees = hasAssignees && barWidth > 0;
+  const showAssigneeName = hasAssignees && isMediumBar;
+  const visibleAssigneeIds = assigneeIds.slice(0, isWideBar ? 2 : 1);
 
   return (
     <Popover delay={100} openOnHover>
@@ -67,6 +88,7 @@ export const IssueGanttBlock = observer(function IssueGanttBlock(props: Props) {
         render={
           // oxlint-disable-next-line jsx_a11y/click-events-have-key-events jsx_a11y/no-static-element-interactions
           <div
+            ref={containerRef}
             id={`issue-${issueId}`}
             className="relative flex h-full w-full cursor-pointer items-center rounded-sm"
             style={blockStyle}
@@ -76,8 +98,8 @@ export const IssueGanttBlock = observer(function IssueGanttBlock(props: Props) {
             <div className="relative flex h-full w-full items-center gap-1.5 overflow-hidden px-2 py-1">
               {showTitle && <span className="min-w-0 flex-1 truncate text-13 text-primary">{issueDetails?.name}</span>}
               {showAssignees && (
-                <div className="ml-auto flex flex-shrink-0 items-center gap-1">
-                  {assigneeIds.slice(0, barWidth > 120 ? 2 : 1).map((assigneeId) => {
+                <div className={cn("flex flex-shrink-0 items-center gap-1", { "ml-auto": !showTitle })}>
+                  {visibleAssigneeIds.map((assigneeId) => {
                     const member = getUserDetails(assigneeId);
                     if (!member) return null;
                     return (
@@ -90,11 +112,11 @@ export const IssueGanttBlock = observer(function IssueGanttBlock(props: Props) {
                       />
                     );
                   })}
-                  {assigneeIds.length > 2 && barWidth > 120 && (
+                  {assigneeIds.length > 2 && isWideBar && (
                     <span className="text-11 text-tertiary">+{assigneeIds.length - 2}</span>
                   )}
                   {showAssigneeName && assigneeIds.length === 1 && (
-                    <span className="max-w-[80px] truncate text-11 text-secondary">
+                    <span className="max-w-[96px] truncate text-11 text-secondary">
                       {getUserDetails(assigneeIds[0])?.display_name}
                     </span>
                   )}
