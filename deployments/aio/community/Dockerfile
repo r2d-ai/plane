@@ -1,4 +1,6 @@
 ARG PLANE_VERSION=v0.27.1
+# Registry namespace for the component images (e.g. ghcr.io/<owner>).
+ARG IMAGE_PREFIX=makeplane
 FROM --platform=$BUILDPLATFORM tonistiigi/binfmt AS binfmt
 
 # **************************************************
@@ -6,12 +8,12 @@ FROM --platform=$BUILDPLATFORM tonistiigi/binfmt AS binfmt
 # **************************************************
 FROM node:22-alpine AS node
 
-FROM makeplane/plane-frontend:${PLANE_VERSION} AS web-img
-FROM makeplane/plane-backend:${PLANE_VERSION} AS backend-img
-FROM makeplane/plane-space:${PLANE_VERSION} AS space-img
-FROM makeplane/plane-admin:${PLANE_VERSION} AS admin-img
-FROM makeplane/plane-live:${PLANE_VERSION} AS live-img
-FROM makeplane/plane-proxy:${PLANE_VERSION} AS proxy-img
+FROM ${IMAGE_PREFIX}/plane-frontend:${PLANE_VERSION} AS web-img
+FROM ${IMAGE_PREFIX}/plane-backend:${PLANE_VERSION} AS backend-img
+FROM ${IMAGE_PREFIX}/plane-space:${PLANE_VERSION} AS space-img
+FROM ${IMAGE_PREFIX}/plane-admin:${PLANE_VERSION} AS admin-img
+FROM ${IMAGE_PREFIX}/plane-live:${PLANE_VERSION} AS live-img
+FROM ${IMAGE_PREFIX}/plane-proxy:${PLANE_VERSION} AS proxy-img
 
 # **************************************************
 #  STAGE 1: Runner
