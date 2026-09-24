@@ -9,7 +9,7 @@ export default function WikiLayout() {
   const { workspaceSlug } = useParams();
   return (
     <AuthenticationWrapper>
-      <AppRailVisibilityProvider>
+      <AppRailVisibilityProvider isEnabled>
         <WorkspaceContentWrapper>
           {workspaceSlug ? (
             <WikiAuthWrapper workspaceSlug={workspaceSlug}>

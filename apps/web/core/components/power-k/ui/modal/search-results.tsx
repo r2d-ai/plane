@@ -15,7 +15,7 @@ import { useAppRouter } from "@/hooks/use-app-router";
 // helpers
 import { PowerKModalCommandItem } from "./command-item";
 import { POWER_K_SEARCH_RESULTS_GROUPS_MAP } from "./search-results-map";
-import { wikiSearchResultPath } from "./wiki-search-map";
+import { wikiSearchResultPath, wikiSearchResultValue } from "./wiki-search-map";
 
 type Props = {
   closePalette: () => void;
@@ -38,7 +38,7 @@ export const PowerKModalSearchResults = observer(function PowerKModalSearchResul
         {wikiResults.map((item) => (
           <PowerKModalCommandItem
             key={`${item.workspace_slug}:${item.page_id}`}
-            value={`wiki-${item.workspace_slug}-${item.page_id}-${item.page_name}`}
+            value={wikiSearchResultValue(item)}
             label={
               <span className="flex min-w-0 flex-col">
                 <span className="truncate">{item.page_name}</span>

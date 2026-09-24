@@ -7,8 +7,7 @@
 import type { TStaticViewTypes, IWorkspaceSearchResults } from "@plane/types";
 import { EUserWorkspaceRoles } from "@plane/types";
 
-export const COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG: string =
-  (typeof process !== "undefined" && process.env?.VITE_COMPANY_WIKI_WORKSPACE_SLUG) || "";
+export const COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG: string = process.env.VITE_COMPANY_WIKI_WORKSPACE_SLUG || "";
 
 export const ORGANIZATION_SIZE: string[] = ["Just myself", "2-10", "11-50", "51-200", "201-500", "500+"];
 

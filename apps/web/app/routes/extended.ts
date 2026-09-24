@@ -14,9 +14,9 @@ export const extendedRoutes: RouteConfigEntry[] = [
       route("wiki/:workspaceSlug", "./(all)/wiki/[workspaceSlug]/page.tsx"),
       route("wiki/:workspaceSlug/:pageId", "./(all)/wiki/[workspaceSlug]/[pageId]/page.tsx"),
     ]),
-    route("company-wiki", "./(all)/wiki/legacy-redirect.tsx"),
-    route("company-wiki/:pageId", "./(all)/wiki/legacy-redirect.tsx"),
-    route(":workspaceSlug/wiki", "./(all)/wiki/legacy-redirect.tsx"),
+    route("company-wiki", "./(all)/wiki/legacy-company-redirect.tsx"),
+    route("company-wiki/:pageId", "./(all)/wiki/legacy-company-page-redirect.tsx"),
+    route(":workspaceSlug/wiki", "./(all)/wiki/legacy-workspace-redirect.tsx"),
     route(":workspaceSlug/wiki/:pageId", "./(all)/wiki/legacy-redirect.tsx"),
   ]),
 ];
