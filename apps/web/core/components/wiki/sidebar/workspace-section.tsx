@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import type { TWikiScope } from "@plane/types";
 import { cn } from "@plane/utils";
 import { useTranslation } from "@plane/i18n";
 import { getWikiCollectionPath } from "../../../helpers/wiki-routes";
+import { useAppRouter } from "../../../hooks/use-app-router";
+import { usePageCollectionStore } from "../../../hooks/store/use-page-collection-store";
 import { useWikiNavigation } from "../../../hooks/store/use-wiki-navigation";
+import { CollectionCreateEditModal } from "../../pages/collections";
 import {
   expandWikiWorkspace,
   getCollectionSubtreePages,
@@ -35,11 +39,14 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
   isDefaultScope = false,
 }: Props) {
   const navigation = useWikiNavigation();
+  const collectionStore = usePageCollectionStore();
+  const router = useAppRouter();
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(initiallyExpanded || isDefaultScope);
   const [expandedCollections, setExpandedCollections] = useState<Record<string, boolean>>({});
   const [collectionErrors, setCollectionErrors] = useState<Record<string, string>>({});
   const [collectionLoading, setCollectionLoading] = useState<Record<string, boolean>>({});
+  const [createCollectionOpen, setCreateCollectionOpen] = useState(false);
   const data = navigation.getScope(scope.slug);
   const showContents = isDefaultScope || expanded;
 
@@ -97,8 +104,18 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
     loadCollection(collectionId);
   };
 
+  const createCollection = async (payload: { name: string; description: string; access: number }) => {
+    if (!scope.can_create) return;
+    const collection = await collectionStore.createCollection(scope.slug, payload);
+    if (!collection?.id) return;
+    await navigation.invalidateScope(scope.slug);
+    router.push(getWikiCollectionPath(scope.slug, collection.id));
+    onNavigate();
+  };
+
   const allPages = data.pageIds.map((id) => data.pagesById[id]).filter((page) => !!page);
   const loosePages = getLooseWikiPages(allPages, data.collectionPagesById);
+  const showCollectionsHeader = data.collectionIds.length > 0 || scope.can_create;
 
   return (
     <div>
@@ -166,10 +183,23 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
           )}
           {data.status === "loaded" && (
             <>
-              {isDefaultScope && data.collectionIds.length > 0 && (
-                <p className="px-2 py-1 text-11 font-semibold tracking-wide text-tertiary">
-                  {t("wiki.collections.section_title")}
-                </p>
+              {showCollectionsHeader && (
+                <div className="flex items-center justify-between px-2 py-1">
+                  <p className="text-11 font-semibold tracking-wide text-tertiary">
+                    {t("wiki.collections.section_title")}
+                  </p>
+                  {scope.can_create && (
+                    <button
+                      type="button"
+                      aria-label={t("wiki.collections.create_collection")}
+                      title={t("wiki.collections.create_collection")}
+                      onClick={() => setCreateCollectionOpen(true)}
+                      className="focus-visible:outline-accent-primary grid size-5 place-items-center rounded text-tertiary hover:bg-layer-1 hover:text-primary focus-visible:outline-2"
+                    >
+                      <Plus className="size-3.5" />
+                    </button>
+                  )}
+                </div>
               )}
               {data.collectionIds.map((id) => {
                 const collection = data.collectionsById[id];
@@ -243,6 +273,11 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
           )}
         </div>
       )}
+      <CollectionCreateEditModal
+        isOpen={createCollectionOpen}
+        onClose={() => setCreateCollectionOpen(false)}
+        onSubmit={createCollection}
+      />
     </div>
   );
 });
