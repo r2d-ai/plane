@@ -9,6 +9,7 @@ import { observer } from "mobx-react";
 import { SmilePlus } from "lucide-react";
 // plane imports
 import { EmojiPicker, EmojiIconPickerTypes } from "@plane/propel/emoji-icon-picker";
+import { useTranslation } from "@plane/i18n";
 import { cn } from "@plane/utils";
 // store
 import type { TPageInstance } from "@/store/pages/base-page";
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export const PageEditorHeaderRoot = observer(function PageEditorHeaderRoot(props: Props) {
+  const { t } = useTranslation();
   const { page } = props;
   // states
   const [isLogoPickerOpen, setIsLogoPickerOpen] = useState(false);
@@ -54,7 +56,7 @@ export const PageEditorHeaderRoot = observer(function PageEditorHeaderRoot(props
                   )}
                 >
                   <SmilePlus className="size-4 flex-shrink-0" />
-                  Icon
+                  {t("page_controls.icon")}
                 </button>
               }
               onChange={updatePageLogo}

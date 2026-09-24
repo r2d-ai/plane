@@ -10,11 +10,7 @@ import { useAppRouter } from "../../../hooks/use-app-router";
 import { usePageCollectionStore } from "../../../hooks/store/use-page-collection-store";
 import { useWikiNavigation } from "../../../hooks/store/use-wiki-navigation";
 import { CollectionCreateEditModal } from "../../pages/collections";
-import {
-  expandWikiWorkspace,
-  getCollectionSubtreePages,
-  getLooseWikiPages,
-} from "./model";
+import { expandWikiWorkspace, getCollectionSubtreePages, getLooseWikiPages } from "./model";
 import { WikiPageTree } from "./page-tree";
 
 type Props = {
@@ -71,12 +67,12 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
         .catch((error: unknown) =>
           setCollectionErrors((current) => ({
             ...current,
-            [collectionId]: error instanceof Error ? error.message : "Could not load collection",
+            [collectionId]: error instanceof Error ? error.message : t("wiki.collections.load_failed"),
           }))
         )
         .finally(() => setCollectionLoading((current) => ({ ...current, [collectionId]: false })));
     },
-    [navigation, scope.slug]
+    [navigation, scope.slug, t]
   );
 
   useEffect(() => {
@@ -138,7 +134,7 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
         <div className="flex items-center gap-1">
           <button
             type="button"
-            aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
+            aria-label={`${t(expanded ? "wiki.actions.collapse" : "wiki.actions.expand")} ${label}`}
             aria-expanded={expanded}
             onClick={toggleWorkspace}
             className="focus-visible:outline-accent-primary size-7 rounded focus-visible:outline-2"
@@ -164,7 +160,7 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
       {showContents && (
         <div className={isDefaultScope ? "" : "pl-2"}>
           {data.status === "loading" && (
-            <div className="space-y-2 p-2" aria-label={`Loading ${label}`}>
+            <div className="space-y-2 p-2" aria-label={t("wiki.sidebar.loading_section", { name: label })}>
               <div className="h-4 w-4/5 animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
               <div className="h-4 w-3/5 animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
             </div>
@@ -204,6 +200,9 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
               {data.collectionIds.map((id) => {
                 const collection = data.collectionsById[id];
                 if (!collection) return null;
+                const collectionName = collection.is_default
+                  ? t("wiki_collections.predefined.general")
+                  : collection.name;
                 const collectionPages = getCollectionSubtreePages(allPages, data.collectionPagesById[id] ?? []);
                 return (
                   <div key={id}>
@@ -215,7 +214,7 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
                     >
                       <button
                         type="button"
-                        aria-label={`${expandedCollections[id] ? "Collapse" : "Expand"} ${collection.name}`}
+                        aria-label={`${t(expandedCollections[id] ? "wiki.actions.collapse" : "wiki.actions.expand")} ${collectionName}`}
                         aria-expanded={!!expandedCollections[id]}
                         onClick={() => toggleCollection(id)}
                         className="focus-visible:outline-accent-primary grid size-7 flex-shrink-0 place-items-center rounded focus-visible:outline-2"
@@ -228,7 +227,7 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
                         aria-current={activeCollectionId === id ? "page" : undefined}
                         className="focus-visible:outline-accent-primary min-w-0 flex-1 truncate rounded py-1 pr-2 focus-visible:outline-2"
                       >
-                        {collection.name}
+                        {collectionName}
                       </Link>
                     </div>
                     {expandedCollections[id] && (
@@ -237,7 +236,11 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
                           <div className="h-4 w-3/4 animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
                         )}
                         {collectionErrors[id] && (
-                          <button type="button" onClick={() => loadCollection(id)} className="text-12 text-accent-primary">
+                          <button
+                            type="button"
+                            onClick={() => loadCollection(id)}
+                            className="text-12 text-accent-primary"
+                          >
                             {t("wiki.sidebar.retry")}
                           </button>
                         )}

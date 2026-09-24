@@ -86,6 +86,102 @@
     }
   },
   "wiki": {
+    "sidebar": {
+      "title": "Wiki",
+      "new_page": "Trang mới",
+      "instance_wiki": "Wiki chung",
+      "workspaces": "Không gian làm việc",
+      "favorites": "Yêu thích",
+      "my_pages": "Trang của tôi",
+      "shared_with_me": "Được chia sẻ với tôi",
+      "retry": "Thử lại",
+      "home": "Trang chủ",
+      "archived": "Đã lưu trữ",
+      "loading": "Đang tải Wiki",
+      "load_failed": "Không thể tải các mục Wiki.",
+      "loading_section": "Đang tải {{name}}",
+      "resize": "Thay đổi độ rộng thanh bên Wiki",
+      "open_navigation": "Mở thanh điều hướng Wiki",
+      "navigation": "Điều hướng Wiki"
+    },
+    "untitled": "Chưa đặt tên",
+    "hierarchy": {
+      "wiki": "Wiki",
+      "company_wiki": "Wiki chung",
+      "untitled_parent": "Chưa đặt tên"
+    },
+    "search_placeholder": "Tìm trang Wiki",
+    "search_no_results": "Không có trang nào khớp với tìm kiếm.",
+    "search_unified_label": "Tìm trang",
+    "search_unified_hint": "Dùng thanh tìm kiếm phía trên (⌘F) để tìm trang Wiki trong các không gian làm việc.",
+    "mentions": {
+      "section_title": "Trang Wiki"
+    },
+    "home": {
+      "workspace_title": "Wiki không gian làm việc",
+      "workspace_description": "Duyệt, sắp xếp và liên kết kiến thức của nhóm trong cây trang phân cấp.",
+      "company_title": "Wiki chung",
+      "company_description": "Tài liệu chung được chia sẻ giữa các không gian làm việc.",
+      "page_count": "{count} trang",
+      "archived_description": "Các trang đã lưu trữ trong Wiki này.",
+      "loading_archived": "Đang tải các trang Wiki đã lưu trữ",
+      "archived_load_failed": "Không thể tải các trang Wiki đã lưu trữ.",
+      "no_archived": "Không có trang đã lưu trữ.",
+      "recents": "Gần đây",
+      "recently_updated": "Mới cập nhật",
+      "loading_recents": "Đang tải các trang Wiki gần đây",
+      "recents_load_failed": "Không thể tải các trang Wiki gần đây.",
+      "loading_recently_updated": "Đang tải các trang Wiki mới cập nhật",
+      "recently_updated_load_failed": "Không thể tải các trang Wiki mới cập nhật."
+    },
+    "tree": {
+      "root_label": "Trang Wiki",
+      "empty_state": "Chưa có trang nào trong mục này.",
+      "child_count_label": "{count} trang con",
+      "expand_all": "Mở rộng tất cả",
+      "collapse_all": "Thu gọn tất cả"
+    },
+    "actions": {
+      "create_page": "Tạo trang",
+      "create_sub_page": "Tạo trang con",
+      "move": "Di chuyển",
+      "add_page": "Thêm trang",
+      "expand": "Mở rộng",
+      "collapse": "Thu gọn",
+      "hide_comments": "Ẩn bình luận",
+      "show_comments": "Bình luận"
+    },
+    "collections": {
+      "section_title": "Bộ sưu tập",
+      "create_collection": "Tạo bộ sưu tập",
+      "edit_collection": "Sửa bộ sưu tập",
+      "delete_collection": "Xóa bộ sưu tập",
+      "delete_collection_description": "Bạn có chắc muốn xóa \"{{name}}\"? Các trang trong bộ sưu tập sẽ được bỏ liên kết.",
+      "manage_members": "Quản lý thành viên",
+      "move_page_to_collection": "Chuyển vào bộ sưu tập",
+      "search_members": "Tìm thành viên...",
+      "member_added": "Đã thêm thành viên.",
+      "member_add_failed": "Không thể thêm thành viên.",
+      "member_updated": "Đã cập nhật vai trò thành viên.",
+      "member_update_failed": "Không thể cập nhật vai trò thành viên.",
+      "member_removed": "Đã xóa thành viên.",
+      "member_remove_failed": "Không thể xóa thành viên.",
+      "no_members": "Chưa có thành viên.",
+      "no_pages": "Chưa có trang nào trong bộ sưu tập này.",
+      "no_collections": "Chưa có bộ sưu tập nào trong không gian làm việc này.",
+      "add_page": "Thêm trang",
+      "page_moved": "Đã chuyển trang vào bộ sưu tập.",
+      "page_move_failed": "Không thể chuyển trang vào bộ sưu tập.",
+      "page_removed_from_collection": "Đã bỏ trang khỏi bộ sưu tập.",
+      "page_remove_failed": "Không thể bỏ trang khỏi bộ sưu tập.",
+      "remove_from_collection": "Bỏ khỏi bộ sưu tập",
+      "reorder_failed": "Không thể thay đổi thứ tự trang.",
+      "pages": "trang",
+      "default": "Mặc định",
+      "name_placeholder": "Tên bộ sưu tập",
+      "description_placeholder": "Mô tả (không bắt buộc)",
+      "load_failed": "Không thể tải bộ sưu tập này."
+    },
     "upgrade_flow": {
       "title": "Nâng cấp để mở khóa Wiki",
       "description": "Mở khóa trang công khai, lịch sử phiên bản, trang được chia sẻ, cộng tác thời gian thực và trang không gian làm việc cho wiki, tài liệu toàn công ty và cơ sở kiến thức với Plane Pro.",
@@ -110,22 +206,21 @@
       "title": "Trang lồng nhau yêu cầu gói trả phí. Nâng cấp để mở khóa."
     },
     "tabs": {
-      "public": "Public",
-      "private": "Private",
-      "archived": "Archived",
-      "favorites": "Favorites"
-    },
-    "actions": {
-      "create_page": "Create page",
-      "create_sub_page": "Create sub-page",
-      "move": "Move",
-      "add_page": "Add page"
+      "public": "Công khai",
+      "private": "Riêng tư",
+      "archived": "Đã lưu trữ",
+      "favorites": "Yêu thích"
     },
     "errors": {
-      "no_designated_workspace": "Company Wiki is not configured. Set COMPANY_WIKI_WORKSPACE_SLUG on the API to enable it.",
-      "read_only": "You only have read access to this page.",
-      "permission_denied": "You don't have permission to perform this action.",
-      "load_failed": "Wiki page could not be loaded. Please try again."
+      "no_designated_workspace": "Wiki chung chưa được cấu hình. Đặt COMPANY_WIKI_WORKSPACE_SLUG trên API để bật tính năng này.",
+      "read_only": "Bạn chỉ có quyền xem trang này.",
+      "permission_denied": "Bạn không có quyền thực hiện thao tác này.",
+      "load_failed": "Không thể tải trang Wiki. Vui lòng thử lại.",
+      "move_failed": "Không thể di chuyển trang",
+      "move_failed_description": "Không thể di chuyển trang. Vui lòng thử lại.",
+      "not_configured_title": "Wiki chưa được cấu hình",
+      "not_configured_admin_hint": "Đặt COMPANY_WIKI_WORKSPACE_SLUG trên API để bật tính năng này.",
+      "access_load_failed": "Không thể tải quyền truy cập Wiki. Vui lòng thử lại."
     },
     "templates": {
       "title": "Biểu mẫu",

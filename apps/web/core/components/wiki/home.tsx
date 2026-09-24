@@ -3,6 +3,7 @@ import { observer } from "mobx-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
+import { useTranslation } from "@plane/i18n";
 import { PageIcon } from "@plane/propel/icons";
 import type { TWikiScope } from "@plane/types";
 import { UserGreetingsView } from "@/components/home/user-greetings";
@@ -20,6 +21,7 @@ const workspaceService = new WorkspaceService();
 const workspacePageService = new WorkspacePageService();
 
 export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScope }) {
+  const { t } = useTranslation();
   const navigation = useWikiNavigation();
   const { data: currentUser } = useUser();
   const searchParams = useSearchParams();
@@ -39,7 +41,9 @@ export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScop
     error: navigationError,
     isLoading: navigationLoading,
     mutate: mutateNavigation,
-  } = useSWR(!scope.is_member && !archivedView ? `WIKI_HOME_SCOPE_${scope.slug}` : null, () => navigation.fetchScope(scope.slug));
+  } = useSWR(!scope.is_member && !archivedView ? `WIKI_HOME_SCOPE_${scope.slug}` : null, () =>
+    navigation.fetchScope(scope.slug)
+  );
 
   const scopeData = navigation.getScope(scope.slug);
   const model = buildWikiHomeModel({
@@ -52,34 +56,34 @@ export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScop
     error: archivedError,
     isLoading: archivedLoading,
     mutate: mutateArchived,
-  } = useSWR(archivedView ? `WIKI_ARCHIVED_${scope.slug}` : null, () =>
-    workspacePageService.fetchArchived(scope.slug)
-  );
+  } = useSWR(archivedView ? `WIKI_ARCHIVED_${scope.slug}` : null, () => workspacePageService.fetchArchived(scope.slug));
 
   if (archivedView) {
     return (
       <div className="h-full overflow-y-auto">
         <div className="mx-auto w-full max-w-[800px] px-6 py-8">
-          <h1 className="text-20 font-semibold text-primary">Archived</h1>
-          <p className="mt-1 text-13 text-secondary">Pages archived from this Wiki.</p>
+          <h1 className="text-20 font-semibold text-primary">{t("wiki.sidebar.archived")}</h1>
+          <p className="mt-1 text-13 text-secondary">{t("wiki.home.archived_description")}</p>
 
           <div className="mt-6">
             {archivedLoading && (
-              <div className="space-y-2" aria-label="Loading archived Wiki pages">
+              <div className="space-y-2" aria-label={t("wiki.home.loading_archived")}>
                 <div className="h-10 w-full animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
                 <div className="h-10 w-4/5 animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
               </div>
             )}
             {archivedError && (
               <div className="rounded-lg bg-layer-1 p-6 text-center text-13 text-secondary">
-                <p>Could not load archived Wiki pages.</p>
+                <p>{t("wiki.home.archived_load_failed")}</p>
                 <button type="button" onClick={() => void mutateArchived()} className="mt-2 text-accent-primary">
-                  Retry
+                  {t("wiki.sidebar.retry")}
                 </button>
               </div>
             )}
             {!archivedLoading && !archivedError && (archivedPages?.length ?? 0) === 0 && (
-              <div className="rounded-lg bg-layer-1 p-8 text-center text-13 text-secondary">No archived pages.</div>
+              <div className="rounded-lg bg-layer-1 p-8 text-center text-13 text-secondary">
+                {t("wiki.home.no_archived")}
+              </div>
             )}
             {!archivedLoading &&
               !archivedError &&
@@ -92,7 +96,7 @@ export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScop
                   <span className="grid size-8 flex-shrink-0 place-items-center rounded-sm bg-layer-2">
                     <PageIcon className="size-4 text-tertiary" />
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{page.name || "Untitled"}</span>
+                  <span className="min-w-0 flex-1 truncate">{page.name || t("wiki.untitled")}</span>
                 </Link>
               ))}
           </div>
@@ -108,22 +112,22 @@ export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScop
 
         <section ref={recentRef} className="py-4">
           <div className="mb-4 text-14 font-semibold text-tertiary">
-            {scope.is_member ? "Recents" : "Recently updated"}
+            {scope.is_member ? t("wiki.home.recents") : t("wiki.home.recently_updated")}
           </div>
 
           {scope.is_member ? (
             <>
               {recentsLoading && (
-                <div className="space-y-2 rounded-lg bg-layer-1 p-4" aria-label="Loading Wiki recents">
+                <div className="space-y-2 rounded-lg bg-layer-1 p-4" aria-label={t("wiki.home.loading_recents")}>
                   <div className="h-8 w-full animate-pulse rounded bg-layer-2 motion-reduce:animate-none" />
                   <div className="h-8 w-4/5 animate-pulse rounded bg-layer-2 motion-reduce:animate-none" />
                 </div>
               )}
               {recentsError && (
                 <div className="rounded-lg bg-layer-1 p-6 text-center text-13 text-secondary">
-                  <p>Could not load recent Wiki pages.</p>
+                  <p>{t("wiki.home.recents_load_failed")}</p>
                   <button type="button" onClick={() => void mutateRecents()} className="mt-2 text-accent-primary">
-                    Retry
+                    {t("wiki.sidebar.retry")}
                   </button>
                 </div>
               )}
@@ -134,33 +138,29 @@ export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScop
                   ?.filter((activity) => activity.entity_name === "workspace_page" && activity.entity_data)
                   .slice(0, 6)
                   .map((activity) => (
-                    <RecentPage
-                      key={activity.id}
-                      activity={activity}
-                      ref={recentRef}
-                      workspaceSlug={scope.slug}
-                    />
+                    <RecentPage key={activity.id} activity={activity} ref={recentRef} workspaceSlug={scope.slug} />
                   ))}
             </>
           ) : (
             <>
               {navigationLoading && scopeData.status !== "loaded" && (
-                <div className="space-y-2 rounded-lg bg-layer-1 p-4" aria-label="Loading recently updated Wiki pages">
+                <div
+                  className="space-y-2 rounded-lg bg-layer-1 p-4"
+                  aria-label={t("wiki.home.loading_recently_updated")}
+                >
                   <div className="h-8 w-full animate-pulse rounded bg-layer-2 motion-reduce:animate-none" />
                   <div className="h-8 w-4/5 animate-pulse rounded bg-layer-2 motion-reduce:animate-none" />
                 </div>
               )}
               {navigationError && scopeData.status !== "loaded" && (
                 <div className="rounded-lg bg-layer-1 p-6 text-center text-13 text-secondary">
-                  <p>Could not load recently updated Wiki pages.</p>
+                  <p>{t("wiki.home.recently_updated_load_failed")}</p>
                   <button type="button" onClick={() => void mutateNavigation()} className="mt-2 text-accent-primary">
-                    Retry
+                    {t("wiki.sidebar.retry")}
                   </button>
                 </div>
               )}
-              {scopeData.status === "loaded" && model.recentlyUpdated.length === 0 && (
-                <RecentsEmptyState type="page" />
-              )}
+              {scopeData.status === "loaded" && model.recentlyUpdated.length === 0 && <RecentsEmptyState type="page" />}
               {scopeData.status === "loaded" &&
                 model.recentlyUpdated.map((page) => (
                   <Link
@@ -171,7 +171,7 @@ export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScop
                     <span className="grid size-8 flex-shrink-0 place-items-center rounded-sm bg-layer-2">
                       <PageIcon className="size-4 text-tertiary" />
                     </span>
-                    <span className="min-w-0 flex-1 truncate">{page.name || "Untitled"}</span>
+                    <span className="min-w-0 flex-1 truncate">{page.name || t("wiki.untitled")}</span>
                   </Link>
                 ))}
             </>

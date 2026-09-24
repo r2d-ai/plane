@@ -60,12 +60,12 @@ function collectionSubtreeIds(boundaryIds: string[], pages: TPage[]): string[] {
   return [...included];
 }
 
-function formatLastActivity(value?: string): string {
+function formatLastActivity(value?: string, locale?: string): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     year: date.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
@@ -81,6 +81,7 @@ function CollectionTableRow({
   workspaceSlug: string;
   nestedPages: number;
 }) {
+  const { t, currentLocale } = useTranslation();
   const detail = item.page_detail;
   const owner = detail.owner_detail;
 
@@ -91,7 +92,7 @@ function CollectionTableRow({
     >
       <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
         <PageIcon className="size-4 flex-shrink-0 text-tertiary" />
-        <span className="truncate">{detail.name || "Untitled"}</span>
+        <span className="truncate">{detail.name || t("wiki.untitled")}</span>
       </div>
       <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 text-secondary">
         {owner?.avatar_url ? (
@@ -104,7 +105,7 @@ function CollectionTableRow({
         <span className="truncate">{owner?.display_name || "—"}</span>
       </div>
       <div className="px-3 py-2.5 text-secondary">{nestedPages}</div>
-      <div className="px-3 py-2.5 text-secondary">{formatLastActivity(detail.updated_at)}</div>
+      <div className="px-3 py-2.5 text-secondary">{formatLastActivity(detail.updated_at, currentLocale)}</div>
     </Link>
   );
 }
@@ -120,12 +121,7 @@ export const WikiCollectionView = observer(function WikiCollectionView({
   const navigation = useWikiNavigation();
   const [addExistingOpen, setAddExistingOpen] = useState(false);
 
-  const {
-    data,
-    error,
-    isLoading,
-    mutate,
-  } = useSWR(`WIKI_COLLECTION_${scope.slug}_${collectionId}`, async () => {
+  const { data, error, isLoading, mutate } = useSWR(`WIKI_COLLECTION_${scope.slug}_${collectionId}`, async () => {
     const [collection, pages] = await Promise.all([
       collectionService.fetchById(scope.slug, collectionId),
       collectionService.fetchPages(scope.slug, collectionId),
@@ -152,7 +148,7 @@ export const WikiCollectionView = observer(function WikiCollectionView({
   if (error || !data?.collection) {
     return (
       <div className="mx-auto w-full max-w-[900px] px-6 py-12 text-center text-13 text-secondary">
-        <p>Could not load this collection.</p>
+        <p>{t("wiki.collections.load_failed")}</p>
         <button type="button" onClick={() => void mutate()} className="mt-2 text-accent-primary">
           {t("wiki.sidebar.retry")}
         </button>
@@ -171,14 +167,16 @@ export const WikiCollectionView = observer(function WikiCollectionView({
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <span className="mt-0.5 grid size-8 place-items-center rounded-md bg-layer-1 text-tertiary">
-            {collection.access === EPageCollectionAccess.PUBLIC ? (
-              <Globe2 className="size-4" />
-            ) : (
-              <Lock className="size-4" />
-            )}
+              {collection.access === EPageCollectionAccess.PUBLIC ? (
+                <Globe2 className="size-4" />
+              ) : (
+                <Lock className="size-4" />
+              )}
             </span>
             <div className="min-w-0">
-              <h1 className="truncate text-20 font-semibold text-primary">{collection.name}</h1>
+              <h1 className="truncate text-20 font-semibold text-primary">
+                {collection.is_default ? t("wiki_collections.predefined.general") : collection.name}
+              </h1>
               {collection.description && <p className="mt-1 text-13 text-secondary">{collection.description}</p>}
             </div>
           </div>

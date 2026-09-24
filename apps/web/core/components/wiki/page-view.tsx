@@ -217,7 +217,7 @@ export const WorkspaceWikiPageView = observer(function WorkspaceWikiPageView({
             showComments && "bg-primary text-white"
           )}
         >
-          {showComments ? "Hide Comments" : "Comments"}
+          {showComments ? t("wiki.actions.hide_comments") : t("wiki.actions.show_comments")}
         </button>
       </div>
     </>

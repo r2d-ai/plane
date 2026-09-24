@@ -31,7 +31,7 @@ export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNav
     setCreating(true);
     try {
       pageStore.activateScope(activeScope.slug);
-      const page = await pageStore.createPage({ name: "Untitled", access: EPageAccess.PUBLIC });
+      const page = await pageStore.createPage({ name: t("wiki.untitled"), access: EPageAccess.PUBLIC });
       if (page?.id) {
         router.push(getWikiPagePath(activeScope.slug, page.id));
         onNavigate();
@@ -44,7 +44,7 @@ export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNav
   };
 
   return (
-    <nav aria-label="Wiki" className="h-full overflow-y-auto px-2 py-3">
+    <nav aria-label={t("wiki.sidebar.title")} className="h-full overflow-y-auto px-2 py-3">
       <div className="mb-3 flex items-center justify-between px-2">
         <h2 className="text-14 font-semibold text-primary">{t("wiki.sidebar.title")}</h2>
       </div>
@@ -59,16 +59,16 @@ export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNav
         </button>
       )}
       {isLoading && (
-        <div className="space-y-2 p-2" aria-label="Loading Wiki">
+        <div className="space-y-2 p-2" aria-label={t("wiki.sidebar.loading")}>
           <div className="h-5 w-4/5 animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
           <div className="h-5 w-2/3 animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
         </div>
       )}
       {error && (
         <div role="alert" className="p-2 text-12">
-          Could not load Wiki scopes.{" "}
+          {t("wiki.sidebar.load_failed")}{" "}
           <button type="button" onClick={() => void mutate()} className="text-accent-primary">
-            Retry
+            {t("wiki.sidebar.retry")}
           </button>
         </div>
       )}

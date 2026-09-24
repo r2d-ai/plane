@@ -8,6 +8,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import type { EditorRefApi } from "@plane/editor";
 // plane imports
 import { CheckIcon, ChevronDownIcon } from "@plane/propel/icons";
+import { useTranslation } from "@plane/i18n";
 import { Tooltip } from "@plane/propel/tooltip";
 import { CustomMenu } from "@plane/ui";
 import { cn } from "@plane/utils";
@@ -69,6 +70,7 @@ ToolbarButton.displayName = "ToolbarButton";
 const toolbarItems = TOOLBAR_ITEMS.document;
 
 export function PageToolbar(props: Props) {
+  const { t } = useTranslation();
   const { editorRef } = props;
   // states
   const [activeStates, setActiveStates] = useState<Record<string, boolean>>(() => {
@@ -128,7 +130,7 @@ export function PageToolbar(props: Props) {
               }
             )}
           >
-            {activeTypography?.name || "Text"}
+            {t(`page_controls.typography.${activeTypography?.renderKey || "text"}`)}
             <ChevronDownIcon className="size-3 shrink-0" />
           </span>
         }
@@ -157,7 +159,7 @@ export function PageToolbar(props: Props) {
           >
             <span className="flex items-center gap-2">
               <item.icon className="size-3" />
-              {item.name}
+              {t(`page_controls.typography.${item.renderKey}`)}
             </span>
             {activeTypography?.itemKey === item.itemKey && <CheckIcon className="size-3 shrink-0 text-tertiary" />}
           </CustomMenu.MenuItem>
