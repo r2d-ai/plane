@@ -16,7 +16,7 @@ import { WikiWorkspaceSection } from "./workspace-section";
 const wikiService = new WikiService();
 
 export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNavigate: () => void }) {
-  const { workspaceSlug, pageId } = useParams();
+  const { workspaceSlug, pageId, collectionId } = useParams();
   const { data: scopes, error, isLoading, mutate } = useSWR("WIKI_SCOPES", () => wikiService.fetchScopes());
   const pageStore = usePageStore(EPageStoreType.WORKSPACE);
   const { t } = useTranslation();
@@ -78,6 +78,7 @@ export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNav
           label={model.defaultScope.label}
           activeSlug={workspaceSlug}
           activePageId={pageId}
+          activeCollectionId={collectionId}
           initiallyExpanded
           isDefaultScope
           onNavigate={onNavigate}
@@ -95,6 +96,7 @@ export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNav
               label={scope.label}
               activeSlug={workspaceSlug}
               activePageId={pageId}
+              activeCollectionId={collectionId}
               onNavigate={onNavigate}
             />
           ))}
