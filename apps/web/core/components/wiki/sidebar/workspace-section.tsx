@@ -119,7 +119,7 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
 
   return (
     <>
-    <div>
+      <div>
       {isDefaultScope ? (
         <Link
           href={`/wiki/${scope.slug}`}
@@ -274,6 +274,12 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
           )}
         </div>
       )}
-    </div>
+      </div>
+      <CollectionCreateEditModal
+        isOpen={createCollectionOpen}
+        onClose={() => setCreateCollectionOpen(false)}
+        onSubmit={createCollection}
+      />
+    </>
   );
 });
