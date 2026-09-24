@@ -11,15 +11,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IndexeddbPersistence } from "y-indexeddb";
 // yjs
 import type * as Y from "yjs";
+// helpers
+import {
+  isForcedCloseCode,
+  shouldAttemptHeal,
+  KEEPALIVE_SYNC_INTERVAL_MS,
+  WATCHDOG_POLL_MS,
+} from "@/helpers/collaboration-recovery";
 // types
 import type { CollaborationState, CollabStage, CollaborationError } from "@/types/collaboration";
-
-// Helper to check if a close code indicates a forced close
-const isForcedCloseCode = (code: number | undefined): boolean => {
-  if (!code) return false;
-  // All custom close codes (4000-4003) are treated as forced closes
-  return code >= 4000 && code <= 4003;
-};
 
 type UseYjsSetupArgs = {
   docId: string;
@@ -49,6 +49,8 @@ export const useYjsSetup = ({ docId, serverUrl, authToken, onStateChange }: UseY
   const forcedCloseSignalRef = useRef(false);
   const isDisposedRef = useRef(false);
   const stageRef = useRef<CollabStage>({ kind: "initial" });
+  const stageSinceRef = useRef(Date.now());
+  const lastCloseCodeRef = useRef<number | undefined>(undefined);
   const lastReconnectTimeRef = useRef(0);
 
   // Create/destroy provider in effect (not during render)
@@ -58,17 +60,30 @@ export const useYjsSetup = ({ docId, serverUrl, authToken, onStateChange }: UseY
     isDisposedRef.current = false;
     forcedCloseSignalRef.current = false;
     stageRef.current = { kind: "initial" };
+    stageSinceRef.current = Date.now();
+    lastCloseCodeRef.current = undefined;
+
+    // Single stage transition path: keeps the ref, the watchdog staleness
+    // clock and the rendered state in lockstep.
+    const applyStage = (newStage: CollabStage) => {
+      stageRef.current = newStage;
+      stageSinceRef.current = Date.now();
+      setStage(newStage);
+    };
 
     const provider = new HocuspocusProvider({
       name: docId,
       token: authToken,
       url: serverUrl,
+      // The provider's liveness checker only counts incoming data messages, so
+      // an idle document would otherwise be torn down and reconnected every
+      // `messageReconnectTimeout`. Periodic syncs generate real traffic and
+      // keep idle documents connected.
+      forceSyncInterval: KEEPALIVE_SYNC_INTERVAL_MS,
       onAuthenticationFailed: () => {
         if (isDisposedRef.current) return;
         const error: CollaborationError = { type: "auth-failed", message: "Authentication failed" };
-        const newStage = { kind: "disconnected" as const, error };
-        stageRef.current = newStage;
-        setStage(newStage);
+        applyStage({ kind: "disconnected", error });
       },
       onConnect: () => {
         if (isDisposedRef.current) {
@@ -77,32 +92,28 @@ export const useYjsSetup = ({ docId, serverUrl, authToken, onStateChange }: UseY
         }
         retryCountRef.current = 0;
         // After successful connection, transition to awaiting-sync (onSynced will move to synced)
-        const newStage = { kind: "awaiting-sync" as const };
-        stageRef.current = newStage;
-        setStage(newStage);
+        applyStage({ kind: "awaiting-sync" });
       },
       onStatus: ({ status: providerStatus }) => {
         if (isDisposedRef.current) return;
         if (providerStatus === "connecting") {
           // Derive whether this is initial connect or reconnection from retry count
           const isReconnecting = retryCountRef.current > 0;
-          setStage(isReconnecting ? { kind: "reconnecting", attempt: retryCountRef.current } : { kind: "connecting" });
+          applyStage(
+            isReconnecting ? { kind: "reconnecting", attempt: retryCountRef.current } : { kind: "connecting" }
+          );
         } else if (providerStatus === "disconnected") {
           // Do not transition here; let handleClose decide the final stage
         } else if (providerStatus === "connected") {
           // Connection succeeded, move to awaiting-sync
-          const newStage = { kind: "awaiting-sync" as const };
-          stageRef.current = newStage;
-          setStage(newStage);
+          applyStage({ kind: "awaiting-sync" });
         }
       },
       onSynced: () => {
         if (isDisposedRef.current) return;
         retryCountRef.current = 0;
         // Document sync complete
-        const newStage = { kind: "synced" as const };
-        stageRef.current = newStage;
-        setStage(newStage);
+        applyStage({ kind: "synced" });
       },
     });
 
@@ -142,6 +153,7 @@ export const useYjsSetup = ({ docId, serverUrl, authToken, onStateChange }: UseY
       if (isDisposedRef.current) return;
 
       const closeCode = closeEvent.event?.code;
+      lastCloseCodeRef.current = closeCode;
       const wsProvider = provider.configuration.websocketProvider;
       const shouldConnect = wsProvider.shouldConnect;
       const isForcedClose = isForcedCloseCode(closeCode) || forcedCloseSignalRef.current || shouldConnect === false;
@@ -155,9 +167,7 @@ export const useYjsSetup = ({ docId, serverUrl, authToken, onStateChange }: UseY
           code: closeCode || 0,
           message: isManualDisconnect ? "Manually disconnected" : "Server forced connection close",
         };
-        const newStage = { kind: "disconnected" as const, error };
-        stageRef.current = newStage;
-        setStage(newStage);
+        applyStage({ kind: "disconnected", error });
 
         retryCountRef.current = 0;
         forcedCloseSignalRef.current = false;
@@ -177,16 +187,12 @@ export const useYjsSetup = ({ docId, serverUrl, authToken, onStateChange }: UseY
             type: "max-retries",
             message: `Failed to connect after ${DEFAULT_MAX_RETRIES} attempts`,
           };
-          const newStage = { kind: "disconnected" as const, error };
-          stageRef.current = newStage;
-          setStage(newStage);
+          applyStage({ kind: "disconnected", error });
 
           pauseProvider();
         } else {
           // Still have retries left, move to reconnecting
-          const newStage = { kind: "reconnecting" as const, attempt: retryCountRef.current };
-          stageRef.current = newStage;
-          setStage(newStage);
+          applyStage({ kind: "reconnecting", attempt: retryCountRef.current });
         }
       }
     };
@@ -194,6 +200,32 @@ export const useYjsSetup = ({ docId, serverUrl, authToken, onStateChange }: UseY
     provider.on("close", handleClose);
 
     setYjsSession({ provider, ydoc: provider.document });
+
+    // Self-healing watchdog: a terminal `disconnected` stage (auth hiccup,
+    // exhausted retries, provider give-up) is otherwise only recovered on tab
+    // focus/visibility/online, leaving the "Connection lost" badge stuck while
+    // the user keeps working. Recycle the connection whenever it is dead or a
+    // connection stage is wedged; server force closes stay terminal.
+    const healWatchdog = setInterval(() => {
+      if (
+        !shouldAttemptHeal({
+          isDisposed: isDisposedRef.current,
+          stageKind: stageRef.current.kind,
+          isDocumentForceClosed: isForcedCloseCode(lastCloseCodeRef.current),
+          msSinceStageChange: Date.now() - stageSinceRef.current,
+        })
+      )
+        return;
+
+      const wsProvider = provider.configuration.websocketProvider;
+      if (!wsProvider) return;
+
+      retryCountRef.current = 0;
+      wsProvider.shouldConnect = true;
+      applyStage({ kind: "connecting" });
+      wsProvider.disconnect();
+      wsProvider.connect();
+    }, WATCHDOG_POLL_MS);
 
     // Handle page visibility changes (sleep/wake, tab switching)
     const handleVisibilityChange = (event?: Event) => {
@@ -226,9 +258,7 @@ export const useYjsSetup = ({ docId, serverUrl, authToken, onStateChange }: UseY
           retryCountRef.current = 0;
 
           // Move to connecting state
-          const newStage = { kind: "connecting" as const };
-          stageRef.current = newStage;
-          setStage(newStage);
+          applyStage({ kind: "connecting" });
 
           wsProvider.disconnect();
           wsProvider.connect();
@@ -258,6 +288,8 @@ export const useYjsSetup = ({ docId, serverUrl, authToken, onStateChange }: UseY
       } catch (error) {
         console.error(`Error unregistering close handler:`, error);
       }
+
+      clearInterval(healWatchdog);
 
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleVisibilityChange);

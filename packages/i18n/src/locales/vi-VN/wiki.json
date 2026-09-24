@@ -37,7 +37,7 @@
     },
     "menu": {
       "create_new_page": "Tạo trang mới",
-      "add_existing_page": "Thêm trang hiện có",
+      "add_existing_page": "Thêm trang vào chuyên mục",
       "edit_collection": "Chỉnh sửa chuyên mục",
       "collection_options": "Tùy chọn chuyên mục"
     },
@@ -66,7 +66,7 @@
       "columns": {
         "page_name": "Tên trang",
         "owner": "Chủ sở hữu",
-        "nested_pages": "Trang lồng nhau",
+        "nested_pages": "Trang con",
         "last_activity": "Hoạt động gần nhất",
         "actions": "Thao tác"
       }
@@ -196,7 +196,7 @@
         "loading": "Đang tải xuống"
       },
       "tabs": {
-        "nested_pages": "Trang lồng nhau",
+        "nested_pages": "Trang con",
         "add_embeds": "Thêm nội dung nhúng",
         "publish_pages": "Xuất bản trang",
         "comments": "Bình luận"

@@ -236,7 +236,7 @@ export const PageEditorBody = observer(function PageEditorBody(props: Props) {
     }
   );
 
-  const isPageLoading = pageId === undefined || !realtimeConfig;
+  const isPageLoading = pageId === undefined || !realtimeConfig || !currentUser?.id;
 
   if (isPageLoading) return <PageContentLoader className={blockWidthClassName} />;
 
