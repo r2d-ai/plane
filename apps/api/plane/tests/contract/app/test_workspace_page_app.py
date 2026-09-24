@@ -21,6 +21,7 @@ from plane.db.models import (
     Project,
     ProjectPage,
     User,
+    UserRecentVisit,
     Workspace,
     WorkspaceMember,
 )
@@ -32,6 +33,10 @@ def _pages_url(slug):
 
 def _page_url(slug, page_id):
     return f"/api/workspaces/{slug}/pages/{page_id}/"
+
+
+def _recent_visits_url(slug):
+    return f"/api/workspaces/{slug}/recent-visits/"
 
 
 def _archive_url(slug, page_id):
@@ -128,10 +133,29 @@ class TestWorkspacePageCrud:
         mock_recent_visit.assert_called_once_with(
             slug=workspace.slug,
             entity_name="workspace_page",
-            entity_identifier=str(page.id),
+            entity_identifier=page.id,
             user_id=create_user.id,
             project_id=None,
         )
+
+    @pytest.mark.django_db
+    def test_workspace_page_recent_visit_is_returned_by_wiki_filter(self, session_client, workspace, create_user):
+        page = _make_wiki_page(workspace, create_user)
+        UserRecentVisit.objects.create(
+            workspace=workspace,
+            user=create_user,
+            entity_name="workspace_page",
+            entity_identifier=page.id,
+        )
+
+        response = session_client.get(_recent_visits_url(workspace.slug), {"entity_name": "workspace_page"})
+
+        assert response.status_code == 200
+        assert len(response.json()) == 1
+        assert response.json()[0]["entity_name"] == "workspace_page"
+        assert response.json()[0]["entity_identifier"] == str(page.id)
+        assert response.json()[0]["entity_data"]["id"] == str(page.id)
+        assert response.json()[0]["entity_data"]["name"] == page.name
 
     @pytest.mark.django_db
     def test_patch_scoped_to_workspace(self, session_client, workspace, create_user):
