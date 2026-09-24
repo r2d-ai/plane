@@ -5,7 +5,6 @@ import type { TWikiScope } from "@plane/types";
 import { cn } from "@plane/utils";
 import { useTranslation } from "@plane/i18n";
 import { useWikiNavigation } from "../../../hooks/store/use-wiki-navigation";
-import { getWikiPagePath } from "../../../helpers/wiki-routes";
 import {
   expandWikiWorkspace,
   getCollectionSubtreePages,

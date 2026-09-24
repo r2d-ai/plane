@@ -306,7 +306,7 @@ class WorkspacePageViewSet(BaseViewSet):
         if track_visit:
             recent_visited_task.delay(
                 slug=slug,
-                entity_name="page",
+                entity_name="workspace_page",
                 entity_identifier=page_id,
                 user_id=request.user.id,
                 project_id=None,

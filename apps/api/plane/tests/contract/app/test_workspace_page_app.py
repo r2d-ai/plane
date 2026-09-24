@@ -10,6 +10,7 @@ the workspace designated by ``COMPANY_WIKI_WORKSPACE_SLUG``.
 """
 
 import pytest
+from unittest.mock import patch
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -116,13 +117,21 @@ class TestWorkspacePageCrud:
         assert response.json()["access"] == Page.PRIVATE_ACCESS
 
     @pytest.mark.django_db
-    def test_retrieve_own_wiki_page(self, session_client, workspace, create_user):
+    @patch("plane.app.views.page.workspace.recent_visited_task.delay")
+    def test_retrieve_own_wiki_page(self, mock_recent_visit, session_client, workspace, create_user):
         page = _make_wiki_page(workspace, create_user)
 
         response = session_client.get(_page_url(workspace.slug, page.id))
 
         assert response.status_code == 200
         assert response.json()["name"] == "Wiki page"
+        mock_recent_visit.assert_called_once_with(
+            slug=workspace.slug,
+            entity_name="workspace_page",
+            entity_identifier=str(page.id),
+            user_id=create_user.id,
+            project_id=None,
+        )
 
     @pytest.mark.django_db
     def test_patch_scoped_to_workspace(self, session_client, workspace, create_user):
