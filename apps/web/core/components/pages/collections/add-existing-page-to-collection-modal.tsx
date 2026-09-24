@@ -50,7 +50,7 @@ export const AddExistingPageToCollectionModal = observer(function AddExistingPag
       await onAdded?.();
       onClose();
     } catch (err: any) {
-      setError(err?.error || err?.detail || t("common.error_message"));
+      setError(err?.error || err?.detail || t("wiki_collections.add_existing_page_modal.error_message"));
     } finally {
       setMovingPageId(null);
     }
