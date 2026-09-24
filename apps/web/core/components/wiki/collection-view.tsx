@@ -1,14 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Globe2, Lock } from "lucide-react";
+import { Globe2, Lock, Plus } from "lucide-react";
 import { useTranslation } from "@plane/i18n";
 import { PageIcon } from "@plane/propel/icons";
 import { EPageCollectionAccess, type TPage, type TPageCollectionPage, type TWikiScope } from "@plane/types";
 import { useWikiNavigation } from "../../hooks/store/use-wiki-navigation";
 import { getWikiPagePath } from "../../helpers/wiki-routes";
 import { WorkspacePageCollectionService } from "../../services/page/workspace-page-collection.service";
+import { AddExistingPageToCollectionModal } from "../pages/collections";
 
 const collectionService = new WorkspacePageCollectionService();
 
@@ -34,6 +35,29 @@ function countNestedPages(pageId: string, pages: TPage[]): number {
   }
 
   return count;
+}
+
+function collectionSubtreeIds(boundaryIds: string[], pages: TPage[]): string[] {
+  const childrenByParent = new Map<string, string[]>();
+  for (const page of pages) {
+    if (!page.id || !page.parent) continue;
+    const children = childrenByParent.get(page.parent) ?? [];
+    children.push(page.id);
+    childrenByParent.set(page.parent, children);
+  }
+
+  const included = new Set(boundaryIds);
+  const stack = [...boundaryIds];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) continue;
+    for (const child of childrenByParent.get(current) ?? []) {
+      if (included.has(child)) continue;
+      included.add(child);
+      stack.push(child);
+    }
+  }
+  return [...included];
 }
 
 function formatLastActivity(value?: string): string {
@@ -94,6 +118,7 @@ export const WikiCollectionView = observer(function WikiCollectionView({
 }) {
   const { t } = useTranslation();
   const navigation = useWikiNavigation();
+  const [addExistingOpen, setAddExistingOpen] = useState(false);
 
   const {
     data,
@@ -143,18 +168,30 @@ export const WikiCollectionView = observer(function WikiCollectionView({
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto w-full max-w-[1100px] px-6 py-8">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 grid size-8 place-items-center rounded-md bg-layer-1 text-tertiary">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="mt-0.5 grid size-8 place-items-center rounded-md bg-layer-1 text-tertiary">
             {collection.access === EPageCollectionAccess.PUBLIC ? (
               <Globe2 className="size-4" />
             ) : (
               <Lock className="size-4" />
             )}
-          </span>
-          <div className="min-w-0">
-            <h1 className="truncate text-20 font-semibold text-primary">{collection.name}</h1>
-            {collection.description && <p className="mt-1 text-13 text-secondary">{collection.description}</p>}
+            </span>
+            <div className="min-w-0">
+              <h1 className="truncate text-20 font-semibold text-primary">{collection.name}</h1>
+              {collection.description && <p className="mt-1 text-13 text-secondary">{collection.description}</p>}
+            </div>
           </div>
+          {scope.can_create && (
+            <button
+              type="button"
+              onClick={() => setAddExistingOpen(true)}
+              className="focus-visible:outline-accent-primary flex flex-shrink-0 items-center gap-1.5 rounded-md border border-subtle px-3 py-1.5 text-13 font-medium text-primary hover:bg-layer-1 focus-visible:outline-2"
+            >
+              <Plus className="size-3.5" />
+              Add existing page
+            </button>
+          )}
         </div>
 
         <div className="mt-7 overflow-x-auto rounded-lg border border-subtle">
@@ -184,6 +221,20 @@ export const WikiCollectionView = observer(function WikiCollectionView({
           </div>
         </div>
       </div>
+      <AddExistingPageToCollectionModal
+        isOpen={addExistingOpen}
+        onClose={() => setAddExistingOpen(false)}
+        workspaceSlug={scope.slug}
+        collectionId={collectionId}
+        pages={visiblePages}
+        currentPageIds={collectionSubtreeIds(
+          pages.map((item) => item.page),
+          visiblePages
+        )}
+        onAdded={async () => {
+          await Promise.all([mutate(), navigation.invalidateScope(scope.slug)]);
+        }}
+      />
     </div>
   );
 });
