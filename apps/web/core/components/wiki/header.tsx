@@ -77,8 +77,11 @@ export const WikiDetailHeader = observer(function WikiDetailHeader({
         onClose={() => setCollectionModalOpen(false)}
         workspaceSlug={workspaceSlug}
         pageId={pageId}
-        onMoved={async () => {
-          await navigation.invalidateScope(workspaceSlug);
+        onMoved={async (affectedCollectionId) => {
+          await navigation.invalidateScope(
+            workspaceSlug,
+            affectedCollectionId ? [affectedCollectionId] : undefined
+          );
         }}
       />
       )}
