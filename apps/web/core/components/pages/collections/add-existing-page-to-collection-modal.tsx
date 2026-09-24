@@ -60,7 +60,7 @@ export const AddExistingPageToCollectionModal = observer(function AddExistingPag
     <ModalCore isOpen={isOpen} handleClose={onClose} position={EModalPosition.TOP} width={EModalWidth.LG}>
       <div className="space-y-4 p-5">
         <div>
-          <h3 className="text-18 font-medium text-primary">Add existing page</h3>
+          <h3 className="text-18 font-medium text-primary">{t("wiki_collections.menu.add_existing_page")}</h3>
           <p className="mt-1 text-13 text-secondary">
             A page can belong to only one collection. Choosing a page already in another collection moves it here.
           </p>
@@ -71,14 +71,14 @@ export const AddExistingPageToCollectionModal = observer(function AddExistingPag
           <Input
             value={query}
             onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
-            placeholder="Search Wiki pages"
+            placeholder={t("wiki_collections.add_existing_page_modal.search_placeholder")}
             className="w-full pl-9"
           />
         </div>
 
         <div className="max-h-72 overflow-y-auto rounded-md border border-subtle">
           {candidates.length === 0 ? (
-            <div className="px-4 py-8 text-center text-13 text-secondary">No pages available to add.</div>
+            <div className="px-4 py-8 text-center text-13 text-secondary">{t("wiki_collections.add_existing_page_modal.no_pages_available")}</div>
           ) : (
             candidates.map((page) => (
               <button
@@ -90,7 +90,7 @@ export const AddExistingPageToCollectionModal = observer(function AddExistingPag
               >
                 <span className="min-w-0 flex-1 truncate text-primary">{page.name || "Untitled"}</span>
                 <span className="flex-shrink-0 text-12 text-tertiary">
-                  {movingPageId === page.id ? t("common.loading") : "Add"}
+                  {movingPageId === page.id ? t("common.loading") : t("common.add")}
                 </span>
               </button>
             ))
