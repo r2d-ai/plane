@@ -10,7 +10,7 @@ from datetime import date
 import uuid
 
 from dateutil.relativedelta import relativedelta
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Count, F, Func, OuterRef, Prefetch, Q
 
 from django.db.models.fields import DateField
@@ -50,6 +50,7 @@ from plane.bgtasks.event_tracking_task import track_event
 from plane.utils.url import contains_url
 from plane.utils.analytics_events import WORKSPACE_CREATED, WORKSPACE_DELETED
 from plane.utils.csv_utils import sanitize_csv_row
+from plane.utils.wiki_bootstrap import ensure_wiki_defaults
 
 
 class WorkSpaceViewSet(BaseViewSet):
@@ -121,21 +122,27 @@ class WorkSpaceViewSet(BaseViewSet):
                 )
 
             if serializer.is_valid(raise_exception=True):
-                serializer.save(owner=request.user)
-                # Create Workspace member
-                _ = WorkspaceMember.objects.create(
-                    workspace_id=serializer.data["id"],
-                    member=request.user,
-                    role=20,
-                    company_role=request.data.get("company_role", ""),
-                )
+                # Workspace ownership, initial membership, and Wiki defaults are
+                # one bootstrap unit. If any invariant fails, do not leave a
+                # half-created workspace behind.
+                with transaction.atomic():
+                    workspace = serializer.save(owner=request.user)
+                    WorkspaceMember.objects.create(
+                        workspace=workspace,
+                        member=request.user,
+                        role=20,
+                        company_role=request.data.get("company_role", ""),
+                    )
+                    ensure_wiki_defaults(workspace)
 
-                # Get total members and role
-                total_members = WorkspaceMember.objects.filter(workspace_id=serializer.data["id"]).count()
-                data = serializer.data
-                data["total_members"] = total_members
-                data["role"] = 20
+                    # Get total members and role
+                    total_members = WorkspaceMember.objects.filter(workspace=workspace).count()
+                    data = serializer.data
+                    data["total_members"] = total_members
+                    data["role"] = 20
 
+                # Seed project data only after the transaction above committed,
+                # so the worker can always resolve the workspace.
                 workspace_seed.delay(serializer.data["id"])
 
                 track_event.delay(

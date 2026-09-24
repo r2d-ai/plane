@@ -7,7 +7,7 @@ from django.urls import reverse
 from rest_framework import status
 from unittest.mock import patch
 
-from plane.db.models import Workspace, WorkspaceMember
+from plane.db.models import Page, PageCollection, PageCollectionPage, Workspace, WorkspaceMember
 
 
 @pytest.mark.contract
@@ -54,6 +54,13 @@ class TestWorkspaceAPI:
         workspace_member = WorkspaceMember.objects.filter(workspace=workspace, member=user).first()
         assert workspace.owner == user
         assert workspace_member.role == 20
+
+        # Wiki defaults are created synchronously with the workspace.
+        collection = PageCollection.objects.get(workspace=workspace, is_default=True)
+        welcome = Page.objects.get(workspace=workspace, external_source="wiki_bootstrap", external_id="welcome-v1")
+        assert collection.name == "General"
+        assert welcome.is_global is True
+        assert PageCollectionPage.objects.filter(collection=collection, page=welcome).exists()
 
         # Verify the workspace_seed task was called
         mock_workspace_seed.assert_called_once_with(response.data["id"])
