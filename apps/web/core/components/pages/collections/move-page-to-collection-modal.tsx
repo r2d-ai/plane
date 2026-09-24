@@ -20,7 +20,7 @@ type Props = {
   workspaceSlug: string;
   pageId: string;
   currentPageCollectionId?: string;
-  onMoved?: () => Promise<void> | void;
+  onMoved?: (affectedCollectionId?: string) => Promise<void> | void;
 };
 
 export const MovePageToCollectionModal = observer(function MovePageToCollectionModal(props: Props) {
@@ -64,7 +64,7 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
         title: t("common.success"),
         message: t("wiki.collections.page_moved"),
       });
-      await onMoved?.();
+      await onMoved?.(selectedCollectionId);
       onClose();
     } catch {
       setToast({
@@ -88,7 +88,7 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
         message: t("wiki.collections.page_removed_from_collection"),
       });
       setSelectedCollectionId(null);
-      await onMoved?.();
+      await onMoved?.(effectiveCurrentCollectionId);
       onClose();
     } catch {
       setToast({
@@ -156,7 +156,7 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
               loading={isMoving}
               disabled={!selectedCollectionId || selectedCollectionId === effectiveCurrentCollectionId}
             >
-              {t("common.move")}
+              {t("wiki_collections.add_existing_page_modal.submit")}
             </Button>
           </div>
         </div>
