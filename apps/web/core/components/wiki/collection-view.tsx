@@ -189,7 +189,7 @@ export const WikiCollectionView = observer(function WikiCollectionView({
               className="focus-visible:outline-accent-primary flex flex-shrink-0 items-center gap-1.5 rounded-md border border-subtle px-3 py-1.5 text-13 font-medium text-primary hover:bg-layer-1 focus-visible:outline-2"
             >
               <Plus className="size-3.5" />
-              Add existing page
+              {t("wiki_collections.menu.add_existing_page")}
             </button>
           )}
         </div>
@@ -232,7 +232,7 @@ export const WikiCollectionView = observer(function WikiCollectionView({
           visiblePages
         )}
         onAdded={async () => {
-          await Promise.all([mutate(), navigation.invalidateScope(scope.slug)]);
+          await Promise.all([mutate(), navigation.invalidateScope(scope.slug, [collectionId])]);
         }}
       />
     </div>
