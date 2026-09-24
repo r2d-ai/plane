@@ -399,7 +399,7 @@ class PageCollectionViewSet(BaseViewSet):
             return Response({"error": "Collection not found"}, status=status.HTTP_404_NOT_FOUND)
 
         associations = PageCollectionPage.objects.filter(collection=collection, deleted_at__isnull=True).select_related(
-            "page", "page__parent", "page__workspace"
+            "page", "page__parent", "page__workspace", "page__owned_by"
         )
         visible_ids = filter_visible_pages(
             Page.objects.filter(
