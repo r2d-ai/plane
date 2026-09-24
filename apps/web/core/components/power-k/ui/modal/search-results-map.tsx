@@ -18,6 +18,7 @@ import { generateWorkItemLink } from "@plane/utils";
 // components
 import type { TPowerKSearchResultsKeys } from "@/components/power-k/core/types";
 import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
+import { workPageSearchResultPath } from "./wiki-search-map";
 
 export type TPowerKSearchResultGroupDetails = {
   icon?: React.ComponentType<{ className?: string }>;
@@ -90,13 +91,8 @@ export const POWER_K_SEARCH_RESULTS_GROUPS_MAP: Record<TPowerKSearchResultsKeys,
         <span className="text-11 text-tertiary">{page.project__identifiers?.[0]}</span> {page.name}
       </p>
     ),
-    path: (page: IWorkspacePageSearchResult, projectId: string | undefined) => {
-      let redirectProjectId = page?.project_ids?.[0];
-      if (!!projectId && page?.project_ids?.includes(projectId)) redirectProjectId = projectId;
-      return redirectProjectId
-        ? `/${page?.workspace__slug}/projects/${redirectProjectId}/pages/${page?.id}`
-        : `/${page?.workspace__slug}/wiki/${page?.id}`;
-    },
+    path: (page: IWorkspacePageSearchResult, projectId: string | undefined) =>
+      workPageSearchResultPath(page, projectId),
     title: "Pages",
   },
   project: {

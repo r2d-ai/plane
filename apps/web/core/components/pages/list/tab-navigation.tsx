@@ -38,7 +38,7 @@ export const PageTabNavigation = observer(function PageTabNavigation(props: TPag
   const pageStore = usePageStore(storeType ?? EPageStoreType.WORKSPACE);
   const favoritesCount =
     storeType === EPageStoreType.WORKSPACE
-      ? (pageStore as IWorkspacePageStore).getCurrentWorkspacePageIdsByTab?.("favorites")?.length ?? 0
+      ? ((pageStore as IWorkspacePageStore).getCurrentWorkspacePageIdsByTab?.("favorites")?.length ?? 0)
       : 0;
 
   const tabs: { key: TPageNavigationTabs; label: string }[] = [
@@ -76,9 +76,7 @@ export const PageTabNavigation = observer(function PageTabNavigation(props: TPag
               <span
                 className={cn(
                   "flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-10 font-medium",
-                  tab.key === pageType
-                    ? "bg-accent-primary/20 text-accent-primary"
-                    : "bg-layer-3 text-secondary"
+                  tab.key === pageType ? "bg-accent-primary/20 text-accent-primary" : "bg-layer-3 text-secondary"
                 )}
               >
                 {favoritesCount}

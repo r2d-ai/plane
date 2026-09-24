@@ -10,6 +10,7 @@ import { computedFn } from "mobx-utils";
 import { EPageAccess, EUserPermissions } from "@plane/constants";
 import type { TPage } from "@plane/types";
 import { EUserWorkspaceRoles } from "@plane/types";
+import { getWikiHomePath, getWikiPagePath } from "../../helpers/wiki-routes";
 // plane web store
 import type { RootStore } from "@/store/root.store";
 // services
@@ -19,44 +20,50 @@ const workspacePageService = new WorkspacePageService();
 import { BasePage } from "./base-page";
 import type { TPageInstance } from "./base-page";
 
-export type TWorkspacePage = TPageInstance;
+export type TWorkspacePage = TPageInstance & {
+  /** workspace slug the page was fetched from; every page mutation targets it */
+  sourceWorkspaceSlug: string;
+};
 
 export class WorkspacePage extends BasePage implements TWorkspacePage {
-  constructor(store: RootStore, page: TPage) {
-    const { workspaceSlug } = store.router;
+  constructor(
+    store: RootStore,
+    page: TPage,
+    readonly sourceWorkspaceSlug: string
+  ) {
     // initialize base instance
     super(store, page, {
       update: async (payload) => {
-        if (!workspaceSlug || !page.id) throw new Error("Missing required fields.");
-        return await workspacePageService.update(workspaceSlug, page.id, payload);
+        if (!page.id) throw new Error("Missing required fields.");
+        return await workspacePageService.update(sourceWorkspaceSlug, page.id, payload);
       },
       updateDescription: async (document) => {
-        if (!workspaceSlug || !page.id) throw new Error("Missing required fields.");
-        await workspacePageService.updateDescription(workspaceSlug, page.id, document);
+        if (!page.id) throw new Error("Missing required fields.");
+        await workspacePageService.updateDescription(sourceWorkspaceSlug, page.id, document);
       },
       updateAccess: async (payload) => {
-        if (!workspaceSlug || !page.id) throw new Error("Missing required fields.");
-        await workspacePageService.updateAccess(workspaceSlug, page.id, payload);
+        if (!page.id) throw new Error("Missing required fields.");
+        await workspacePageService.updateAccess(sourceWorkspaceSlug, page.id, payload);
       },
       lock: async () => {
-        if (!workspaceSlug || !page.id) throw new Error("Missing required fields.");
-        await workspacePageService.lock(workspaceSlug, page.id);
+        if (!page.id) throw new Error("Missing required fields.");
+        await workspacePageService.lock(sourceWorkspaceSlug, page.id);
       },
       unlock: async () => {
-        if (!workspaceSlug || !page.id) throw new Error("Missing required fields.");
-        await workspacePageService.unlock(workspaceSlug, page.id);
+        if (!page.id) throw new Error("Missing required fields.");
+        await workspacePageService.unlock(sourceWorkspaceSlug, page.id);
       },
       archive: async () => {
-        if (!workspaceSlug || !page.id) throw new Error("Missing required fields.");
-        return await workspacePageService.archive(workspaceSlug, page.id);
+        if (!page.id) throw new Error("Missing required fields.");
+        return await workspacePageService.archive(sourceWorkspaceSlug, page.id);
       },
       restore: async () => {
-        if (!workspaceSlug || !page.id) throw new Error("Missing required fields.");
-        await workspacePageService.restore(workspaceSlug, page.id);
+        if (!page.id) throw new Error("Missing required fields.");
+        await workspacePageService.restore(sourceWorkspaceSlug, page.id);
       },
       duplicate: async () => {
-        if (!workspaceSlug || !page.id) throw new Error("Missing required fields.");
-        return await workspacePageService.duplicate(workspaceSlug, page.id);
+        if (!page.id) throw new Error("Missing required fields.");
+        return await workspacePageService.duplicate(sourceWorkspaceSlug, page.id);
       },
     });
     makeObservable(this, {
@@ -74,10 +81,16 @@ export class WorkspacePage extends BasePage implements TWorkspacePage {
     });
   }
 
+  /**
+   * @description inherited entity mutations (favorites) target the workspace
+   * the page was fetched from, never the router's current scope
+   */
+  protected getSourceWorkspaceSlug(): string {
+    return this.sourceWorkspaceSlug;
+  }
+
   private getCurrentUserWorkspaceRole = computedFn((): EUserPermissions | undefined => {
-    const { workspaceSlug } = this.rootStore.router;
-    if (!workspaceSlug) return;
-    const workspaceRole = this.rootStore.user.permission.getWorkspaceRoleByWorkspaceSlug(workspaceSlug);
+    const workspaceRole = this.rootStore.user.permission.getWorkspaceRoleByWorkspaceSlug(this.sourceWorkspaceSlug);
     if (!workspaceRole) return;
     if (typeof workspaceRole === "number") return workspaceRole as EUserPermissions;
     if (workspaceRole === EUserWorkspaceRoles.ADMIN) return EUserPermissions.ADMIN;
@@ -87,11 +100,13 @@ export class WorkspacePage extends BasePage implements TWorkspacePage {
   });
 
   /**
-   * @description returns true if the current logged in user can access the page
+   * WorkspacePage entities are created only from the workspace Page list or
+   * detail API, both of which apply the effective Wiki read ACL. Private
+   * pages can be readable through a direct or inherited share, even when the
+   * viewer is neither the owner nor a workspace member.
    */
   get canCurrentUserAccessPage() {
-    const isPagePublic = this.access === EPageAccess.PUBLIC;
-    return isPagePublic || this.isCurrentUserOwner;
+    return true;
   }
 
   /**
@@ -177,8 +192,7 @@ export class WorkspacePage extends BasePage implements TWorkspacePage {
     );
   }
 
-  getRedirectionLink = computedFn(() => {
-    const { workspaceSlug } = this.rootStore.router;
-    return `/${workspaceSlug}/wiki/${this.id}`;
-  });
+  getRedirectionLink = computedFn(() =>
+    this.id ? getWikiPagePath(this.sourceWorkspaceSlug, this.id) : getWikiHomePath(this.sourceWorkspaceSlug)
+  );
 }

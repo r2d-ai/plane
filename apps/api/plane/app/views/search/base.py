@@ -173,28 +173,54 @@ class GlobalSearchEndpoint(BaseAPIView):
             for field in fields:
                 q |= Q(**{f"{field}__icontains": query})
 
+        project_filter = Q(
+            projects__project_projectmember__member=self.request.user,
+            projects__project_projectmember__is_active=True,
+            projects__archived_at__isnull=True,
+        )
+        wiki_filter = Q(pk__in=[])
+        if workspace_search != "false" or not project_id:
+            workspace = Workspace.objects.filter(slug=slug, deleted_at__isnull=True).first()
+            if workspace is not None:
+                workspace_role = resolve_workspace_role(workspace.id, self.request.user.id)
+                if workspace_role is not None:
+                    wiki_filter = Q(
+                        is_global=True,
+                        archived_at__isnull=True,
+                        deleted_at__isnull=True,
+                        workspace__workspace_member__member=self.request.user,
+                        workspace__workspace_member__is_active=True,
+                        workspace__workspace_member__deleted_at__isnull=True,
+                    ) & searchable_page_q(self.request.user, workspace)
+                    hidden = hidden_page_ids(workspace, self.request.user, workspace_role=workspace_role)
+                    if hidden:
+                        wiki_filter &= ~Q(id__in=hidden)
+
         pages = (
-            Page.objects.filter(
-                q,
-                projects__project_projectmember__member=self.request.user,
-                projects__project_projectmember__is_active=True,
-                projects__archived_at__isnull=True,
-                workspace__slug=slug,
-            )
+            Page.objects.filter(q, workspace__slug=slug, deleted_at__isnull=True)
+            .filter(project_filter | wiki_filter)
             .annotate(
-                project_ids=Coalesce(
-                    ArrayAgg("projects__id", distinct=True, filter=~Q(projects__id=True)),
-                    Value([], output_field=ArrayField(UUIDField())),
+                project_ids=Case(
+                    When(is_global=True, then=Value([], output_field=ArrayField(UUIDField()))),
+                    default=Coalesce(
+                        ArrayAgg("projects__id", distinct=True, filter=~Q(projects__id=True)),
+                        Value([], output_field=ArrayField(UUIDField())),
+                    ),
+                    output_field=ArrayField(UUIDField()),
                 )
             )
             .annotate(
-                project_identifiers=Coalesce(
-                    ArrayAgg(
-                        "projects__identifier",
-                        distinct=True,
-                        filter=~Q(projects__id=True),
+                project_identifiers=Case(
+                    When(is_global=True, then=Value([], output_field=ArrayField(CharField()))),
+                    default=Coalesce(
+                        ArrayAgg(
+                            "projects__identifier",
+                            distinct=True,
+                            filter=~Q(projects__id=True),
+                        ),
+                        Value([], output_field=ArrayField(CharField())),
                     ),
-                    Value([], output_field=ArrayField(CharField())),
+                    output_field=ArrayField(CharField()),
                 )
             )
         )

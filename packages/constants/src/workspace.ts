@@ -7,8 +7,7 @@
 import type { TStaticViewTypes, IWorkspaceSearchResults } from "@plane/types";
 import { EUserWorkspaceRoles } from "@plane/types";
 
-export const COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG: string =
-  (typeof process !== "undefined" && process.env?.VITE_COMPANY_WIKI_WORKSPACE_SLUG) || "";
+export const COMPANY_WIKI_DESIGNATED_WORKSPACE_SLUG: string = process.env.VITE_COMPANY_WIKI_WORKSPACE_SLUG || "";
 
 export const ORGANIZATION_SIZE: string[] = ["Just myself", "2-10", "11-50", "51-200", "201-500", "500+"];
 
@@ -294,12 +293,10 @@ export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS: Record<string, IWorkspac
 
 export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
   WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["home"],
-  WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["company-wiki"],
 ];
 
 export const WORKSPACE_SIDEBAR_STATIC_PINNED_NAVIGATION_ITEMS_LINKS: IWorkspaceSidebarNavigationItem[] = [
   WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["projects"],
-  WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS["wiki"],
 ];
 
 export const IS_FAVORITE_MENU_OPEN = "is_favorite_menu_open";

@@ -86,6 +86,16 @@
     }
   },
   "wiki": {
+    "sidebar": {
+      "title": "Wiki",
+      "new_page": "New page",
+      "instance_wiki": "Instance Wiki",
+      "workspaces": "Workspaces",
+      "favorites": "Favorites",
+      "my_pages": "My pages",
+      "shared_with_me": "Shared with me",
+      "retry": "Retry"
+    },
     "untitled": "Untitled",
     "hierarchy": {
       "wiki": "Wiki",

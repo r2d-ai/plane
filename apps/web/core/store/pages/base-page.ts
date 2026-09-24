@@ -497,10 +497,19 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
   };
 
   /**
+   * @description workspace scope that entity-level mutations (favorites) must
+   * target. Entities bound to a specific source workspace override this so
+   * mutations never depend on the router's current scope.
+   */
+  protected getSourceWorkspaceSlug(): string | undefined {
+    return this.store.router.workspaceSlug?.toString();
+  }
+
+  /**
    * @description add the page to favorites
    */
   addToFavorites = async () => {
-    const { workspaceSlug } = this.store.router;
+    const workspaceSlug = this.getSourceWorkspaceSlug();
     const projectId = this.project_ids?.[0] ?? null;
     if (!workspaceSlug || !this.id) return undefined;
 
@@ -509,7 +518,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       this.is_favorite = true;
     });
     await this.rootStore.favorite
-      .addFavorite(workspaceSlug.toString(), {
+      .addFavorite(workspaceSlug, {
         entity_type: "page",
         entity_identifier: this.id,
         project_id: projectId,
@@ -527,7 +536,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
    * @description remove the page from favorites
    */
   removePageFromFavorites = async () => {
-    const { workspaceSlug } = this.store.router;
+    const workspaceSlug = this.getSourceWorkspaceSlug();
     if (!workspaceSlug || !this.id) return undefined;
 
     const pageIsFavorite = this.is_favorite;

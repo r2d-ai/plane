@@ -29,23 +29,23 @@ function DiffSegmentView({ segment }: { segment: TDiffSegment }) {
       return <span className="text-secondary">{segment.oldText} </span>;
     case "added":
       return (
-        <span className="rounded-sm bg-green-500/10 text-green-500 dark:bg-green-400/10 dark:text-green-400">
+        <span className="bg-green-500/10 text-green-500 dark:bg-green-400/10 dark:text-green-400 rounded-sm">
           {segment.newText}{" "}
         </span>
       );
     case "removed":
       return (
-        <span className="rounded-sm bg-red-500/10 text-red-500 line-through dark:bg-red-400/10 dark:text-red-400">
+        <span className="bg-red-500/10 text-red-500 dark:bg-red-400/10 dark:text-red-400 rounded-sm line-through">
           {segment.oldText}{" "}
         </span>
       );
     case "changed":
       return (
         <span>
-          <span className="rounded-sm bg-red-500/10 text-red-500 line-through dark:bg-red-400/10 dark:text-red-400">
+          <span className="bg-red-500/10 text-red-500 dark:bg-red-400/10 dark:text-red-400 rounded-sm line-through">
             {segment.oldText}{" "}
           </span>
-          <span className="rounded-sm bg-green-500/10 text-green-500 dark:bg-green-400/10 dark:text-green-400">
+          <span className="bg-green-500/10 text-green-500 dark:bg-green-400/10 dark:text-green-400 rounded-sm">
             {segment.newText}{" "}
           </span>
         </span>
@@ -112,17 +112,17 @@ export const PageVersionDiff = observer(function PageVersionDiff(props: Props) {
           <h6 className="text-14 font-medium">Version Comparison</h6>
           <div className="flex items-center gap-2 text-11 text-tertiary">
             {addedCount > 0 && (
-              <span className="rounded-sm bg-green-500/10 px-1.5 py-0.5 text-green-600 dark:text-green-400">
+              <span className="bg-green-500/10 text-green-600 dark:text-green-400 rounded-sm px-1.5 py-0.5">
                 +{addedCount} added
               </span>
             )}
             {removedCount > 0 && (
-              <span className="rounded-sm bg-red-500/10 px-1.5 py-0.5 text-red-600 dark:text-red-400">
+              <span className="bg-red-500/10 text-red-600 dark:text-red-400 rounded-sm px-1.5 py-0.5">
                 -{removedCount} removed
               </span>
             )}
             {changedCount > 0 && (
-              <span className="rounded-sm bg-yellow-500/10 px-1.5 py-0.5 text-yellow-600 dark:text-yellow-400">
+              <span className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-sm px-1.5 py-0.5">
                 ~{changedCount} changed
               </span>
             )}

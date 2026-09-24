@@ -7,26 +7,54 @@
 import { Command } from "cmdk";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
+import { FileText } from "lucide-react";
 // plane imports
-import type { IWorkspaceSearchResults } from "@plane/types";
+import type { IWorkspaceSearchResults, TWikiSearchResult } from "@plane/types";
 // hooks
 import { useAppRouter } from "@/hooks/use-app-router";
 // helpers
 import { PowerKModalCommandItem } from "./command-item";
 import { POWER_K_SEARCH_RESULTS_GROUPS_MAP } from "./search-results-map";
+import { wikiSearchResultPath, wikiSearchResultValue } from "./wiki-search-map";
 
 type Props = {
   closePalette: () => void;
   results: IWorkspaceSearchResults;
+  wikiResults?: TWikiSearchResult[];
 };
 
 export const PowerKModalSearchResults = observer(function PowerKModalSearchResults(props: Props) {
-  const { closePalette, results } = props;
+  const { closePalette, results, wikiResults } = props;
   // router
   const router = useAppRouter();
   const { projectId: routerProjectId } = useParams();
   // derived values
   const projectId = routerProjectId?.toString();
+
+  if (wikiResults) {
+    if (wikiResults.length === 0) return null;
+    return (
+      <Command.Group heading="Pages">
+        {wikiResults.map((item) => (
+          <PowerKModalCommandItem
+            key={`${item.workspace_slug}:${item.page_id}`}
+            value={wikiSearchResultValue(item)}
+            label={
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate">{item.page_name}</span>
+                <span className="truncate text-11 text-tertiary">{item.workspace_name}</span>
+              </span>
+            }
+            icon={FileText}
+            onSelect={() => {
+              closePalette();
+              router.push(wikiSearchResultPath(item));
+            }}
+          />
+        ))}
+      </Command.Group>
+    );
+  }
 
   return (
     <>
