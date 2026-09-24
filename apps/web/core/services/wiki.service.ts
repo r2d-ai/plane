@@ -6,7 +6,7 @@
 
 // types
 import { API_BASE_URL } from "@plane/constants";
-import type { TWikiPersonalPage, TWikiPersonalSection, TWikiScope, TWikiSearchResponse } from "@plane/types";
+import type { TWikiPersonalPageResponse, TWikiPersonalSection, TWikiScope, TWikiSearchResponse } from "@plane/types";
 // services
 import { APIService } from "@/services/api.service";
 
@@ -31,8 +31,12 @@ export class WikiService extends APIService {
       });
   }
 
-  async fetchPersonalPages(section: TWikiPersonalSection): Promise<{ results: TWikiPersonalPage[] }> {
-    return this.get("/api/wiki/personal/", { params: { section } })
+  async fetchPersonalPages(
+    section: TWikiPersonalSection,
+    query = "",
+    cursor?: string
+  ): Promise<TWikiPersonalPageResponse> {
+    return this.get("/api/wiki/personal/", { params: { section, query, cursor } })
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

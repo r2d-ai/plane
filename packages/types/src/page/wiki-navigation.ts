@@ -15,6 +15,7 @@ export type TWikiScope = {
   is_default: boolean;
   is_member: boolean;
   can_create: boolean;
+  can_manage_collections: boolean;
 };
 
 export type TWikiSearchResult = {
@@ -33,6 +34,7 @@ export type TWikiPersonalPage = Pick<
   TWikiSearchResult,
   "page_id" | "page_name" | "workspace_slug" | "workspace_name" | "logo_props"
 >;
+export type TWikiPersonalPageResponse = { results: TWikiPersonalPage[]; next_cursor: string | null };
 
 export type TWikiNavigationScopeState = {
   pagesById: Record<string, TPage>;

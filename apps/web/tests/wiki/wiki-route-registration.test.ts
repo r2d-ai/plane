@@ -14,6 +14,7 @@ describe("Wiki route registration", () => {
     const paths = collectPaths(mergeRoutes(coreRoutes, extendedRoutes));
     expect(paths).toEqual(
       expect.arrayContaining([
+        "wiki/personal/:section",
         "company-wiki",
         "company-wiki/:pageId",
         ":workspaceSlug/wiki",

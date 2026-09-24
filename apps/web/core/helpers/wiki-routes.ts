@@ -1,4 +1,8 @@
+import type { TWikiPersonalSection } from "@plane/types";
+
 const cleanSegment = (value: string): string => value.trim().replace(/^\/+|\/+$/g, "");
+
+export const getWikiPersonalPath = (section: TWikiPersonalSection): string => `/wiki/personal/${section}`;
 
 export const getWikiHomePath = (workspaceSlug: string): string => {
   const slug = cleanSegment(workspaceSlug);

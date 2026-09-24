@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 from django.conf import settings
+from django.core import signing
 from django.db.models import Q
+from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
@@ -10,6 +12,7 @@ from plane.app.views.base import BaseAPIView
 from plane.db.models import Page, UserFavorite, Workspace, WorkspaceMember
 from plane.utils.page_access import (
     WORKSPACE_WRITE_ROLES,
+    can_manage_collections,
     company_wiki_open_read,
     hidden_page_ids,
     page_visibility_q,
@@ -90,6 +93,9 @@ class UnifiedWikiScopesEndpoint(BaseAPIView):
                     "is_default": workspace.slug == settings.COMPANY_WIKI_WORKSPACE_SLUG,
                     "is_member": workspace.id in roles,
                     "can_create": roles.get(workspace.id) in WORKSPACE_WRITE_ROLES,
+                    "can_manage_collections": can_manage_collections(
+                        workspace, request.user, workspace_role=roles.get(workspace.id)
+                    ),
                 }
                 for workspace in workspaces
             ]
@@ -115,6 +121,15 @@ class UnifiedWikiSearchEndpoint(BaseAPIView):
 class UnifiedWikiPersonalPagesEndpoint(BaseAPIView):
     def get(self, request):
         section = request.query_params.get("section")
+        query = request.query_params.get("query", "").strip()
+        if len(query) > 200:
+            raise ValidationError({"query": "Must be 200 characters or fewer."})
+        try:
+            limit = int(request.query_params.get("limit", 25))
+        except (ValueError, TypeError):
+            raise ValidationError({"limit": "Must be an integer between 1 and 100."})
+        if not 1 <= limit <= 100:
+            raise ValidationError({"limit": "Must be an integer between 1 and 100."})
         if section == "favorites":
             predicate = Q(
                 id__in=UserFavorite.objects.filter(
@@ -129,4 +144,36 @@ class UnifiedWikiPersonalPagesEndpoint(BaseAPIView):
             predicate = Q(shares__member=request.user, shares__deleted_at__isnull=True)
         else:
             raise ValidationError({"section": "Must be favorites, owned, or shared."})
-        return Response(bounded_results(request, predicate, 100))
+
+        cursor = request.query_params.get("cursor")
+        if cursor:
+            try:
+                position = signing.loads(cursor, salt="wiki-personal-pages", max_age=86400)
+                if position["section"] != section or position["query"] != query:
+                    raise ValueError
+                updated_at = parse_datetime(position["updated_at"])
+                if updated_at is None or updated_at.tzinfo is None:
+                    raise ValueError
+                position_filter = Q(updated_at__lt=updated_at) | Q(updated_at=updated_at, id__gt=position["id"])
+            except (signing.BadSignature, KeyError, TypeError, ValueError):
+                raise ValidationError({"cursor": "Invalid or expired cursor."})
+        else:
+            position_filter = Q()
+
+        workspaces, roles = authorized_workspaces(request.user)
+        pages = []
+        for workspace in workspaces:
+            queryset = visible_pages(request.user, workspace, roles).filter(predicate & position_filter)
+            if query:
+                queryset = queryset.filter(name__icontains=query)
+            pages.extend(queryset.distinct().order_by("-updated_at", "id")[: limit + 1])
+        pages.sort(key=lambda page: (-page.updated_at.timestamp(), str(page.id)))
+        selected = pages[:limit]
+        next_cursor = None
+        if len(pages) > limit:
+            last = selected[-1]
+            next_cursor = signing.dumps(
+                {"updated_at": last.updated_at.isoformat(), "id": str(last.id), "section": section, "query": query},
+                salt="wiki-personal-pages",
+            )
+        return Response({"results": [serialize_page(page) for page in selected], "next_cursor": next_cursor})

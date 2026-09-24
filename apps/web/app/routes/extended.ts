@@ -11,6 +11,7 @@ export const extendedRoutes: RouteConfigEntry[] = [
   layout("./(all)/layout.tsx", [
     layout("./(all)/wiki/layout.tsx", [
       route("wiki", "./(all)/wiki/redirect.tsx"),
+      route("wiki/personal/:section", "./(all)/wiki/personal/[section]/page.tsx"),
       route("wiki/:workspaceSlug", "./(all)/wiki/[workspaceSlug]/page.tsx"),
       route(
         "wiki/:workspaceSlug/collections/:collectionId",

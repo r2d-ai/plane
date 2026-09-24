@@ -9,6 +9,7 @@ const scope: TWikiScope = {
   is_default: false,
   is_member: false,
   can_create: false,
+  can_manage_collections: false,
 };
 
 const page = (id: string, workspace: string, updated_at: string, extra: Partial<TPage> = {}): TPage =>

@@ -105,6 +105,15 @@
       "navigation": "Wiki navigation"
     },
     "untitled": "Untitled",
+    "personal": {
+      "search_placeholder": "Search pages by title",
+      "empty": "No pages here yet.",
+      "no_results": "No matching pages.",
+      "load_failed": "Could not load pages.",
+      "loading": "Loading...",
+      "load_more": "Load more",
+      "invalid_section": "This page list does not exist."
+    },
     "hierarchy": {
       "wiki": "Wiki",
       "company_wiki": "Company Wiki",

@@ -4,6 +4,7 @@ import {
   getWikiCollectionPath,
   getWikiHomePath,
   getWikiPagePath,
+  getWikiPersonalPath,
   resolveLegacyWikiPath,
 } from "../../core/helpers/wiki-routes";
 
@@ -13,6 +14,7 @@ describe("Wiki routes", () => {
     expect(getWikiHomePath("mkt")).toBe("/wiki/mkt");
     expect(getWikiPagePath("mkt", "page-1")).toBe("/wiki/mkt/page-1");
     expect(getWikiCollectionPath("mkt", "general")).toBe("/wiki/mkt/collections/general");
+    expect(getWikiPersonalPath("favorites")).toBe("/wiki/personal/favorites");
   });
 
   test("maps legacy company and workspace Wiki URLs", () => {

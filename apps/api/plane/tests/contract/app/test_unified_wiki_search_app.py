@@ -60,6 +60,15 @@ def test_scopes(context, api_client):
         ("home", True, False, False),
         ("mkt", False, True, True),
     ]
+    assert all(not scope["can_manage_collections"] for scope in response.json())
+
+
+def test_scope_reports_collection_management_for_owner(context, api_client):
+    user, _, _, _, _ = context
+    managed = make_workspace("Managed", "managed", user)
+    add_member(managed, user, is_active=True)
+    scopes = api_client.get("/api/wiki/scopes/").json()
+    assert next(scope for scope in scopes if scope["slug"] == "managed")["can_manage_collections"] is True
 
 
 def test_search_visibility(context, api_client):
@@ -229,6 +238,43 @@ def test_personal_sections(context, api_client, section):
 
 def test_invalid_personal_section(context, api_client):
     assert api_client.get("/api/wiki/personal/", {"section": "unknown"}).status_code == 400
+
+
+def test_personal_pages_paginate_and_filter_across_workspaces(context, api_client):
+    user, _, default, workspace, denied = context
+    expected = {
+        str(make_wiki_page(default if index % 2 else workspace, user, name=f"Handbook {index:02d}").id)
+        for index in range(31)
+    }
+    make_wiki_page(denied, user, name="Handbook inaccessible")
+    make_wiki_page(workspace, user, name="Other document")
+
+    found = []
+    cursor = None
+    for _ in range(7):
+        params = {"section": "owned", "query": "Handbook", "limit": 7}
+        if cursor:
+            params["cursor"] = cursor
+        response = api_client.get("/api/wiki/personal/", params)
+        assert response.status_code == 200, response.content
+        found.extend(row["page_id"] for row in response.json()["results"])
+        cursor = response.json()["next_cursor"]
+        if not cursor:
+            break
+
+    assert set(found) == expected
+    assert len(found) == len(expected)
+    assert cursor is None
+
+
+def test_personal_pages_reject_invalid_pagination(context, api_client):
+    for params in (
+        {"section": "owned", "limit": "bad"},
+        {"section": "owned", "limit": 0},
+        {"section": "owned", "query": "x" * 201},
+        {"section": "owned", "cursor": "tampered"},
+    ):
+        assert api_client.get("/api/wiki/personal/", params).status_code == 400
 
 
 def test_content_summary_and_workspace_limit(context, api_client):

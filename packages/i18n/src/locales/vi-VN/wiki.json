@@ -105,6 +105,15 @@
       "navigation": "Điều hướng Wiki"
     },
     "untitled": "Chưa đặt tên",
+    "personal": {
+      "search_placeholder": "Tìm trang theo tên",
+      "empty": "Chưa có trang nào.",
+      "no_results": "Không tìm thấy trang phù hợp.",
+      "load_failed": "Không thể tải danh sách trang.",
+      "loading": "Đang tải...",
+      "load_more": "Tải thêm",
+      "invalid_section": "Danh sách trang này không tồn tại."
+    },
     "hierarchy": {
       "wiki": "Wiki",
       "company_wiki": "Wiki chung",

@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Globe2, Lock, Plus } from "lucide-react";
+import { Globe2, Lock, Pencil, Plus } from "lucide-react";
 import { useTranslation } from "@plane/i18n";
 import { PageIcon } from "@plane/propel/icons";
 import { EPageCollectionAccess, type TPage, type TPageCollectionPage, type TWikiScope } from "@plane/types";
 import { useWikiNavigation } from "../../hooks/store/use-wiki-navigation";
 import { getWikiPagePath } from "../../helpers/wiki-routes";
 import { WorkspacePageCollectionService } from "../../services/page/workspace-page-collection.service";
-import { AddExistingPageToCollectionModal } from "../pages/collections";
+import { AddExistingPageToCollectionModal, CollectionCreateEditModal } from "../pages/collections";
 
 const collectionService = new WorkspacePageCollectionService();
 
@@ -120,6 +120,7 @@ export const WikiCollectionView = observer(function WikiCollectionView({
   const { t } = useTranslation();
   const navigation = useWikiNavigation();
   const [addExistingOpen, setAddExistingOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data, error, isLoading, mutate } = useSWR(`WIKI_COLLECTION_${scope.slug}_${collectionId}`, async () => {
     const [collection, pages] = await Promise.all([
@@ -180,15 +181,27 @@ export const WikiCollectionView = observer(function WikiCollectionView({
               {collection.description && <p className="mt-1 text-13 text-secondary">{collection.description}</p>}
             </div>
           </div>
-          {scope.can_create && (
-            <button
-              type="button"
-              onClick={() => setAddExistingOpen(true)}
-              className="focus-visible:outline-accent-primary flex flex-shrink-0 items-center gap-1.5 rounded-md border border-subtle px-3 py-1.5 text-13 font-medium text-primary hover:bg-layer-1 focus-visible:outline-2"
-            >
-              <Plus className="size-3.5" />
-              {t("wiki_collections.menu.add_existing_page")}
-            </button>
+          {scope.can_manage_collections && (
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {!collection.is_default && (
+                <button
+                  type="button"
+                  onClick={() => setEditOpen(true)}
+                  className="focus-visible:outline-accent-primary flex items-center gap-1.5 rounded-md border border-subtle px-3 py-1.5 text-13 font-medium text-primary hover:bg-layer-1 focus-visible:outline-2"
+                >
+                  <Pencil className="size-3.5" />
+                  {t("wiki.collections.edit_collection")}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setAddExistingOpen(true)}
+                className="focus-visible:outline-accent-primary flex flex-shrink-0 items-center gap-1.5 rounded-md border border-subtle px-3 py-1.5 text-13 font-medium text-primary hover:bg-layer-1 focus-visible:outline-2"
+              >
+                <Plus className="size-3.5" />
+                {t("wiki_collections.menu.add_existing_page")}
+              </button>
+            </div>
           )}
         </div>
 
@@ -233,6 +246,17 @@ export const WikiCollectionView = observer(function WikiCollectionView({
           await Promise.all([mutate(), navigation.invalidateScope(scope.slug, [collectionId])]);
         }}
       />
+      {editOpen && (
+        <CollectionCreateEditModal
+          isOpen
+          onClose={() => setEditOpen(false)}
+          data={collection}
+          onSubmit={async (payload) => {
+            await collectionService.update(scope.slug, collection.id, payload);
+            await Promise.all([mutate(), navigation.invalidateScope(scope.slug)]);
+          }}
+        />
+      )}
     </div>
   );
 });

@@ -101,7 +101,7 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
   };
 
   const createCollection = async (payload: { name: string; description: string; access: number }) => {
-    if (!scope.can_create) return;
+    if (!scope.can_manage_collections) return;
     const collection = await collectionStore.createCollection(scope.slug, payload);
     if (!collection?.id) return;
     await navigation.invalidateScope(scope.slug);
@@ -111,7 +111,7 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
 
   const allPages = data.pageIds.map((id) => data.pagesById[id]).filter((page) => !!page);
   const loosePages = getLooseWikiPages(allPages, data.collectionPagesById);
-  const showCollectionsHeader = data.collectionIds.length > 0 || scope.can_create;
+  const showCollectionsHeader = data.collectionIds.length > 0 || scope.can_manage_collections;
 
   return (
     <div>
@@ -184,7 +184,7 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
                   <p className="text-11 font-semibold tracking-wide text-tertiary">
                     {t("wiki.collections.section_title")}
                   </p>
-                  {scope.can_create && (
+                  {scope.can_manage_collections && (
                     <button
                       type="button"
                       aria-label={t("wiki.collections.create_collection")}

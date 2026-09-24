@@ -8,8 +8,24 @@ import {
 import { WikiNavigationStore } from "../../core/store/wiki/wiki-navigation.store";
 
 const scopes = [
-  { id: "1", slug: "home", name: "Home", is_default: true, is_member: false, can_create: false },
-  { id: "2", slug: "mkt", name: "Marketing", is_default: false, is_member: true, can_create: true },
+  {
+    id: "1",
+    slug: "home",
+    name: "Home",
+    is_default: true,
+    is_member: false,
+    can_create: false,
+    can_manage_collections: false,
+  },
+  {
+    id: "2",
+    slug: "mkt",
+    name: "Marketing",
+    is_default: false,
+    is_member: true,
+    can_create: true,
+    can_manage_collections: false,
+  },
 ];
 
 describe("Wiki sidebar model", () => {
@@ -40,7 +56,6 @@ describe("Wiki sidebar model", () => {
     expect(store.getScope("home").status).toBe("loaded");
   });
 });
-
 
 test("collection helpers keep inherited descendants out of the loose tree", () => {
   const pages = [
