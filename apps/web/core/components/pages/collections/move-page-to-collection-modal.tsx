@@ -20,10 +20,11 @@ type Props = {
   workspaceSlug: string;
   pageId: string;
   currentPageCollectionId?: string;
+  onMoved?: () => Promise<void> | void;
 };
 
 export const MovePageToCollectionModal = observer(function MovePageToCollectionModal(props: Props) {
-  const { isOpen, onClose, workspaceSlug, pageId, currentPageCollectionId } = props;
+  const { isOpen, onClose, workspaceSlug, pageId, currentPageCollectionId, onMoved } = props;
   const { t } = useTranslation();
   const collectionStore = usePageCollectionStore();
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(currentPageCollectionId ?? null);
@@ -32,6 +33,21 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
   const { data: collections } = useSWR(isOpen && workspaceSlug ? `WORKSPACE_COLLECTIONS_${workspaceSlug}` : null, () =>
     collectionStore.fetchCollections(workspaceSlug)
   );
+
+  const { data: detectedCollectionId } = useSWR(
+    isOpen && collections ? `PAGE_COLLECTION_MEMBERSHIP_${workspaceSlug}_${pageId}` : null,
+    async () => {
+      const memberships = await Promise.all(
+        (collections ?? []).map(async (collection) => ({
+          collectionId: collection.id,
+          pages: await collectionStore.fetchCollectionPages(workspaceSlug, collection.id),
+        }))
+      );
+      return memberships.find(({ pages }) => pages.some((item) => item.page === pageId))?.collectionId ?? null;
+    }
+  );
+
+  const effectiveCurrentCollectionId = currentPageCollectionId ?? detectedCollectionId ?? undefined;
 
   const handleMove = useCallback(async () => {
     if (!selectedCollectionId) return;
@@ -43,6 +59,7 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
         title: t("common.success"),
         message: t("wiki.collections.page_moved"),
       });
+      await onMoved?.();
       onClose();
     } catch {
       setToast({
@@ -53,19 +70,20 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
     } finally {
       setIsMoving(false);
     }
-  }, [collectionStore, workspaceSlug, selectedCollectionId, pageId, t, onClose]);
+  }, [collectionStore, workspaceSlug, selectedCollectionId, pageId, t, onClose, onMoved]);
 
   const handleRemoveFromCollection = useCallback(async () => {
-    if (!currentPageCollectionId) return;
+    if (!effectiveCurrentCollectionId) return;
     setIsMoving(true);
     try {
-      await collectionStore.removePageFromCollection(workspaceSlug, currentPageCollectionId, pageId);
+      await collectionStore.removePageFromCollection(workspaceSlug, effectiveCurrentCollectionId, pageId);
       setToast({
         type: TOAST_TYPE.SUCCESS,
         title: t("common.success"),
         message: t("wiki.collections.page_removed_from_collection"),
       });
       setSelectedCollectionId(null);
+      await onMoved?.();
       onClose();
     } catch {
       setToast({
@@ -76,7 +94,7 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
     } finally {
       setIsMoving(false);
     }
-  }, [collectionStore, workspaceSlug, currentPageCollectionId, pageId, t, onClose]);
+  }, [collectionStore, workspaceSlug, effectiveCurrentCollectionId, pageId, t, onClose, onMoved]);
 
   return (
     <ModalCore isOpen={isOpen} handleClose={onClose} position={EModalPosition.TOP} width={EModalWidth.LG}>
@@ -116,7 +134,7 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
 
         <div className="flex items-center justify-between border-t border-subtle pt-4">
           <div>
-            {currentPageCollectionId && (
+            {effectiveCurrentCollectionId && (
               <Button variant="danger" size="lg" onClick={handleRemoveFromCollection} loading={isMoving}>
                 {t("wiki.collections.remove_from_collection")}
               </Button>
@@ -131,7 +149,7 @@ export const MovePageToCollectionModal = observer(function MovePageToCollectionM
               size="lg"
               onClick={handleMove}
               loading={isMoving}
-              disabled={!selectedCollectionId || selectedCollectionId === currentPageCollectionId}
+              disabled={!selectedCollectionId || selectedCollectionId === effectiveCurrentCollectionId}
             >
               {t("common.move")}
             </Button>
