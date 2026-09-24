@@ -118,8 +118,7 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
   const showCollectionsHeader = data.collectionIds.length > 0 || scope.can_create;
 
   return (
-    <>
-      <div>
+    <div>
       {isDefaultScope ? (
         <Link
           href={`/wiki/${scope.slug}`}
@@ -274,12 +273,11 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
           )}
         </div>
       )}
-      </div>
       <CollectionCreateEditModal
         isOpen={createCollectionOpen}
         onClose={() => setCreateCollectionOpen(false)}
         onSubmit={createCollection}
       />
-    </>
+    </div>
   );
 });
