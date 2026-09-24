@@ -28,8 +28,9 @@ const createDeferred = <T>(): TDeferred<T> => {
 
 /**
  * Minimal fake root store: only the collaborators the page entity and the
- * workspace page store touch (router scope, user, favorites). The router slug
- * is observable so the store's router reaction tracks it like the real store.
+ * workspace page store touch (router scope, user, favorites, wiki navigation).
+ * The router slug is observable so the store's router reaction tracks it like
+ * the real store.
  */
 const createFakeRootStore = (initialWorkspaceSlug: string) => {
   const router = observable({ workspaceSlug: initialWorkspaceSlug });
@@ -39,6 +40,12 @@ const createFakeRootStore = (initialWorkspaceSlug: string) => {
     removeFavoriteEntity: vi.fn(async (_workspaceSlug: string, _entityId: string) => undefined),
     removeFavoriteFromStore: vi.fn((_entityId: string) => undefined),
   };
+  const wikiNavigation = {
+    getScope: vi.fn(() => ({ pagesById: {}, pageIds: [], collectionsById: {}, collectionIds: [], status: "idle" })),
+    fetchScope: vi.fn(async () => undefined),
+    invalidateScope: vi.fn(async (_workspaceSlug: string) => undefined),
+    fetchCollectionPages: vi.fn(async () => []),
+  };
   const root = {
     router,
     user: {
@@ -46,10 +53,12 @@ const createFakeRootStore = (initialWorkspaceSlug: string) => {
       permission: { getWorkspaceRoleByWorkspaceSlug: (_workspaceSlug: string) => undefined },
     },
     favorite,
+    wikiNavigation,
   };
   return {
     root,
     favorite,
+    wikiNavigation,
     setWorkspaceSlug: (workspaceSlug: string) =>
       runInAction(() => {
         router.workspaceSlug = workspaceSlug;
@@ -65,7 +74,7 @@ afterEach(() => {
 test("page mutations bind to the source workspace slug, not the router scope", async () => {
   vi.useFakeTimers();
   const updateSpy = vi.spyOn(WorkspacePageService.prototype, "update").mockResolvedValue({} as TPage);
-  const { root, setWorkspaceSlug } = createFakeRootStore("home");
+  const { root, wikiNavigation, setWorkspaceSlug } = createFakeRootStore("home");
 
   // the entity is created while the route is in the wrong scope for it
   setWorkspaceSlug("mkt");
@@ -79,6 +88,8 @@ test("page mutations bind to the source workspace slug, not the router scope", a
   // the rename then syncs through the debounced title reaction as exactly { name }
   await vi.advanceTimersByTimeAsync(2000);
   expect(updateSpy).toHaveBeenNthCalledWith(2, "home", "home-page", { name: "Updated" });
+  // every list-affecting sync refreshes the Wiki navigation for that scope
+  expect(wikiNavigation.invalidateScope).toHaveBeenCalledWith("home");
 
   page.cleanup();
 });
@@ -170,7 +181,7 @@ test("store page mutations target the active scope, not the router scope", async
 test("store removePage and movePage use the entity's source slug when active scope and router point elsewhere", async () => {
   const moveSpy = vi.spyOn(WorkspacePageService.prototype, "move").mockResolvedValue({} as TPage);
   const removeSpy = vi.spyOn(WorkspacePageService.prototype, "remove").mockResolvedValue();
-  const { root, setWorkspaceSlug } = createFakeRootStore("home");
+  const { root, wikiNavigation, setWorkspaceSlug } = createFakeRootStore("home");
   const store = new WorkspacePageStore(root as unknown as CoreRootStore);
 
   // a "home" entity can outlive a scope switch (e.g. a create response that
@@ -186,6 +197,11 @@ test("store removePage and movePage use the entity's source slug when active sco
 
   await store.removePage({ pageId: "home-page" });
   expect(removeSpy).toHaveBeenCalledWith("home", "home-page");
+  // the Wiki navigation refreshes the source scope, never the active/router one
+  expect(wikiNavigation.invalidateScope).toHaveBeenCalledTimes(2);
+  expect(wikiNavigation.invalidateScope).toHaveBeenCalledWith("home");
+  expect(wikiNavigation.invalidateScope).not.toHaveBeenCalledWith("mkt");
+  expect(wikiNavigation.invalidateScope).not.toHaveBeenCalledWith("ops");
 });
 
 test("a fetch for another scope implicitly activates it and delivers its response", async () => {

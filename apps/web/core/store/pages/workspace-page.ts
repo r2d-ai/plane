@@ -35,7 +35,9 @@ export class WorkspacePage extends BasePage implements TWorkspacePage {
     super(store, page, {
       update: async (payload) => {
         if (!page.id) throw new Error("Missing required fields.");
-        return await workspacePageService.update(sourceWorkspaceSlug, page.id, payload);
+        const updatedPage = await workspacePageService.update(sourceWorkspaceSlug, page.id, payload);
+        void store.wikiNavigation.invalidateScope(sourceWorkspaceSlug);
+        return updatedPage;
       },
       updateDescription: async (document) => {
         if (!page.id) throw new Error("Missing required fields.");
@@ -55,15 +57,20 @@ export class WorkspacePage extends BasePage implements TWorkspacePage {
       },
       archive: async () => {
         if (!page.id) throw new Error("Missing required fields.");
-        return await workspacePageService.archive(sourceWorkspaceSlug, page.id);
+        const result = await workspacePageService.archive(sourceWorkspaceSlug, page.id);
+        void store.wikiNavigation.invalidateScope(sourceWorkspaceSlug);
+        return result;
       },
       restore: async () => {
         if (!page.id) throw new Error("Missing required fields.");
         await workspacePageService.restore(sourceWorkspaceSlug, page.id);
+        void store.wikiNavigation.invalidateScope(sourceWorkspaceSlug);
       },
       duplicate: async () => {
         if (!page.id) throw new Error("Missing required fields.");
-        return await workspacePageService.duplicate(sourceWorkspaceSlug, page.id);
+        const duplicatedPage = await workspacePageService.duplicate(sourceWorkspaceSlug, page.id);
+        void store.wikiNavigation.invalidateScope(sourceWorkspaceSlug);
+        return duplicatedPage;
       },
     });
     makeObservable(this, {

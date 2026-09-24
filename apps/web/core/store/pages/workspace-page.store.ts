@@ -332,6 +332,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
         if (page?.id) set(this.data, [page.id], new WorkspacePage(this.store, page, workspaceSlug));
         this.loader = undefined;
       });
+      void this.rootStore.wikiNavigation.invalidateScope(workspaceSlug);
 
       return page;
     } catch (error) {
@@ -362,6 +363,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
         unset(this.data, [pageId]);
         if (this.rootStore.favorite.entityMap[pageId]) this.rootStore.favorite.removeFavoriteFromStore(pageId);
       });
+      void this.rootStore.wikiNavigation.invalidateScope(workspaceSlug);
     } catch (error) {
       runInAction(() => {
         this.loader = undefined;
@@ -411,6 +413,7 @@ export class WorkspacePageStore implements IWorkspacePageStore {
         if (updated) page.mutateProperties(updated, false);
         this.loader = undefined;
       });
+      void this.rootStore.wikiNavigation.invalidateScope(workspaceSlug);
       return updated;
     } catch (error) {
       runInAction(() => {
