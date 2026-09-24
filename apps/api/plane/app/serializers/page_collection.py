@@ -102,10 +102,19 @@ class PageCollectionPageSerializer(BaseSerializer):
             parent = visible_page_parent_id(page, request.user, workspace)
         elif page.parent_id is not None:
             parent = str(page.parent_id)
+        owner = page.owned_by
         return {
             "id": str(page.id),
             "name": page.name,
             "access": page.access,
             "parent": parent,
             "sort_order": page.sort_order,
+            "logo_props": page.logo_props,
+            "updated_at": page.updated_at,
+            "owned_by": str(page.owned_by_id),
+            "owner_detail": {
+                "id": str(owner.id),
+                "display_name": owner.display_name,
+                "avatar_url": owner.avatar_url,
+            },
         }
