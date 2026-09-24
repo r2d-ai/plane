@@ -909,6 +909,14 @@
       "h4": "Heading 4",
       "h5": "Heading 5",
       "h6": "Heading 6"
-    }
+    },
+    "full_width": "Full width",
+    "sticky_toolbar": "Sticky toolbar",
+    "markdown_copied": "Markdown copied to clipboard.",
+    "unlock": "Unlock",
+    "make_private": "Make private",
+    "make_public": "Make public",
+    "move_to_group": "Move to collection",
+    "export_page": "Export page"
   }
 }

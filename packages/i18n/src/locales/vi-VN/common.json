@@ -625,7 +625,7 @@
       "show_weekends": "Hiển thị cuối tuần",
       "enable": "Bật",
       "disable": "Tắt",
-      "copy_markdown": "Sao chép markdown",
+      "copy_markdown": "Sao chép Markdown",
       "reply": "Trả lời"
     },
     "name": "Tên",
@@ -908,6 +908,14 @@
       "h4": "Tiêu đề 4",
       "h5": "Tiêu đề 5",
       "h6": "Tiêu đề 6"
-    }
+    },
+    "full_width": "Toàn chiều rộng",
+    "sticky_toolbar": "Cố định thanh công cụ",
+    "markdown_copied": "Đã sao chép Markdown vào bộ nhớ tạm.",
+    "unlock": "Mở khóa",
+    "make_private": "Chuyển thành riêng tư",
+    "make_public": "Chuyển thành công khai",
+    "move_to_group": "Chuyển vào nhóm trang",
+    "export_page": "Xuất trang"
   }
 }

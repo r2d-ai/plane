@@ -6,31 +6,31 @@
       "shared": "Được chia sẻ",
       "archived": "Đã lưu trữ"
     },
-    "fallback_name": "Bộ sưu tập",
+    "fallback_name": "Nhóm trang",
     "form": {
-      "name_required": "Tiêu đề bộ sưu tập là bắt buộc",
-      "name_max_length": "Tên bộ sưu tập phải ít hơn 255 ký tự",
-      "name_placeholder_create": "Đặt tiêu đề cho bộ sưu tập",
-      "name_placeholder_edit": "Tên bộ sưu tập"
+      "name_required": "Tiêu đề nhóm trang là bắt buộc",
+      "name_max_length": "Tên nhóm trang phải ít hơn 255 ký tự",
+      "name_placeholder_create": "Đặt tiêu đề cho nhóm trang",
+      "name_placeholder_edit": "Tên nhóm trang"
     },
     "create_modal": {
-      "title": "Tạo bộ sưu tập",
-      "submit": "Tạo bộ sưu tập"
+      "title": "Tạo nhóm trang",
+      "submit": "Tạo nhóm trang"
     },
     "edit_modal": {
-      "title": "Chỉnh sửa bộ sưu tập"
+      "title": "Chỉnh sửa nhóm trang"
     },
     "delete_modal": {
-      "title": "Xóa bộ sưu tập",
-      "page_count": "Bộ sưu tập này có {pageCount} trang. Chọn điều sẽ xảy ra với chúng.",
-      "transfer_title": "Chuyển trang và xóa bộ sưu tập",
-      "transfer_description": "Di chuyển tất cả các trang sang bộ sưu tập khác trước khi xóa. Các trang và quyền của chúng sẽ được giữ nguyên.",
-      "transfer_warning": "Các trang được chuyển sẽ kế thừa quyền của bộ sưu tập đã chọn.",
+      "title": "Xóa nhóm trang",
+      "page_count": "Nhóm trang này có {pageCount} trang. Chọn điều sẽ xảy ra với chúng.",
+      "transfer_title": "Chuyển trang và xóa nhóm trang",
+      "transfer_description": "Di chuyển tất cả các trang sang nhóm trang khác trước khi xóa. Các trang và quyền của chúng sẽ được giữ nguyên.",
+      "transfer_warning": "Các trang được chuyển sẽ kế thừa quyền của nhóm trang đã chọn.",
       "transfer_target_label": "Chuyển trang đến",
-      "transfer_target_placeholder": "Chọn một bộ sưu tập",
-      "delete_with_pages_title": "Xóa bộ sưu tập cùng các trang",
-      "delete_with_pages_description": "Xóa vĩnh viễn bộ sưu tập và tất cả các trang của nó. Hành động này không thể hoàn tác.",
-      "submit": "Xóa bộ sưu tập"
+      "transfer_target_placeholder": "Chọn một nhóm trang",
+      "delete_with_pages_title": "Xóa nhóm trang cùng các trang",
+      "delete_with_pages_description": "Xóa vĩnh viễn nhóm trang và tất cả các trang của nó. Hành động này không thể hoàn tác.",
+      "submit": "Xóa nhóm trang"
     },
     "header": {
       "add_page": "Thêm trang"
@@ -38,12 +38,12 @@
     "menu": {
       "create_new_page": "Tạo trang mới",
       "add_existing_page": "Thêm trang hiện có",
-      "edit_collection": "Chỉnh sửa bộ sưu tập",
-      "collection_options": "Tùy chọn bộ sưu tập"
+      "edit_collection": "Chỉnh sửa nhóm trang",
+      "collection_options": "Tùy chọn nhóm trang"
     },
     "add_existing_page_modal": {
       "search_placeholder": "Tìm kiếm trang",
-      "success_message": "Đã thêm {count} trang vào bộ sưu tập.",
+      "success_message": "Đã thêm {count} trang vào nhóm trang.",
       "error_message": "Không thể di chuyển các trang. Vui lòng thử lại.",
       "no_pages_found": "Không tìm thấy trang nào khớp với tìm kiếm của bạn",
       "no_pages_available": "Không có trang nào để di chuyển",
@@ -51,12 +51,12 @@
     },
     "list": {
       "invite_only": "Chỉ dành cho người được mời",
-      "remove_error": "Không thể xóa trang khỏi bộ sưu tập.",
+      "remove_error": "Không thể xóa trang khỏi nhóm trang.",
       "no_matching_pages": "Không có trang nào phù hợp",
       "remove_search_criteria": "Xóa tiêu chí tìm kiếm để xem tất cả các trang",
       "remove_filters": "Xóa bộ lọc để xem tất cả các trang",
       "no_pages_title": "Chưa có trang nào",
-      "no_pages_description": "Bộ sưu tập này hiện chưa có trang nào.",
+      "no_pages_description": "Nhóm trang này hiện chưa có trang nào.",
       "untitled": "Không tiêu đề",
       "restricted_access": "Truy cập bị hạn chế",
       "collapse_page": "Thu gọn trang",
@@ -72,17 +72,17 @@
       }
     },
     "toasts": {
-      "created": "Đã tạo bộ sưu tập thành công.",
-      "create_error": "Không thể tạo bộ sưu tập. Vui lòng thử lại.",
-      "renamed": "Đã đổi tên bộ sưu tập thành công.",
-      "rename_error": "Không thể cập nhật bộ sưu tập. Vui lòng thử lại.",
-      "transferred_deleted": "Các trang đã được chuyển và bộ sưu tập đã bị xóa.",
-      "deleted_with_pages": "Bộ sưu tập và các trang của nó đã bị xóa.",
-      "delete_error": "Không thể xóa bộ sưu tập. Vui lòng thử lại.",
-      "target_required": "Vui lòng chọn một bộ sưu tập để chuyển các trang đến.",
+      "created": "Đã tạo nhóm trang thành công.",
+      "create_error": "Không thể tạo nhóm trang. Vui lòng thử lại.",
+      "renamed": "Đã đổi tên nhóm trang thành công.",
+      "rename_error": "Không thể cập nhật nhóm trang. Vui lòng thử lại.",
+      "transferred_deleted": "Các trang đã được chuyển và nhóm trang đã bị xóa.",
+      "deleted_with_pages": "Nhóm trang và các trang của nó đã bị xóa.",
+      "delete_error": "Không thể xóa nhóm trang. Vui lòng thử lại.",
+      "target_required": "Vui lòng chọn một nhóm trang để chuyển các trang đến.",
       "create_page_error": "Không thể tạo trang. Vui lòng thử lại.",
-      "create_page_in_collection_error": "Không thể tạo trang hoặc thêm trang vào bộ sưu tập. Vui lòng thử lại.",
-      "collection_link_copied": "Đã sao chép liên kết bộ sưu tập vào bộ nhớ tạm."
+      "create_page_in_collection_error": "Không thể tạo trang hoặc thêm trang vào nhóm trang. Vui lòng thử lại.",
+      "collection_link_copied": "Đã sao chép liên kết nhóm trang vào bộ nhớ tạm."
     }
   },
   "wiki": {
@@ -152,13 +152,13 @@
       "show_comments": "Bình luận"
     },
     "collections": {
-      "section_title": "Bộ sưu tập",
-      "create_collection": "Tạo bộ sưu tập",
-      "edit_collection": "Sửa bộ sưu tập",
-      "delete_collection": "Xóa bộ sưu tập",
-      "delete_collection_description": "Bạn có chắc muốn xóa \"{{name}}\"? Các trang trong bộ sưu tập sẽ được bỏ liên kết.",
+      "section_title": "Nhóm trang",
+      "create_collection": "Tạo nhóm trang",
+      "edit_collection": "Sửa nhóm trang",
+      "delete_collection": "Xóa nhóm trang",
+      "delete_collection_description": "Bạn có chắc muốn xóa \"{{name}}\"? Các trang trong nhóm trang sẽ được bỏ liên kết.",
       "manage_members": "Quản lý thành viên",
-      "move_page_to_collection": "Chuyển vào bộ sưu tập",
+      "move_page_to_collection": "Chuyển vào nhóm trang",
       "search_members": "Tìm thành viên...",
       "member_added": "Đã thêm thành viên.",
       "member_add_failed": "Không thể thêm thành viên.",
@@ -167,20 +167,20 @@
       "member_removed": "Đã xóa thành viên.",
       "member_remove_failed": "Không thể xóa thành viên.",
       "no_members": "Chưa có thành viên.",
-      "no_pages": "Chưa có trang nào trong bộ sưu tập này.",
-      "no_collections": "Chưa có bộ sưu tập nào trong không gian làm việc này.",
+      "no_pages": "Chưa có trang nào trong nhóm trang này.",
+      "no_collections": "Chưa có nhóm trang nào trong không gian làm việc này.",
       "add_page": "Thêm trang",
-      "page_moved": "Đã chuyển trang vào bộ sưu tập.",
-      "page_move_failed": "Không thể chuyển trang vào bộ sưu tập.",
-      "page_removed_from_collection": "Đã bỏ trang khỏi bộ sưu tập.",
-      "page_remove_failed": "Không thể bỏ trang khỏi bộ sưu tập.",
-      "remove_from_collection": "Bỏ khỏi bộ sưu tập",
+      "page_moved": "Đã chuyển trang vào nhóm trang.",
+      "page_move_failed": "Không thể chuyển trang vào nhóm trang.",
+      "page_removed_from_collection": "Đã bỏ trang khỏi nhóm trang.",
+      "page_remove_failed": "Không thể bỏ trang khỏi nhóm trang.",
+      "remove_from_collection": "Bỏ khỏi nhóm trang",
       "reorder_failed": "Không thể thay đổi thứ tự trang.",
       "pages": "trang",
       "default": "Mặc định",
-      "name_placeholder": "Tên bộ sưu tập",
+      "name_placeholder": "Tên nhóm trang",
       "description_placeholder": "Mô tả (không bắt buộc)",
-      "load_failed": "Không thể tải bộ sưu tập này."
+      "load_failed": "Không thể tải nhóm trang này."
     },
     "upgrade_flow": {
       "title": "Nâng cấp để mở khóa Wiki",
