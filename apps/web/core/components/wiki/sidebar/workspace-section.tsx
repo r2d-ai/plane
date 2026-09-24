@@ -106,10 +106,12 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
         <Link
           href={`/wiki/${scope.slug}`}
           onClick={onNavigate}
-          aria-current={activeSlug === scope.slug && !activePageId ? "page" : undefined}
+          aria-current={activeSlug === scope.slug && !activePageId && !activeCollectionId ? "page" : undefined}
           className={cn(
             "focus-visible:outline-accent-primary mb-2 flex items-center gap-2 rounded px-2 py-1.5 text-13 hover:bg-layer-1 focus-visible:outline-2",
-            activeSlug === scope.slug && !activePageId ? "bg-layer-1 font-medium text-primary" : "text-secondary"
+            activeSlug === scope.slug && !activePageId && !activeCollectionId
+              ? "bg-layer-1 font-medium text-primary"
+              : "text-secondary"
           )}
         >
           <span aria-hidden>⌂</span>
@@ -129,10 +131,12 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
           <Link
             href={`/wiki/${scope.slug}`}
             onClick={onNavigate}
-            aria-current={activeSlug === scope.slug && !activePageId ? "page" : undefined}
+            aria-current={activeSlug === scope.slug && !activePageId && !activeCollectionId ? "page" : undefined}
             className={cn(
               "focus-visible:outline-accent-primary min-w-0 flex-1 truncate rounded px-2 py-1.5 text-13 hover:bg-layer-1 focus-visible:outline-2",
-              activeSlug === scope.slug ? "bg-layer-1 font-medium text-primary" : "text-secondary"
+              activeSlug === scope.slug && !activeCollectionId
+                ? "bg-layer-1 font-medium text-primary"
+                : "text-secondary"
             )}
           >
             {label}
