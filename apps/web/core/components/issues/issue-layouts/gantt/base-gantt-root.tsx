@@ -20,13 +20,14 @@ import type {
 } from "@plane/types";
 import { EIssueLayoutTypes, GANTT_TIMELINE_TYPE } from "@plane/types";
 import { renderFormattedPayloadDate } from "@plane/utils";
+import { getGanttVisibleColumnsFromDisplayProperties } from "@/components/gantt-chart/helpers/gantt-display-columns";
 import { buildTimelineRows, getIssueIdsFromTimelineRows } from "@/components/gantt-chart/helpers/timeline-rows";
 import { TimeLineTypeContext } from "@/components/gantt-chart/contexts";
 import { GanttChartRoot } from "@/components/gantt-chart/root";
 import { IssueGanttSidebar } from "@/components/gantt-chart/sidebar/issues/sidebar";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUserPermissions } from "@/hooks/store/user";
-import { useGanttPreferences, type TGanttColumnKey } from "@/hooks/use-gantt-preferences";
+import { useGanttPreferences } from "@/hooks/use-gantt-preferences";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 import { useIssuesActions } from "@/hooks/use-issues-actions";
 import { useTimeLineChart } from "@/hooks/use-timeline-chart";
@@ -65,6 +66,7 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
   const { preferences, updatePreferences, isLoaded } = useGanttPreferences(workspaceSlug?.toString(), entityId);
 
   const appliedDisplayFilters = issuesFilter.issueFilters?.displayFilters;
+  const displayProperties = issuesFilter.issueFilters?.displayProperties;
   const group_by = (appliedDisplayFilters?.group_by ?? null) as GroupByColumnTypes | null;
   const showEmptyGroup = appliedDisplayFilters?.show_empty_groups ?? false;
   const collapsedGroups = issuesFilter?.issueFilters?.kanbanFilters;
@@ -113,6 +115,10 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
   );
 
   const blockIds = useMemo(() => getIssueIdsFromTimelineRows(timelineRows), [timelineRows]);
+  const visibleColumns = useMemo(
+    () => getGanttVisibleColumnsFromDisplayProperties(displayProperties),
+    [displayProperties]
+  );
   const nextPageResults = issues.getPaginationData(undefined, undefined)?.nextPageResults;
 
   const { enableIssueCreation } = issues?.viewFlags || {};
@@ -159,17 +165,6 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
     [updatePreferences]
   );
 
-  const handleToggleColumn = useCallback(
-    (column: TGanttColumnKey) => {
-      if (column === "work_item") return;
-      const next = preferences.visibleColumns.includes(column)
-        ? preferences.visibleColumns.filter((c) => c !== column)
-        : [...preferences.visibleColumns, column];
-      updatePreferences({ visibleColumns: next });
-    },
-    [preferences.visibleColumns, updatePreferences]
-  );
-
   const handleCollapsedGroups = useCallback(
     (value: string) => {
       if (!workspaceSlug) return;
@@ -212,11 +207,10 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
             blockIds={blockIds}
             timelineRows={timelineRows}
             sidebarWidth={preferences.sidebarWidth}
-            visibleColumns={preferences.visibleColumns}
+            visibleColumns={visibleColumns}
             onSidebarWidthChange={(width) => updatePreferences({ sidebarWidth: width })}
             onToggleGroupCollapse={handleCollapsedGroups}
             onScaleChange={handleScaleChange}
-            onToggleColumn={handleToggleColumn}
             blockUpdateHandler={updateIssueBlockStructure}
             blockToRender={(data: TIssue) => <IssueGanttBlock issueId={data.id} isEpic={isEpic} />}
             sidebarToRender={(sidebarProps) => <IssueGanttSidebar {...sidebarProps} showAllBlocks isEpic={isEpic} />}

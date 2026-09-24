@@ -22,10 +22,7 @@ export type TGanttColumnKey =
 export type TGanttPreferences = {
   scale: TGanttViews;
   sidebarWidth: number;
-  visibleColumns: TGanttColumnKey[];
 };
-
-export const DEFAULT_GANTT_VISIBLE_COLUMNS: TGanttColumnKey[] = ["work_item", "status", "assignee", "duration"];
 
 export const GANTT_SIDEBAR_MIN_WIDTH = 320;
 export const GANTT_SIDEBAR_MAX_WIDTH = 720;
@@ -34,7 +31,6 @@ export const GANTT_SIDEBAR_DEFAULT_WIDTH = 460;
 const DEFAULT_PREFERENCES: TGanttPreferences = {
   scale: "week",
   sidebarWidth: GANTT_SIDEBAR_DEFAULT_WIDTH,
-  visibleColumns: DEFAULT_GANTT_VISIBLE_COLUMNS,
 };
 
 const getStorageKey = (workspaceSlug: string, entityId: string) => `plane-gantt-prefs-${workspaceSlug}-${entityId}`;
@@ -51,8 +47,8 @@ export const useGanttPreferences = (workspaceSlug: string | undefined, entityId:
         const parsed = JSON.parse(stored) as Partial<TGanttPreferences>;
         setPreferences({
           ...DEFAULT_PREFERENCES,
-          ...parsed,
-          visibleColumns: parsed.visibleColumns ?? DEFAULT_GANTT_VISIBLE_COLUMNS,
+          scale: parsed.scale ?? DEFAULT_PREFERENCES.scale,
+          sidebarWidth: parsed.sidebarWidth ?? DEFAULT_PREFERENCES.sidebarWidth,
         });
       }
     } catch {

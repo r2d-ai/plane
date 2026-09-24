@@ -36,7 +36,6 @@ type ChartViewRootProps = {
   onSidebarWidthChange: (width: number) => void;
   onToggleGroupCollapse?: (groupId: string) => void;
   onScaleChange?: (view: TGanttViews) => void;
-  onToggleColumn?: (column: TGanttColumnKey) => void;
   blockUpdateHandler: (block: any, payload: IBlockUpdateData) => void;
   blockToRender: (data: any) => React.ReactNode;
   sidebarToRender: (props: any) => React.ReactNode;
@@ -84,7 +83,6 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
     onSidebarWidthChange,
     onToggleGroupCollapse,
     onScaleChange,
-    onToggleColumn,
     loadMoreBlocks,
     loaderTitle,
     blockUpdateHandler,
@@ -227,8 +225,6 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
         handleToday={handleToday}
         loaderTitle={loaderTitle}
         showToday={showToday}
-        visibleColumns={visibleColumns}
-        onToggleColumn={onToggleColumn}
       />
       <GanttChartMainContent
         blockIds={blockIds}

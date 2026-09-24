@@ -9,11 +9,7 @@ import { observer } from "mobx-react";
 // components
 import type { IBlockUpdateData, IBlockUpdateDependencyData } from "@plane/types";
 import type { TimelineRow } from "@/components/gantt-chart/types/timeline-row";
-import {
-  DEFAULT_GANTT_VISIBLE_COLUMNS,
-  GANTT_SIDEBAR_DEFAULT_WIDTH,
-  type TGanttColumnKey,
-} from "@/hooks/use-gantt-preferences";
+import { GANTT_SIDEBAR_DEFAULT_WIDTH, type TGanttColumnKey } from "@/hooks/use-gantt-preferences";
 // hooks
 import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 import { ChartViewRoot } from "./chart/root";
@@ -29,7 +25,6 @@ type GanttChartRootProps = {
   onSidebarWidthChange?: (width: number) => void;
   onToggleGroupCollapse?: (groupId: string) => void;
   onScaleChange?: (view: import("@plane/types").TGanttViews) => void;
-  onToggleColumn?: (column: TGanttColumnKey) => void;
   blockUpdateHandler: (block: any, payload: IBlockUpdateData) => void;
   blockToRender: (data: any) => React.ReactNode;
   sidebarToRender: (props: any) => React.ReactNode;
@@ -61,7 +56,6 @@ export const GanttChartRoot = observer(function GanttChartRoot(props: GanttChart
     onSidebarWidthChange,
     onToggleGroupCollapse,
     onScaleChange,
-    onToggleColumn,
     loaderTitle = "blocks",
     blockUpdateHandler,
     sidebarToRender,
@@ -105,11 +99,10 @@ export const GanttChartRoot = observer(function GanttChartRoot(props: GanttChart
       blockIds={blockIds}
       timelineRows={resolvedTimelineRows}
       sidebarWidth={sidebarWidth ?? GANTT_SIDEBAR_DEFAULT_WIDTH}
-      visibleColumns={visibleColumns ?? DEFAULT_GANTT_VISIBLE_COLUMNS}
+      visibleColumns={visibleColumns ?? ["work_item"]}
       onSidebarWidthChange={onSidebarWidthChange ?? (() => {})}
       onToggleGroupCollapse={onToggleGroupCollapse ?? (() => {})}
       onScaleChange={onScaleChange}
-      onToggleColumn={onToggleColumn}
       loadMoreBlocks={loadMoreBlocks}
       canLoadMoreBlocks={canLoadMoreBlocks}
       loaderTitle={loaderTitle}

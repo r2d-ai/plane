@@ -10,7 +10,7 @@ import { Popover } from "@plane/propel/popover";
 import { Tooltip } from "@plane/propel/tooltip";
 import { ControlLink } from "@plane/ui";
 import { Avatar } from "@plane/ui";
-import { findTotalDaysInRange, generateWorkItemLink, getFileURL } from "@plane/utils";
+import { generateWorkItemLink, getFileURL } from "@plane/utils";
 import { IssueIdentifier } from "@/components/issues/issue-detail/issue-identifier";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
@@ -18,6 +18,7 @@ import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
+import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 import useIssuePeekOverviewRedirection from "@/hooks/use-issue-peek-overview-redirection";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 import { WorkItemPreviewCard } from "../../preview-card";
@@ -40,6 +41,9 @@ export const IssueGanttBlock = observer(function IssueGanttBlock(props: Props) {
   } = useIssueDetail();
   const { isMobile } = usePlatformOS();
   const { handleRedirection } = useIssuePeekOverviewRedirection(isEpic);
+  const storeType = useIssueStoreType() as GanttStoreType;
+  const { issuesFilter } = useIssues(storeType);
+  const { getBlockById } = useTimeLineChartStore();
 
   const issueDetails = getIssueById(issueId);
   const stateDetails =
@@ -50,10 +54,9 @@ export const IssueGanttBlock = observer(function IssueGanttBlock(props: Props) {
   const handleIssuePeekOverview = () => handleRedirection(workspaceSlug, issueDetails, isMobile);
 
   const assigneeIds = issueDetails?.assignee_ids ?? [];
-  const barWidth =
-    issueDetails?.start_date && issueDetails?.target_date
-      ? (findTotalDaysInRange(issueDetails.start_date, issueDetails.target_date) ?? 0) * 60
-      : 60;
+  const barWidth = getBlockById(issueId)?.position?.width ?? 0;
+  const showAssignees =
+    (issuesFilter?.issueFilters?.displayProperties?.assignee ?? true) && assigneeIds.length > 0 && barWidth > 48;
   const showAssigneeName = barWidth > 200;
   const showTitle = barWidth > 80;
 
@@ -72,9 +75,9 @@ export const IssueGanttBlock = observer(function IssueGanttBlock(props: Props) {
             <div className="absolute top-0 left-0 h-full w-full bg-surface-1/50" />
             <div className="relative flex h-full w-full items-center gap-1.5 overflow-hidden px-2 py-1">
               {showTitle && <span className="min-w-0 flex-1 truncate text-13 text-primary">{issueDetails?.name}</span>}
-              {assigneeIds.length > 0 && (
-                <div className="flex flex-shrink-0 items-center gap-1">
-                  {assigneeIds.slice(0, 2).map((assigneeId) => {
+              {showAssignees && (
+                <div className="ml-auto flex flex-shrink-0 items-center gap-1">
+                  {assigneeIds.slice(0, barWidth > 120 ? 2 : 1).map((assigneeId) => {
                     const member = getUserDetails(assigneeId);
                     if (!member) return null;
                     return (
@@ -87,7 +90,9 @@ export const IssueGanttBlock = observer(function IssueGanttBlock(props: Props) {
                       />
                     );
                   })}
-                  {assigneeIds.length > 2 && <span className="text-11 text-tertiary">+{assigneeIds.length - 2}</span>}
+                  {assigneeIds.length > 2 && barWidth > 120 && (
+                    <span className="text-11 text-tertiary">+{assigneeIds.length - 2}</span>
+                  )}
                   {showAssigneeName && assigneeIds.length === 1 && (
                     <span className="max-w-[80px] truncate text-11 text-secondary">
                       {getUserDetails(assigneeIds[0])?.display_name}

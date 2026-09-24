@@ -278,13 +278,13 @@ export const ISSUE_DISPLAY_FILTERS_BY_PAGE: TIssueFiltersToDisplayByPageType = {
           "estimate",
         ],
         display_filters: {
-          group_by: ["module", "cycle", "labels", "assignees", "state", "priority", "project", null],
-          order_by: ["sort_order", "-created_at", "-updated_at", "start_date", "-priority"],
+          group_by: ["state", "priority", "cycle", "module", "labels", "assignees", "created_by", "project", null],
+          order_by: ["sort_order", "-created_at", "-updated_at", "start_date", "-priority", "target_date"],
           type: ["active", "backlog"],
         },
         extra_options: {
           access: true,
-          values: ["sub_issue"],
+          values: ["show_empty_groups", "sub_issue"],
         },
       },
     },
