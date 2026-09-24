@@ -1,53 +1,57 @@
 import { describe, expect, test } from "vitest";
 import { buildWikiHomeModel } from "../../core/components/wiki/home-model";
-import type { TActivityEntityData, TPage, TPageCollection, TWikiScope } from "@plane/types";
+import type { TPage, TWikiScope } from "@plane/types";
 
 const scope: TWikiScope = {
   id: "1",
   slug: "mkt",
   name: "Marketing",
   is_default: false,
-  is_member: true,
-  can_create: true,
+  is_member: false,
+  can_create: false,
 };
-const page = (id: string, workspace: string, favorite = false): TPage =>
-  ({ id, workspace, name: id, is_favorite: favorite }) as TPage;
-const collection = (id: string, sort_order: number): TPageCollection =>
-  ({ id, name: id, sort_order }) as TPageCollection;
-const recent = (id: string): TActivityEntityData =>
+
+const page = (
+  id: string,
+  workspace: string,
+  updated_at: string,
+  extra: Partial<TPage> = {}
+): TPage =>
   ({
     id,
-    entity_name: "workspace_page",
-    entity_identifier: id,
-    entity_data: { id, name: id },
-    visited_at: "2026-09-24",
-  }) as TActivityEntityData;
+    workspace,
+    name: id,
+    created_at: updated_at,
+    updated_at,
+    ...extra,
+  }) as TPage;
 
 describe("Wiki Home model", () => {
-  test("filters recents and favorites to the selected workspace", () => {
+  test("returns only active pages from the selected scope, newest first", () => {
     const model = buildWikiHomeModel({
       scope,
-      pages: [page("a", "1", true), page("b", "2", true)],
-      collections: [],
-      recents: [recent("a"), recent("b")],
+      pages: [
+        page("old", "1", "2026-09-20T00:00:00Z"),
+        page("new", "1", "2026-09-24T00:00:00Z"),
+        page("other", "2", "2026-09-25T00:00:00Z"),
+        page("archived", "1", "2026-09-26T00:00:00Z", { archived_at: "2026-09-26" }),
+      ],
     });
-    expect(model.favorites.map((item) => item.id)).toEqual(["a"]);
-    expect(model.recents.map((item) => item.entity_identifier)).toEqual(["a"]);
+
+    expect(model.recentlyUpdated.map((item) => item.id)).toEqual(["new", "old"]);
   });
 
-  test("sorts collections and gates creation", () => {
+  test("caps the recently updated fallback", () => {
     const model = buildWikiHomeModel({
-      scope: { ...scope, can_create: false },
-      pages: [],
-      collections: [collection("late", 3), collection("early", 1)],
-      recents: [],
+      scope,
+      pages: [
+        page("a", "1", "2026-09-24T04:00:00Z"),
+        page("b", "1", "2026-09-24T03:00:00Z"),
+        page("c", "1", "2026-09-24T02:00:00Z"),
+      ],
+      limit: 2,
     });
-    expect(model.collections.map((item) => item.id)).toEqual(["early", "late"]);
-    expect(model.canCreate).toBe(false);
-  });
 
-  test("shows empty state only when no selected-scope content is visible", () => {
-    expect(buildWikiHomeModel({ scope, pages: [], collections: [], recents: [] }).isEmpty).toBe(true);
-    expect(buildWikiHomeModel({ scope, pages: [page("a", "1")], collections: [], recents: [] }).isEmpty).toBe(false);
+    expect(model.recentlyUpdated.map((item) => item.id)).toEqual(["a", "b"]);
   });
 });

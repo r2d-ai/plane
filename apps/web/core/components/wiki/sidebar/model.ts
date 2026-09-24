@@ -1,4 +1,4 @@
-import type { TWikiScope } from "@plane/types";
+import type { TPage, TPageCollectionPage, TWikiScope } from "@plane/types";
 import { getWikiHomePath, getWikiPagePath } from "../../../helpers/wiki-routes";
 import type { IWikiNavigationStore } from "../../../store/wiki/wiki-navigation.store";
 
@@ -33,4 +33,33 @@ export async function expandWikiWorkspace(store: IWikiNavigationStore, slug: str
   if (store.getScope(slug).status === "idle" || store.getScope(slug).status === "error") {
     await store.fetchScope(slug);
   }
+}
+
+export function getCollectionSubtreePages(pages: TPage[], associations: TPageCollectionPage[]): TPage[] {
+  const included = new Set(associations.map((item) => item.page));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const page of pages) {
+      if (!page.id || included.has(page.id) || page.deleted_at || page.archived_at) continue;
+      if (page.parent && included.has(page.parent)) {
+        included.add(page.id);
+        changed = true;
+      }
+    }
+  }
+  return pages.filter((page) => !!page.id && included.has(page.id));
+}
+
+export function getLooseWikiPages(
+  pages: TPage[],
+  collectionPagesById: Record<string, TPageCollectionPage[]>
+): TPage[] {
+  const claimed = new Set<string>();
+  for (const associations of Object.values(collectionPagesById)) {
+    for (const page of getCollectionSubtreePages(pages, associations)) {
+      if (page.id) claimed.add(page.id);
+    }
+  }
+  return pages.filter((page) => !page.id || !claimed.has(page.id));
 }

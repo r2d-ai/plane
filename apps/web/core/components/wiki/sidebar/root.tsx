@@ -79,6 +79,7 @@ export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNav
           activeSlug={workspaceSlug}
           activePageId={pageId}
           initiallyExpanded
+          isDefaultScope
           onNavigate={onNavigate}
         />
       )}

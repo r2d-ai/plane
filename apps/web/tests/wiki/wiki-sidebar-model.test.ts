@@ -1,5 +1,10 @@
 import { describe, expect, test, vi } from "vitest";
-import { buildWikiSidebarModel, expandWikiWorkspace } from "../../core/components/wiki/sidebar/model";
+import {
+  buildWikiSidebarModel,
+  expandWikiWorkspace,
+  getCollectionSubtreePages,
+  getLooseWikiPages,
+} from "../../core/components/wiki/sidebar/model";
 import { WikiNavigationStore } from "../../core/store/wiki/wiki-navigation.store";
 
 const scopes = [
@@ -34,4 +39,17 @@ describe("Wiki sidebar model", () => {
     expect(fetchAll.mock.calls.map(([slug]) => slug)).toEqual(["home", "mkt"]);
     expect(store.getScope("home").status).toBe("loaded");
   });
+});
+
+
+test("collection helpers keep inherited descendants out of the loose tree", () => {
+  const pages = [
+    { id: "root", parent: null },
+    { id: "child", parent: "root" },
+    { id: "loose", parent: null },
+  ] as any[];
+  const associations = [{ page: "root" }] as any[];
+
+  expect(getCollectionSubtreePages(pages, associations).map((page) => page.id)).toEqual(["root", "child"]);
+  expect(getLooseWikiPages(pages, { general: associations }).map((page) => page.id)).toEqual(["loose"]);
 });

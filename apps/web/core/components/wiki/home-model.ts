@@ -1,28 +1,22 @@
-import type { TActivityEntityData, TPage, TPageCollection, TWikiScope } from "@plane/types";
+import type { TPage, TWikiScope } from "@plane/types";
 
 export function buildWikiHomeModel({
   scope,
   pages,
-  collections,
-  recents,
+  limit = 6,
 }: {
   scope: TWikiScope;
   pages: TPage[];
-  collections: TPageCollection[];
-  recents: TActivityEntityData[];
+  limit?: number;
 }) {
-  const visiblePages = pages.filter((page) => page.workspace === scope.id && !page.deleted_at && !page.archived_at);
-  const pageIds = new Set(visiblePages.map((page) => page.id));
-  const visibleRecents = recents.filter(
-    (recent) => recent.entity_name === "workspace_page" && pageIds.has(recent.entity_identifier)
-  );
-  const orderedCollections = collections.toSorted((a, b) => a.sort_order - b.sort_order);
-  return {
-    pages: visiblePages,
-    favorites: visiblePages.filter((page) => page.is_favorite),
-    recents: visibleRecents,
-    collections: orderedCollections,
-    canCreate: scope.can_create,
-    isEmpty: visiblePages.length === 0 && orderedCollections.length === 0,
-  };
+  const recentlyUpdated = pages
+    .filter((page) => page.workspace === scope.id && !page.deleted_at && !page.archived_at)
+    .toSorted((a, b) => {
+      const aTime = Date.parse(a.updated_at ?? a.created_at ?? "") || 0;
+      const bTime = Date.parse(b.updated_at ?? b.created_at ?? "") || 0;
+      return bTime - aTime;
+    })
+    .slice(0, limit);
+
+  return { recentlyUpdated };
 }

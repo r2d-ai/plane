@@ -1,11 +1,16 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import type { TWikiScope } from "@plane/types";
 import { cn } from "@plane/utils";
+import { useTranslation } from "@plane/i18n";
 import { useWikiNavigation } from "../../../hooks/store/use-wiki-navigation";
 import { getWikiPagePath } from "../../../helpers/wiki-routes";
-import { expandWikiWorkspace } from "./model";
+import {
+  expandWikiWorkspace,
+  getCollectionSubtreePages,
+  getLooseWikiPages,
+} from "./model";
 import { WikiPageTree } from "./page-tree";
 
 type Props = {
@@ -15,6 +20,7 @@ type Props = {
   activePageId?: string;
   onNavigate: () => void;
   initiallyExpanded?: boolean;
+  isDefaultScope?: boolean;
 };
 
 export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
@@ -24,39 +30,64 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
   activePageId,
   onNavigate,
   initiallyExpanded = false,
+  isDefaultScope = false,
 }: Props) {
   const navigation = useWikiNavigation();
-  const [expanded, setExpanded] = useState(initiallyExpanded);
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(initiallyExpanded || isDefaultScope);
   const [expandedCollections, setExpandedCollections] = useState<Record<string, boolean>>({});
   const [collectionErrors, setCollectionErrors] = useState<Record<string, string>>({});
   const [collectionLoading, setCollectionLoading] = useState<Record<string, boolean>>({});
   const data = navigation.getScope(scope.slug);
+  const showContents = isDefaultScope || expanded;
 
   useEffect(() => {
-    if (initiallyExpanded || activeSlug === scope.slug) {
+    if (isDefaultScope || initiallyExpanded || activeSlug === scope.slug) {
       setExpanded(true);
       void expandWikiWorkspace(navigation, scope.slug).catch(() => {});
     }
-  }, [initiallyExpanded, activeSlug, navigation, scope.slug]);
+  }, [isDefaultScope, initiallyExpanded, activeSlug, navigation, scope.slug]);
 
   const toggleWorkspace = () => {
     setExpanded((current) => !current);
     if (!expanded) void expandWikiWorkspace(navigation, scope.slug).catch(() => {});
   };
 
-  const loadCollection = (collectionId: string) => {
-    setCollectionLoading((current) => ({ ...current, [collectionId]: true }));
-    setCollectionErrors((current) => ({ ...current, [collectionId]: "" }));
-    void navigation
-      .fetchCollectionPages(scope.slug, collectionId)
-      .catch((error: unknown) =>
-        setCollectionErrors((current) => ({
-          ...current,
-          [collectionId]: error instanceof Error ? error.message : "Could not load collection",
-        }))
-      )
-      .finally(() => setCollectionLoading((current) => ({ ...current, [collectionId]: false })));
-  };
+  const loadCollection = useCallback(
+    (collectionId: string) => {
+      setCollectionLoading((current) => ({ ...current, [collectionId]: true }));
+      setCollectionErrors((current) => ({ ...current, [collectionId]: "" }));
+      void navigation
+        .fetchCollectionPages(scope.slug, collectionId)
+        .catch((error: unknown) =>
+          setCollectionErrors((current) => ({
+            ...current,
+            [collectionId]: error instanceof Error ? error.message : "Could not load collection",
+          }))
+        )
+        .finally(() => setCollectionLoading((current) => ({ ...current, [collectionId]: false })));
+    },
+    [navigation, scope.slug]
+  );
+
+  useEffect(() => {
+    if (!showContents || data.status !== "loaded") return;
+    const defaultCollection = data.collectionIds
+      .map((id) => data.collectionsById[id])
+      .find((collection) => collection?.is_default);
+    if (!defaultCollection || expandedCollections[defaultCollection.id] !== undefined) return;
+
+    setExpandedCollections((current) => ({ ...current, [defaultCollection.id]: true }));
+    if (!data.collectionPagesById[defaultCollection.id]) loadCollection(defaultCollection.id);
+  }, [
+    showContents,
+    data.status,
+    data.collectionIds,
+    data.collectionsById,
+    data.collectionPagesById,
+    expandedCollections,
+    loadCollection,
+  ]);
 
   const toggleCollection = (collectionId: string) => {
     setExpandedCollections((current) => ({ ...current, [collectionId]: !current[collectionId] }));
@@ -64,32 +95,51 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
     loadCollection(collectionId);
   };
 
+  const allPages = data.pageIds.map((id) => data.pagesById[id]).filter((page) => !!page);
+  const loosePages = getLooseWikiPages(allPages, data.collectionPagesById);
+
   return (
     <div>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
-          aria-expanded={expanded}
-          onClick={toggleWorkspace}
-          className="focus-visible:outline-accent-primary size-7 rounded focus-visible:outline-2"
-        >
-          {expanded ? "⌄" : "›"}
-        </button>
+      {isDefaultScope ? (
         <Link
           href={`/wiki/${scope.slug}`}
           onClick={onNavigate}
           aria-current={activeSlug === scope.slug && !activePageId ? "page" : undefined}
           className={cn(
-            "focus-visible:outline-accent-primary min-w-0 flex-1 truncate rounded px-2 py-1.5 text-13 hover:bg-layer-1 focus-visible:outline-2",
-            activeSlug === scope.slug ? "bg-layer-1 font-medium text-primary" : "text-secondary"
+            "focus-visible:outline-accent-primary mb-2 flex items-center gap-2 rounded px-2 py-1.5 text-13 hover:bg-layer-1 focus-visible:outline-2",
+            activeSlug === scope.slug && !activePageId ? "bg-layer-1 font-medium text-primary" : "text-secondary"
           )}
         >
-          {label}
+          <span aria-hidden>⌂</span>
+          <span>{t("wiki.sidebar.home")}</span>
         </Link>
-      </div>
-      {expanded && (
-        <div className="pl-2">
+      ) : (
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
+            aria-expanded={expanded}
+            onClick={toggleWorkspace}
+            className="focus-visible:outline-accent-primary size-7 rounded focus-visible:outline-2"
+          >
+            {expanded ? "⌄" : "›"}
+          </button>
+          <Link
+            href={`/wiki/${scope.slug}`}
+            onClick={onNavigate}
+            aria-current={activeSlug === scope.slug && !activePageId ? "page" : undefined}
+            className={cn(
+              "focus-visible:outline-accent-primary min-w-0 flex-1 truncate rounded px-2 py-1.5 text-13 hover:bg-layer-1 focus-visible:outline-2",
+              activeSlug === scope.slug ? "bg-layer-1 font-medium text-primary" : "text-secondary"
+            )}
+          >
+            {label}
+          </Link>
+        </div>
+      )}
+
+      {showContents && (
+        <div className={isDefaultScope ? "" : "pl-2"}>
           {data.status === "loading" && (
             <div className="space-y-2 p-2" aria-label={`Loading ${label}`}>
               <div className="h-4 w-4/5 animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
@@ -104,15 +154,21 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
                 onClick={() => void expandWikiWorkspace(navigation, scope.slug).catch(() => {})}
                 className="rounded text-accent-primary focus-visible:outline-2"
               >
-                Retry
+                {t("wiki.sidebar.retry")}
               </button>
             </div>
           )}
           {data.status === "loaded" && (
             <>
+              {isDefaultScope && data.collectionIds.length > 0 && (
+                <p className="px-2 py-1 text-11 font-semibold tracking-wide text-tertiary">
+                  {t("wiki.collections.section_title")}
+                </p>
+              )}
               {data.collectionIds.map((id) => {
                 const collection = data.collectionsById[id];
                 if (!collection) return null;
+                const collectionPages = getCollectionSubtreePages(allPages, data.collectionPagesById[id] ?? []);
                 return (
                   <div key={id}>
                     <button
@@ -129,35 +185,31 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
                           <div className="h-4 w-3/4 animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
                         )}
                         {collectionErrors[id] && (
-                          <button
-                            type="button"
-                            onClick={() => loadCollection(id)}
-                            className="text-12 text-accent-primary"
-                          >
-                            Retry collection
+                          <button type="button" onClick={() => loadCollection(id)} className="text-12 text-accent-primary">
+                            {t("wiki.sidebar.retry")}
                           </button>
                         )}
-                        {data.collectionPagesById[id]?.map((item) => (
-                          <Link
-                            key={item.id}
-                            href={getWikiPagePath(scope.slug, item.page)}
-                            onClick={onNavigate}
-                            className="focus-visible:outline-accent-primary block truncate rounded px-2 py-1 text-13 text-secondary hover:bg-layer-1 focus-visible:outline-2"
-                          >
-                            {item.page_detail.name || "Untitled"}
-                          </Link>
-                        ))}
+                        {!collectionLoading[id] && !collectionErrors[id] && (
+                          <WikiPageTree
+                            pages={collectionPages}
+                            workspaceSlug={scope.slug}
+                            activePageId={activePageId}
+                            onNavigate={onNavigate}
+                          />
+                        )}
                       </div>
                     )}
                   </div>
                 );
               })}
-              <WikiPageTree
-                pages={data.pageIds.map((id) => data.pagesById[id]).filter((page) => !!page)}
-                workspaceSlug={scope.slug}
-                activePageId={activePageId}
-                onNavigate={onNavigate}
-              />
+              {loosePages.length > 0 && (
+                <WikiPageTree
+                  pages={loosePages}
+                  workspaceSlug={scope.slug}
+                  activePageId={activePageId}
+                  onNavigate={onNavigate}
+                />
+              )}
             </>
           )}
         </div>
