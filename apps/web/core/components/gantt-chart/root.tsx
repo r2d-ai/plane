@@ -8,6 +8,8 @@ import { useEffect } from "react";
 import { observer } from "mobx-react";
 // components
 import type { IBlockUpdateData, IBlockUpdateDependencyData } from "@plane/types";
+import type { TimelineRow } from "@/components/gantt-chart/types/timeline-row";
+import { GANTT_SIDEBAR_DEFAULT_WIDTH, type TGanttColumnKey } from "@/hooks/use-gantt-preferences";
 // hooks
 import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 import { ChartViewRoot } from "./chart/root";
@@ -17,6 +19,12 @@ type GanttChartRootProps = {
   title: string;
   loaderTitle: string;
   blockIds: string[];
+  timelineRows?: TimelineRow[];
+  sidebarWidth?: number;
+  visibleColumns?: TGanttColumnKey[];
+  onSidebarWidthChange?: (width: number) => void;
+  onToggleGroupCollapse?: (groupId: string) => void;
+  onScaleChange?: (view: import("@plane/types").TGanttViews) => void;
   blockUpdateHandler: (block: any, payload: IBlockUpdateData) => void;
   blockToRender: (data: any) => React.ReactNode;
   sidebarToRender: (props: any) => React.ReactNode;
@@ -42,6 +50,12 @@ export const GanttChartRoot = observer(function GanttChartRoot(props: GanttChart
     border = true,
     title,
     blockIds,
+    timelineRows,
+    sidebarWidth,
+    visibleColumns,
+    onSidebarWidthChange,
+    onToggleGroupCollapse,
+    onScaleChange,
     loaderTitle = "blocks",
     blockUpdateHandler,
     sidebarToRender,
@@ -65,16 +79,30 @@ export const GanttChartRoot = observer(function GanttChartRoot(props: GanttChart
 
   const { setBlockIds } = useTimeLineChartStore();
 
+  const resolvedTimelineRows: TimelineRow[] =
+    timelineRows ??
+    blockIds.map((id) => ({
+      type: "issue" as const,
+      rowId: id,
+      issueId: id,
+    }));
+
   // update the timeline store with updated blockIds
   useEffect(() => {
     setBlockIds(blockIds);
-  }, [blockIds]);
+  }, [blockIds, setBlockIds]);
 
   return (
     <ChartViewRoot
       border={border}
       title={title}
       blockIds={blockIds}
+      timelineRows={resolvedTimelineRows}
+      sidebarWidth={sidebarWidth ?? GANTT_SIDEBAR_DEFAULT_WIDTH}
+      visibleColumns={visibleColumns ?? ["work_item"]}
+      onSidebarWidthChange={onSidebarWidthChange ?? (() => {})}
+      onToggleGroupCollapse={onToggleGroupCollapse ?? (() => {})}
+      onScaleChange={onScaleChange}
       loadMoreBlocks={loadMoreBlocks}
       canLoadMoreBlocks={canLoadMoreBlocks}
       loaderTitle={loaderTitle}

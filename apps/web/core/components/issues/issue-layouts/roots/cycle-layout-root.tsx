@@ -119,7 +119,11 @@ export const CycleLayoutRoot = observer(function CycleLayoutRoot() {
                   }}
                 />
               )}
-              <div className="h-full w-full overflow-auto">
+              <div
+                className={`h-full w-full ${
+                  activeLayout === EIssueLayoutTypes.GANTT ? "overflow-hidden" : "overflow-auto"
+                }`}
+              >
                 <CycleIssueLayout activeLayout={activeLayout} cycleId={cycleId} isCompletedCycle={isCompletedCycle} />
               </div>
               {/* peek overview */}

@@ -23,6 +23,7 @@ import type {
 import { EIssuesStoreType } from "@plane/types";
 import { handleIssueQueryParamsByLayout } from "@plane/utils";
 import type { IBaseIssueFilterStore } from "../helpers/issue-filter-helper.store";
+import { applyGanttLayoutFilterDefaults } from "../helpers/gantt-layout-filter-defaults";
 import { IssueFilterHelperStore } from "../helpers/issue-filter-helper.store";
 // helpers
 // types
@@ -205,6 +206,7 @@ export class ProjectIssuesFilter extends IssueFilterHelperStore implements IProj
       switch (type) {
         case EIssueFilterType.DISPLAY_FILTERS: {
           const updatedDisplayFilters = filters as IIssueDisplayFilterOptions;
+          const previousLayout = _filters.displayFilters.layout;
           _filters.displayFilters = { ..._filters.displayFilters, ...updatedDisplayFilters };
 
           // set sub_group_by to null if group_by is set to null
@@ -225,6 +227,17 @@ export class ProjectIssuesFilter extends IssueFilterHelperStore implements IProj
             _filters.displayFilters.group_by = "state";
             updatedDisplayFilters.group_by = "state";
           }
+          const ganttDefaults = applyGanttLayoutFilterDefaults(
+            _filters.displayFilters,
+            _filters.displayProperties,
+            previousLayout
+          );
+          _filters.displayFilters = ganttDefaults.displayFilters;
+          _filters.displayProperties = ganttDefaults.displayProperties;
+          if (ganttDefaults.didUpdateDisplayProperties) {
+            updatedDisplayFilters.group_by = ganttDefaults.displayFilters.group_by;
+            updatedDisplayFilters.sub_group_by = ganttDefaults.displayFilters.sub_group_by;
+          }
 
           runInAction(() => {
             Object.keys(updatedDisplayFilters).forEach((_key) => {
@@ -234,6 +247,15 @@ export class ProjectIssuesFilter extends IssueFilterHelperStore implements IProj
                 updatedDisplayFilters[_key as keyof IIssueDisplayFilterOptions]
               );
             });
+            if (ganttDefaults.didUpdateDisplayProperties) {
+              Object.keys(ganttDefaults.displayProperties).forEach((_key) => {
+                set(
+                  this.filters,
+                  [projectId, "displayProperties", _key],
+                  ganttDefaults.displayProperties[_key as keyof IIssueDisplayProperties]
+                );
+              });
+            }
           });
 
           if (this.getShouldClearIssues(updatedDisplayFilters)) {
@@ -246,6 +268,7 @@ export class ProjectIssuesFilter extends IssueFilterHelperStore implements IProj
 
           await this.projectService.updateProjectUserProperties(workspaceSlug, projectId, {
             display_filters: _filters.displayFilters,
+            ...(ganttDefaults.didUpdateDisplayProperties ? { display_properties: _filters.displayProperties } : {}),
           });
 
           break;

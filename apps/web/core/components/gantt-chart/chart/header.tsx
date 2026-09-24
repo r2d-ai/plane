@@ -7,16 +7,11 @@
 import { observer } from "mobx-react";
 import { Expand, Shrink } from "lucide-react";
 import { useTranslation } from "@plane/i18n";
-// plane
 import type { TGanttViews } from "@plane/types";
 import { Row } from "@plane/ui";
-// components
 import { cn } from "@plane/utils";
 import { VIEWS_LIST } from "@/components/gantt-chart/data";
-// helpers
-// hooks
 import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
-//
 import { GANTT_BREADCRUMBS_HEIGHT } from "../constants";
 
 type Props = {
@@ -49,8 +44,9 @@ export const GanttChartHeader = observer(function GanttChartHeader(props: Props)
 
       <div className="flex flex-wrap items-center gap-2">
         {VIEWS_LIST.map((chartView: any) => (
-          <div
+          <button
             key={chartView?.key}
+            type="button"
             className={cn(
               "cursor-pointer rounded-md bg-layer-transparent p-1 px-2 text-11 hover:bg-layer-transparent-hover",
               {
@@ -60,7 +56,7 @@ export const GanttChartHeader = observer(function GanttChartHeader(props: Props)
             onClick={() => handleChartView(chartView?.key)}
           >
             {t(chartView?.i18n_title)}
-          </div>
+          </button>
         ))}
       </div>
 

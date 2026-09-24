@@ -171,13 +171,13 @@ export class WorkspaceIssuesFilter extends IssueFilterHelperStore implements IWo
 
     // Get the view details if the view is not a static view
     if (STATIC_VIEW_TYPES.includes(viewId) === false) {
-      const _filters = await this.issueFilterService.getViewDetails(workspaceSlug, viewId);
-      richFilters = _filters?.rich_filters;
-      displayFilters = this.computedDisplayFilters(_filters?.display_filters, {
+      const viewFilters = await this.issueFilterService.getViewDetails(workspaceSlug, viewId);
+      richFilters = viewFilters?.rich_filters;
+      displayFilters = this.computedDisplayFilters(viewFilters?.display_filters, {
         layout: EIssueLayoutTypes.SPREADSHEET,
         order_by: "-created_at",
       });
-      displayProperties = this.computedDisplayProperties(_filters?.display_properties);
+      displayProperties = this.computedDisplayProperties(viewFilters?.display_properties);
     }
 
     // override existing order by if ordered by manual sort_order
@@ -227,6 +227,7 @@ export class WorkspaceIssuesFilter extends IssueFilterHelperStore implements IWo
       switch (type) {
         case EIssueFilterType.DISPLAY_FILTERS: {
           const updatedDisplayFilters = filters as IIssueDisplayFilterOptions;
+          const previousLayout = _filters.displayFilters.layout;
           _filters.displayFilters = { ..._filters.displayFilters, ...updatedDisplayFilters };
 
           // set sub_group_by to null if group_by is set to null
@@ -246,6 +247,11 @@ export class WorkspaceIssuesFilter extends IssueFilterHelperStore implements IWo
           if (_filters.displayFilters.layout === "kanban" && _filters.displayFilters.group_by === null) {
             _filters.displayFilters.group_by = "state";
             updatedDisplayFilters.group_by = "state";
+          }
+          // reset group_by when switching to gantt layout
+          if (_filters.displayFilters.layout === "gantt_chart" && previousLayout !== "gantt_chart") {
+            _filters.displayFilters.group_by = null;
+            updatedDisplayFilters.group_by = null;
           }
 
           runInAction(() => {

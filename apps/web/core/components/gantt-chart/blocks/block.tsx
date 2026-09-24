@@ -21,6 +21,7 @@ import { ChartDraggable } from "../helpers";
 import { useGanttResizable } from "../helpers/blockResizables/use-gantt-resizable";
 
 type Props = {
+  rowId: string;
   blockId: string;
   showAllBlocks: boolean;
   blockToRender: (data: any) => React.ReactNode;
@@ -34,6 +35,7 @@ type Props = {
 
 export const GanttChartBlock = observer(function GanttChartBlock(props: Props) {
   const {
+    rowId,
     blockId,
     showAllBlocks,
     blockToRender,
@@ -69,7 +71,7 @@ export const GanttChartBlock = observer(function GanttChartBlock(props: Props) {
         "transition-all": !!isMoving && currentView === "week",
         "pointer-events-none": !isBlockVisibleOnChart,
       })}
-      id={`gantt-block-${block.id}`}
+      id={`gantt-block-${rowId}`}
       ref={resizableRef}
       style={{
         height: `${BLOCK_HEIGHT}px`,

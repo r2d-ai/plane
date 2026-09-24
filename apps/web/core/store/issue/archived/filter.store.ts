@@ -206,6 +206,7 @@ export class ArchivedIssuesFilter extends IssueFilterHelperStore implements IArc
       switch (type) {
         case EIssueFilterType.DISPLAY_FILTERS: {
           const updatedDisplayFilters = filters as IIssueDisplayFilterOptions;
+          const previousLayout = _filters.displayFilters.layout;
           _filters.displayFilters = { ..._filters.displayFilters, ...updatedDisplayFilters };
 
           // set sub_group_by to null if group_by is set to null
@@ -225,6 +226,11 @@ export class ArchivedIssuesFilter extends IssueFilterHelperStore implements IArc
           if (_filters.displayFilters.layout === "kanban" && _filters.displayFilters.group_by === null) {
             _filters.displayFilters.group_by = "state";
             updatedDisplayFilters.group_by = "state";
+          }
+          // reset group_by when switching to gantt layout
+          if (_filters.displayFilters.layout === "gantt_chart" && previousLayout !== "gantt_chart") {
+            _filters.displayFilters.group_by = null;
+            updatedDisplayFilters.group_by = null;
           }
 
           runInAction(() => {

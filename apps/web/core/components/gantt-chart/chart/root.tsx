@@ -4,12 +4,14 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { createPortal } from "react-dom";
 // plane imports
 // components
 import type { ChartDataType, IBlockUpdateData, IBlockUpdateDependencyData, TGanttViews } from "@plane/types";
+import type { TimelineRow } from "@/components/gantt-chart/types/timeline-row";
+import type { TGanttColumnKey } from "@/hooks/use-gantt-preferences";
 import { cn } from "@plane/utils";
 import { GanttChartHeader, GanttChartMainContent } from "@/components/gantt-chart";
 // helpers
@@ -20,13 +22,20 @@ import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 import { SIDEBAR_WIDTH } from "../constants";
 import { currentViewDataWithView } from "../data";
 import type { IMonthBlock, IMonthView, IWeekBlock } from "../views";
-import { getNumberOfDaysBetweenTwoDates, monthView, quarterView, weekView } from "../views";
+import { dayView, getNumberOfDaysBetweenTwoDates, monthView, quarterView, weekView } from "../views";
+import type { IDayViewMonthBlock } from "../views/day-view";
 
 type ChartViewRootProps = {
   border: boolean;
   title: string;
   loaderTitle: string;
   blockIds: string[];
+  timelineRows: TimelineRow[];
+  sidebarWidth: number;
+  visibleColumns: TGanttColumnKey[];
+  onSidebarWidthChange: (width: number) => void;
+  onToggleGroupCollapse?: (groupId: string) => void;
+  onScaleChange?: (view: TGanttViews) => void;
   blockUpdateHandler: (block: any, payload: IBlockUpdateData) => void;
   blockToRender: (data: any) => React.ReactNode;
   sidebarToRender: (props: any) => React.ReactNode;
@@ -48,9 +57,19 @@ type ChartViewRootProps = {
 };
 
 const timelineViewHelpers = {
+  day: dayView,
   week: weekView,
   month: monthView,
   quarter: quarterView,
+};
+
+type TimelineRenderPayload = IWeekBlock[] | IMonthView | IMonthBlock[] | IDayViewMonthBlock[];
+
+const updateCurrentLeftScrollPosition = (width: number) => {
+  const scrollContainer = document.querySelector("#gantt-container") as HTMLDivElement;
+  if (!scrollContainer) return;
+
+  scrollContainer.scrollLeft = width + scrollContainer.scrollLeft;
 };
 
 export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRootProps) {
@@ -58,6 +77,12 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
     border,
     title,
     blockIds,
+    timelineRows,
+    sidebarWidth,
+    visibleColumns,
+    onSidebarWidthChange,
+    onToggleGroupCollapse,
+    onScaleChange,
     loadMoreBlocks,
     loaderTitle,
     blockUpdateHandler,
@@ -81,6 +106,7 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
   // states
   const [itemsContainerWidth, setItemsContainerWidth] = useState(0);
   const [fullScreenMode, setFullScreenMode] = useState(false);
+  const rangeExpansionInFlightRef = useRef<"left" | "right" | null>(null);
   // hooks
   const {
     currentView,
@@ -95,6 +121,8 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
   const startOfWeek = data?.start_of_the_week;
 
   const updateCurrentViewRenderPayload = (side: null | "left" | "right", view: TGanttViews, targetDate?: Date) => {
+    if (side && rangeExpansionInFlightRef.current === side) return currentViewData;
+
     const selectedCurrentView: TGanttViews = view;
     const selectedCurrentViewData: ChartDataType | undefined =
       selectedCurrentView && selectedCurrentView === currentViewData?.key
@@ -106,12 +134,14 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
     const currentViewHelpers = timelineViewHelpers[selectedCurrentView];
     const currentRender = currentViewHelpers.generateChart(selectedCurrentViewData, side, targetDate, startOfWeek);
     const mergeRenderPayloads = currentViewHelpers.mergeRenderPayloads as (
-      a: IWeekBlock[] | IMonthView | IMonthBlock[],
-      b: IWeekBlock[] | IMonthView | IMonthBlock[]
-    ) => IWeekBlock[] | IMonthView | IMonthBlock[];
+      a: TimelineRenderPayload,
+      b: TimelineRenderPayload
+    ) => TimelineRenderPayload;
 
     // updating the prevData, currentData and nextData
     if (currentRender.payload) {
+      if (side) rangeExpansionInFlightRef.current = side;
+
       updateCurrentViewData(currentRender.state);
 
       if (side === "left") {
@@ -133,6 +163,12 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
           handleScrollToCurrentSelectedDate(currentRender.state, currentRender.state.data.currentDate);
         }, 50);
       }
+
+      if (side) {
+        requestAnimationFrame(() => {
+          rangeExpansionInFlightRef.current = null;
+        });
+      }
     }
 
     return currentRender.state;
@@ -150,13 +186,6 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
     const scrollContainer = document.querySelector("#gantt-container") as HTMLDivElement;
     if (!scrollContainer) return;
     setItemsContainerWidth(width + scrollContainer?.scrollLeft);
-  };
-
-  const updateCurrentLeftScrollPosition = (width: number) => {
-    const scrollContainer = document.querySelector("#gantt-container") as HTMLDivElement;
-    if (!scrollContainer) return;
-
-    scrollContainer.scrollLeft = width + scrollContainer?.scrollLeft;
   };
 
   const handleScrollToCurrentSelectedDate = (currentState: ChartDataType, date: Date) => {
@@ -189,13 +218,21 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
         blockIds={blockIds}
         fullScreenMode={fullScreenMode}
         toggleFullScreenMode={() => setFullScreenMode((prevData) => !prevData)}
-        handleChartView={(key) => updateCurrentViewRenderPayload(null, key)}
+        handleChartView={(key) => {
+          onScaleChange?.(key);
+          updateCurrentViewRenderPayload(null, key);
+        }}
         handleToday={handleToday}
         loaderTitle={loaderTitle}
         showToday={showToday}
       />
       <GanttChartMainContent
         blockIds={blockIds}
+        timelineRows={timelineRows}
+        sidebarWidth={sidebarWidth}
+        visibleColumns={visibleColumns}
+        onSidebarWidthChange={onSidebarWidthChange}
+        onToggleGroupCollapse={onToggleGroupCollapse}
         loadMoreBlocks={loadMoreBlocks}
         canLoadMoreBlocks={canLoadMoreBlocks}
         blockToRender={blockToRender}

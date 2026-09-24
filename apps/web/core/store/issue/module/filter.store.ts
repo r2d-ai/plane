@@ -24,6 +24,7 @@ import { EIssuesStoreType } from "@plane/types";
 import { handleIssueQueryParamsByLayout } from "@plane/utils";
 import { IssueFiltersService } from "@/services/issue_filter.service";
 import type { IBaseIssueFilterStore } from "../helpers/issue-filter-helper.store";
+import { applyGanttLayoutFilterDefaults } from "../helpers/gantt-layout-filter-defaults";
 import { IssueFilterHelperStore } from "../helpers/issue-filter-helper.store";
 // helpers
 // types
@@ -222,6 +223,7 @@ export class ModuleIssuesFilter extends IssueFilterHelperStore implements IModul
       switch (type) {
         case EIssueFilterType.DISPLAY_FILTERS: {
           const updatedDisplayFilters = filters as IIssueDisplayFilterOptions;
+          const previousLayout = _filters.displayFilters.layout;
           _filters.displayFilters = { ..._filters.displayFilters, ...updatedDisplayFilters };
 
           // set sub_group_by to null if group_by is set to null
@@ -242,6 +244,17 @@ export class ModuleIssuesFilter extends IssueFilterHelperStore implements IModul
             _filters.displayFilters.group_by = "state";
             updatedDisplayFilters.group_by = "state";
           }
+          const ganttDefaults = applyGanttLayoutFilterDefaults(
+            _filters.displayFilters,
+            _filters.displayProperties,
+            previousLayout
+          );
+          _filters.displayFilters = ganttDefaults.displayFilters;
+          _filters.displayProperties = ganttDefaults.displayProperties;
+          if (ganttDefaults.didUpdateDisplayProperties) {
+            updatedDisplayFilters.group_by = ganttDefaults.displayFilters.group_by;
+            updatedDisplayFilters.sub_group_by = ganttDefaults.displayFilters.sub_group_by;
+          }
 
           runInAction(() => {
             Object.keys(updatedDisplayFilters).forEach((_key) => {
@@ -251,6 +264,15 @@ export class ModuleIssuesFilter extends IssueFilterHelperStore implements IModul
                 updatedDisplayFilters[_key as keyof IIssueDisplayFilterOptions]
               );
             });
+            if (ganttDefaults.didUpdateDisplayProperties) {
+              Object.keys(ganttDefaults.displayProperties).forEach((_key) => {
+                set(
+                  this.filters,
+                  [moduleId, "displayProperties", _key],
+                  ganttDefaults.displayProperties[_key as keyof IIssueDisplayProperties]
+                );
+              });
+            }
           });
 
           if (this.getShouldClearIssues(updatedDisplayFilters)) {
@@ -268,6 +290,7 @@ export class ModuleIssuesFilter extends IssueFilterHelperStore implements IModul
 
           await this.issueFilterService.patchModuleIssueFilters(workspaceSlug, projectId, moduleId, {
             display_filters: _filters.displayFilters,
+            ...(ganttDefaults.didUpdateDisplayProperties ? { display_properties: _filters.displayProperties } : {}),
           });
 
           break;

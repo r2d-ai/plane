@@ -4,12 +4,14 @@
  * See the LICENSE file for details.
  */
 
-//
 import type { IBlockUpdateDependencyData } from "@plane/types";
 import { GanttChartBlock } from "@/components/gantt-chart/blocks/block";
+import { BLOCK_HEIGHT } from "@/components/gantt-chart/constants";
+import type { TimelineRow } from "@/components/gantt-chart/types/timeline-row";
+import { isTimelineIssueRow } from "@/components/gantt-chart/types/timeline-row";
 
 export type GanttChartBlocksProps = {
-  blockIds: string[];
+  timelineRows: TimelineRow[];
   blockToRender: (data: any) => React.ReactNode;
   enableBlockLeftResize: boolean | ((blockId: string) => boolean);
   enableBlockRightResize: boolean | ((blockId: string) => boolean);
@@ -22,7 +24,7 @@ export type GanttChartBlocksProps = {
 
 export function GanttChartBlocksList(props: GanttChartBlocksProps) {
   const {
-    blockIds,
+    timelineRows,
     blockToRender,
     enableBlockLeftResize,
     enableBlockRightResize,
@@ -35,24 +37,35 @@ export function GanttChartBlocksList(props: GanttChartBlocksProps) {
 
   return (
     <>
-      {blockIds?.map((blockId) => (
-        <GanttChartBlock
-          key={blockId}
-          blockId={blockId}
-          showAllBlocks={showAllBlocks}
-          blockToRender={blockToRender}
-          enableBlockLeftResize={
-            typeof enableBlockLeftResize === "function" ? enableBlockLeftResize(blockId) : enableBlockLeftResize
-          }
-          enableBlockRightResize={
-            typeof enableBlockRightResize === "function" ? enableBlockRightResize(blockId) : enableBlockRightResize
-          }
-          enableBlockMove={typeof enableBlockMove === "function" ? enableBlockMove(blockId) : enableBlockMove}
-          enableDependency={typeof enableDependency === "function" ? enableDependency(blockId) : enableDependency}
-          ganttContainerRef={ganttContainerRef}
-          updateBlockDates={updateBlockDates}
-        />
-      ))}
+      {/* Group rows occupy a row in the row layer (GanttChartRowList), so they need a matching
+          spacer here to keep each block aligned with its sidebar row. */}
+      {timelineRows?.map((row) => {
+        if (!isTimelineIssueRow(row)) {
+          return <div key={row.rowId} style={{ height: `${BLOCK_HEIGHT}px` }} />;
+        }
+
+        return (
+          <GanttChartBlock
+            key={row.rowId}
+            rowId={row.rowId}
+            blockId={row.issueId}
+            showAllBlocks={showAllBlocks}
+            blockToRender={blockToRender}
+            enableBlockLeftResize={
+              typeof enableBlockLeftResize === "function" ? enableBlockLeftResize(row.issueId) : enableBlockLeftResize
+            }
+            enableBlockRightResize={
+              typeof enableBlockRightResize === "function"
+                ? enableBlockRightResize(row.issueId)
+                : enableBlockRightResize
+            }
+            enableBlockMove={typeof enableBlockMove === "function" ? enableBlockMove(row.issueId) : enableBlockMove}
+            enableDependency={typeof enableDependency === "function" ? enableDependency(row.issueId) : enableDependency}
+            ganttContainerRef={ganttContainerRef}
+            updateBlockDates={updateBlockDates}
+          />
+        );
+      })}
     </>
   );
 }

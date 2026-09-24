@@ -41,7 +41,7 @@ export interface IBlockUpdateDependencyData {
   meta?: Record<string, any>;
 }
 
-export type TGanttViews = "week" | "month" | "quarter";
+export type TGanttViews = "day" | "week" | "month" | "quarter";
 
 // chart render types
 export interface WeekMonthDataType {

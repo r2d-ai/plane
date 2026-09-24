@@ -407,6 +407,22 @@
       }
     }
   },
+  "gantt": {
+    "day": "day",
+    "days": "days",
+    "columns": {
+      "work_item": "Work item",
+      "status": "Status",
+      "assignee": "Assignee",
+      "priority": "Priority",
+      "module": "Module",
+      "labels": "Labels",
+      "start_date": "Start date",
+      "target_date": "Due date",
+      "estimate": "Estimate"
+    },
+    "columns_menu": "Columns"
+  },
   "epic": {
     "new": "New Epic",
     "label": "{count, plural, one {Epic} other {Epics}}",

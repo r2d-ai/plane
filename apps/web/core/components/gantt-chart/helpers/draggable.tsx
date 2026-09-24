@@ -48,12 +48,13 @@ export const ChartDraggable = observer(function ChartDraggable(props: Props) {
       />
       {/* oxlint-disable-next-line jsx_a11y/no-static-element-interactions */}
       <div
+        data-gantt-block-move
         className={cn("relative z-[6] flex h-8 w-full items-center rounded-sm", {
           "pointer-events-none": isMoving,
         })}
         onMouseDown={(e) => enableBlockMove && handleBlockDrag(e, "move")}
       >
-        {blockToRender({ ...block.data, meta: block.meta })}
+        {blockToRender({ ...block.data, meta: block.meta, barWidth: block.position?.width ?? 0 })}
       </div>
       {/* right resize drag handle */}
       <RightResizable

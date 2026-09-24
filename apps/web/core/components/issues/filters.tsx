@@ -8,7 +8,7 @@ import { useCallback, useState } from "react";
 import { observer } from "mobx-react";
 import { ChartNoAxesColumn, SlidersHorizontal } from "lucide-react";
 // plane imports
-import { EIssueFilterType, ISSUE_STORE_TO_FILTERS_MAP } from "@plane/constants";
+import { EIssueFilterType, getIssueLayoutDisplayFiltersOptions, ISSUE_STORE_TO_FILTERS_MAP } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { Button } from "@plane/propel/button";
 import type { IIssueDisplayFilterOptions, IIssueDisplayProperties } from "@plane/types";
@@ -60,7 +60,9 @@ export const HeaderFilters = observer(function HeaderFilters(props: Props) {
   } = useIssues(storeType);
   // derived values
   const activeLayout = issueFilters?.displayFilters?.layout;
-  const layoutDisplayFiltersOptions = ISSUE_STORE_TO_FILTERS_MAP[storeType]?.layoutOptions[activeLayout];
+  const layoutDisplayFiltersOptions =
+    ISSUE_STORE_TO_FILTERS_MAP[storeType]?.layoutOptions[activeLayout] ??
+    getIssueLayoutDisplayFiltersOptions(activeLayout);
 
   const handleLayoutChange = useCallback(
     (layout: EIssueLayoutTypes) => {
