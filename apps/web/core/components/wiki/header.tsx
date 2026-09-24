@@ -28,7 +28,7 @@ export const WikiDetailHeader = observer(function WikiDetailHeader({
   const page = activeWorkspaceSlug === workspaceSlug ? candidatePage : undefined;
   return (
     <>
-    <Header>
+      <Header>
       <Header.LeftItem>
         <Breadcrumbs>
           <Breadcrumbs.Item
@@ -70,16 +70,18 @@ export const WikiDetailHeader = observer(function WikiDetailHeader({
           <PageHeaderActions page={page} storeType={EPageStoreType.WORKSPACE} />
         </Header.RightItem>
       )}
-    </Header>
-    {page && (
+      </Header>
+      {page && (
       <MovePageToCollectionModal
         isOpen={collectionModalOpen}
         onClose={() => setCollectionModalOpen(false)}
         workspaceSlug={workspaceSlug}
         pageId={pageId}
-        onMoved={() => navigation.invalidateScope(workspaceSlug)}
+        onMoved={async () => {
+          await navigation.invalidateScope(workspaceSlug);
+        }}
       />
-    )}
+      )}
     </>
   );
 });
