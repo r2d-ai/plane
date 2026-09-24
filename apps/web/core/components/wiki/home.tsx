@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { PageIcon } from "@plane/propel/icons";
 import type { TWikiScope } from "@plane/types";
@@ -11,14 +12,18 @@ import { StickiesWidget } from "@/components/stickies/widget";
 import { useUser } from "@/hooks/store/user";
 import { useWikiNavigation } from "../../hooks/store/use-wiki-navigation";
 import { getWikiPagePath } from "../../helpers/wiki-routes";
+import { WorkspacePageService } from "../../services/page/workspace-page.service";
 import { WorkspaceService } from "../../services/workspace.service";
 import { buildWikiHomeModel } from "./home-model";
 
 const workspaceService = new WorkspaceService();
+const workspacePageService = new WorkspacePageService();
 
 export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScope }) {
   const navigation = useWikiNavigation();
   const { data: currentUser } = useUser();
+  const searchParams = useSearchParams();
+  const archivedView = searchParams.get("view") === "archived";
   const recentRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -26,7 +31,7 @@ export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScop
     error: recentsError,
     isLoading: recentsLoading,
     mutate: mutateRecents,
-  } = useSWR(scope.is_member ? `WIKI_RECENTS_${scope.slug}` : null, () =>
+  } = useSWR(scope.is_member && !archivedView ? `WIKI_RECENTS_${scope.slug}` : null, () =>
     workspaceService.fetchWorkspaceRecents(scope.slug, "workspace_page")
   );
 
@@ -34,13 +39,67 @@ export const WikiHome = observer(function WikiHome({ scope }: { scope: TWikiScop
     error: navigationError,
     isLoading: navigationLoading,
     mutate: mutateNavigation,
-  } = useSWR(!scope.is_member ? `WIKI_HOME_SCOPE_${scope.slug}` : null, () => navigation.fetchScope(scope.slug));
+  } = useSWR(!scope.is_member && !archivedView ? `WIKI_HOME_SCOPE_${scope.slug}` : null, () => navigation.fetchScope(scope.slug));
 
   const scopeData = navigation.getScope(scope.slug);
   const model = buildWikiHomeModel({
     scope,
     pages: scopeData.pageIds.map((id) => scopeData.pagesById[id]).filter((page) => !!page),
   });
+
+  const {
+    data: archivedPages,
+    error: archivedError,
+    isLoading: archivedLoading,
+    mutate: mutateArchived,
+  } = useSWR(archivedView ? `WIKI_ARCHIVED_${scope.slug}` : null, () =>
+    workspacePageService.fetchArchived(scope.slug)
+  );
+
+  if (archivedView) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto w-full max-w-[800px] px-6 py-8">
+          <h1 className="text-20 font-semibold text-primary">Archived</h1>
+          <p className="mt-1 text-13 text-secondary">Pages archived from this Wiki.</p>
+
+          <div className="mt-6">
+            {archivedLoading && (
+              <div className="space-y-2" aria-label="Loading archived Wiki pages">
+                <div className="h-10 w-full animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
+                <div className="h-10 w-4/5 animate-pulse rounded bg-layer-1 motion-reduce:animate-none" />
+              </div>
+            )}
+            {archivedError && (
+              <div className="rounded-lg bg-layer-1 p-6 text-center text-13 text-secondary">
+                <p>Could not load archived Wiki pages.</p>
+                <button type="button" onClick={() => void mutateArchived()} className="mt-2 text-accent-primary">
+                  Retry
+                </button>
+              </div>
+            )}
+            {!archivedLoading && !archivedError && (archivedPages?.length ?? 0) === 0 && (
+              <div className="rounded-lg bg-layer-1 p-8 text-center text-13 text-secondary">No archived pages.</div>
+            )}
+            {!archivedLoading &&
+              !archivedError &&
+              archivedPages?.map((page) => (
+                <Link
+                  key={page.id}
+                  href={getWikiPagePath(scope.slug, page.id ?? "")}
+                  className="flex items-center gap-3 border-b border-subtle px-2 py-3 text-13 text-primary hover:bg-layer-1"
+                >
+                  <span className="grid size-8 flex-shrink-0 place-items-center rounded-sm bg-layer-2">
+                    <PageIcon className="size-4 text-tertiary" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{page.name || "Untitled"}</span>
+                </Link>
+              ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-y-auto">

@@ -24,6 +24,16 @@ export class WorkspacePageService extends APIService {
       });
   }
 
+  async fetchArchived(workspaceSlug: string): Promise<TPage[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/pages/`, {
+      params: { archived: true, order_by: "-updated_at" },
+    })
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
   async fetchById(workspaceSlug: string, pageId: string, trackVisit: boolean): Promise<TPage> {
     return this.get(`/api/workspaces/${workspaceSlug}/pages/${pageId}/`, {
       params: {

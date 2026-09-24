@@ -209,6 +209,13 @@ export const WikiWorkspaceSection = observer(function WikiWorkspaceSection({
                   onNavigate={onNavigate}
                 />
               )}
+              <Link
+                href={`/wiki/${scope.slug}?view=archived`}
+                onClick={onNavigate}
+                className="focus-visible:outline-accent-primary mt-1 block rounded px-3 py-1.5 text-13 text-secondary hover:bg-layer-1 focus-visible:outline-2"
+              >
+                {t("wiki.sidebar.archived")}
+              </Link>
             </>
           )}
         </div>
