@@ -63,6 +63,14 @@ export type TPageCollectionPage = {
     access: number;
     parent: string | null;
     sort_order: number;
+    logo_props?: Record<string, unknown> | null;
+    updated_at?: string;
+    owned_by?: string;
+    owner_detail?: {
+      id: string;
+      display_name: string;
+      avatar_url: string | null;
+    };
   };
   workspace: string;
   sort_order: number;
