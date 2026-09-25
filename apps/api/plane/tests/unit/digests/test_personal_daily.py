@@ -364,6 +364,75 @@ class TestDigestDelivery:
         assert row.error == ""
         assert row.failed_at is None
 
+    def test_claim_delivery_on_failed_row_clears_error_and_failed_at(self, create_user):
+        # Reclaim transitions the row FAILED → PENDING and wipes the prior
+        # error / failed_at so the snapshot reflects a fresh attempt. If a
+        # refactor drops the `error=""` / `failed_at=None` from the CAS
+        # update, this catches the stale-failure leak.
+        snapshot = build_personal_daily_snapshot(
+            create_user,
+            {"overdue": [], "due_today": [], "blocked": [], "due_soon": [], "stale": []},
+            "2026-09-25",
+        )
+        previous_failure_at = timezone.now() - timedelta(hours=1)
+        DigestDelivery.objects.create(
+            recipient=create_user,
+            digest_type=PERSONAL_DAILY,
+            period_key="2026-09-25",
+            status=DELIVERY_STATUS_FAILED,
+            error="smtp timeout",
+            failed_at=previous_failure_at,
+            scheduled_at=previous_failure_at,
+            snapshot=snapshot,
+        )
+
+        reclaimed = claim_delivery(create_user, PERSONAL_DAILY, "2026-09-25", snapshot)
+
+        assert reclaimed is not None
+        assert reclaimed.status == DELIVERY_STATUS_PENDING
+        assert reclaimed.error == ""
+        assert reclaimed.failed_at is None
+        assert reclaimed.scheduled_at > previous_failure_at
+
+    def test_second_claim_on_same_failed_row_returns_none(self, create_user):
+        # Direct test of the invariant Alex called out: two `claim_delivery`
+        # calls back-to-back against the same FAILED row. The first call
+        # wins the CAS and returns the reclaimed row (now PENDING); the
+        # second call sees status=PENDING (not FAILED), so the CAS guard
+        # `filter(pk, status=FAILED)` matches zero rows and the function
+        # returns None.
+        #
+        # If a refactor drops `status=FAILED` from the CAS filter, the
+        # second call's filter still matches (the row exists), `updated`
+        # becomes 1, the function returns the row, and downstream code is
+        # free to send the same digest twice. This test fails on that
+        # regression; the higher-level "send once" assertion alone would
+        # not, because it only sees the row after it has already moved to
+        # SENT.
+        snapshot = build_personal_daily_snapshot(
+            create_user,
+            {"overdue": [], "due_today": [], "blocked": [], "due_soon": [], "stale": []},
+            "2026-09-25",
+        )
+        DigestDelivery.objects.create(
+            recipient=create_user,
+            digest_type=PERSONAL_DAILY,
+            period_key="2026-09-25",
+            status=DELIVERY_STATUS_FAILED,
+            error="previous failure",
+            failed_at=timezone.now(),
+            scheduled_at=timezone.now(),
+            snapshot=snapshot,
+        )
+
+        first = claim_delivery(create_user, PERSONAL_DAILY, "2026-09-25", snapshot)
+        second = claim_delivery(create_user, PERSONAL_DAILY, "2026-09-25", snapshot)
+
+        assert first is not None
+        assert first.status == DELIVERY_STATUS_PENDING
+        assert second is None
+        assert DigestDelivery.objects.count() == 1
+
 
 @pytest.mark.unit
 class TestIsTimeDue:
