@@ -29,7 +29,7 @@ const generateDayChart = (
 ) => {
   let renderState = dayPayload;
 
-  const range: number = renderState.data.approxFilterRange || 2;
+  const range: number = renderState.data.approxFilterRange || 1;
   let filteredDates: IDayViewMonthBlock[] = [];
   let minusDate: Date = new Date();
   let plusDate: Date = new Date();
