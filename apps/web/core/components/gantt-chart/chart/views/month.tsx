@@ -66,7 +66,7 @@ export const MonthChartView = observer(function MonthChartView() {
                   <div
                     key={`month-day-header-${date.toISOString()}`}
                     className={cn(
-                      "flex flex-shrink-0 items-center justify-center gap-0.5 text-center outline-[0.25px] outline-subtle-1",
+                      "flex flex-shrink-0 items-center justify-center gap-0.5 overflow-hidden text-center outline-[0.25px] outline-subtle-1",
                       {
                         "bg-accent-primary/20": isToday,
                         "bg-surface-2": dayOfWeek === 0 || dayOfWeek === 6,
