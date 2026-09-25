@@ -15,8 +15,14 @@ from plane.digests.constants import (
     DELIVERY_STATUS_PENDING,
     DELIVERY_STATUS_SENT,
     DELIVERY_STATUS_SENDING,
+    LEADER_MORNING,
+    LEADER_MORNING_BUCKETS,
 )
-from plane.digests.renderers import render_personal_daily_email
+from plane.digests.renderers import (
+    LEADER_MORNING_SECTION_LABELS,
+    render_leader_morning_email,
+    render_personal_daily_email,
+)
 from plane.license.utils.instance_value import get_email_configuration
 from plane.utils.exception_logger import log_exception
 
@@ -150,6 +156,57 @@ def deliver_personal_daily(recipient: User, snapshot: dict[str, Any], period_key
         delivery.save(update_fields=["status", "failed_at", "error", "updated_at"])
         logger.info(
             "digest.personal.failed",
+            extra={
+                "recipient_id": str(recipient.id),
+                "period_key": period_key,
+            },
+        )
+        raise
+
+
+def deliver_leader_morning(recipient: User, snapshot: dict[str, Any], period_key: str) -> str:
+    """Deliver the Leader Morning Pulse digest.
+
+    Reuses `claim_delivery` (CAS on the unique constraint, FAILED → PENDING
+    reclaim) and `send_digest_email` from Phase 1 — only the renderer
+    changes. The bucket + label pair is passed explicitly to the renderer
+    so a future caller cannot accidentally feed a personal-daily snapshot
+    here and KeyError on the missing leader-only labels.
+    """
+    delivery = claim_delivery(recipient, LEADER_MORNING, period_key, snapshot)
+    if delivery is None:
+        return "duplicate"
+
+    try:
+        delivery.status = DELIVERY_STATUS_SENDING
+        delivery.save(update_fields=["status", "updated_at"])
+
+        subject, html_content, text_content = render_leader_morning_email(
+            snapshot,
+            LEADER_MORNING_BUCKETS,
+            LEADER_MORNING_SECTION_LABELS,
+        )
+        send_digest_email(recipient, subject, html_content, text_content)
+
+        delivery.status = DELIVERY_STATUS_SENT
+        delivery.sent_at = timezone.now()
+        delivery.save(update_fields=["status", "sent_at", "updated_at"])
+        logger.info(
+            "digest.leader_morning.sent",
+            extra={
+                "recipient_id": str(recipient.id),
+                "period_key": period_key,
+            },
+        )
+        return "sent"
+    except Exception as exc:
+        log_exception(exc)
+        delivery.status = DELIVERY_STATUS_FAILED
+        delivery.failed_at = timezone.now()
+        delivery.error = str(exc)[:1000]
+        delivery.save(update_fields=["status", "failed_at", "error", "updated_at"])
+        logger.info(
+            "digest.leader_morning.failed",
             extra={
                 "recipient_id": str(recipient.id),
                 "period_key": period_key,

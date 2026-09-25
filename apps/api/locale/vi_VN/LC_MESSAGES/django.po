@@ -1,0 +1,44 @@
+# Vietnamese translations for the Leader Morning Pulse digest.
+#
+# Run `python manage.py compilemessages` after editing this file to
+# generate the matching `django.mo`. V1 ships source-only so a translator
+# can update msgstr without round-tripping a binary blob; the runtime
+# falls back to msgid (English) when .mo is absent.
+#
+# msgid values must match the `{% trans %}` / `{% blocktrans %}` source
+# in `apps/api/templates/emails/digests/leader-morning.html`.
+
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: vi_VN\n"
+
+msgid "Leader Morning Pulse"
+msgstr "Leader Morning Pulse"
+
+msgid "Morning Pulse"
+msgstr "Morning Pulse"
+
+msgid "due"
+msgstr "hạn"
+
+msgid "Assignee"
+msgstr "Người thực hiện"
+
+msgid "more"
+msgstr "khác"
+
+msgid "Generated at"
+msgstr "Tạo lúc"
+
+msgid "Open Plane"
+msgstr "Mở Plane"
+
+msgid "Notification preferences"
+msgstr "Tùy chọn thông báo"
+
+msgid "%(name)s, you have %(count)s item(s) needing attention across the projects you lead."
+msgstr "%(name)s, bạn có %(count)s mục cần chú ý trên các dự án bạn đang dẫn dắt."
+
+msgid "%(count)s exception(s) across %(scanned)s project(s) scanned."
+msgstr "%(count)s điểm cần chú ý qua %(scanned)s dự án đã quét."

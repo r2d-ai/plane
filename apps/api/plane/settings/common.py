@@ -288,6 +288,14 @@ MEDIA_URL = "/media/"
 LANGUAGE_CODE = "en-us"
 USE_I18N = True
 
+# Resolve translated strings in templates that live outside any installed
+# app (e.g. apps/api/templates/emails/digests/leader-morning.html). The
+# app-level locale/ folder would also work, but keeping all V1 digest
+# translations under apps/api/locale/ makes it easy to grep / hand off to
+# a translator without searching every installed app. `BASE_DIR` is the
+# `apps/api/plane/` package; one extra `..` lands at `apps/api/`.
+LOCALE_PATHS = [os.path.join(BASE_DIR, "..", "locale")]
+
 # Timezones
 USE_TZ = True
 TIME_ZONE = "UTC"

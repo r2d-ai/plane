@@ -122,6 +122,24 @@ class UserNotificationPreference(BaseModel):
 
 
 class DigestDelivery(BaseModel):
+    """Audit row for one delivery attempt of a V1 digest.
+
+    `period_key` convention: BARE — `YYYY-MM-DD` for daily-style digests
+    (`personal_daily`, `leader_morning`) and `YYYY-Www` (ISO week) for
+    weekly (`leader_weekly`).
+
+    This deliberately does NOT match the spec example in
+    `docs/native-digest-module-spec.md` §13.3 which writes
+    `personal_daily:YYYY-MM-DD` / `leader_morning:YYYY-MM-DD`. The bare
+    form is what `bgtasks/digest_task.py` has shipped since the Phase 1
+    merge, and `digest_type` is already the third column of the unique
+    constraint, so the prefix would be redundant. Fixing this would
+    require both a code change and a data migration on existing
+    `DigestDelivery` rows to add the prefix — pure churn with zero
+    functional gain. Do not "correct" the period_key format to match the
+    spec without an explicit decision.
+    """
+
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
