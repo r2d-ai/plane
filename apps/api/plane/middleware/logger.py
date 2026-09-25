@@ -141,7 +141,7 @@ class APITokenLogMiddleware:
                 # identifier so logs can be correlated to a token without ever
                 # persisting the raw key. A keyed HMAC is used rather than a bare
                 # hash so the digest cannot be precomputed from a known key value.
-                "token_identifier": hmac.new(
+                "token_identifier": hmac.new(  # codeql[py/weak-sensitive-data-hashing] API-token fingerprint, not a password hash
                     settings.SECRET_KEY.encode(), api_key.encode(), hashlib.sha256
                 ).hexdigest(),
                 "path": request.path,

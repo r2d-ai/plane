@@ -13,15 +13,15 @@ class ApiKeyRateThrottle(SimpleRateThrottle):
     rate = settings.API_KEY_RATE_LIMIT
 
     def get_cache_key(self, request, view):
-        api_key = request.headers.get("X-Api-Key")
-        if not api_key:
+        header_api_key = request.headers.get("X-Api-Key")
+        if not header_api_key:
             return None
 
         api_token = getattr(request, "api_token", None)
         identifier = (
             str(api_token.id)
             if api_token is not None
-            else hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+            else hashlib.sha256(header_api_key.encode("utf-8")).hexdigest()  # codeql[py/weak-sensitive-data-hashing] API-token fingerprint for rate limiting, not a password hash
         )
         return f"{self.scope}:{identifier}"
 
