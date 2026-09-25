@@ -44,6 +44,6 @@ describe("timeline scale semantics", () => {
     expect(getTimelineZoomDayWidth("month", 30, "in")).toBe(34.5);
     expect(getTimelineZoomDayWidth("month", 30, "out")).toBe(26.09);
     expect(getTimelineZoomDayWidth("quarter", 48, "in")).toBe(48);
-    expect(getTimelineZoomDayWidth("month", 12, "out")).toBe(12);
+    expect(getTimelineZoomDayWidth("month", 18, "out")).toBe(18);
   });
 });
