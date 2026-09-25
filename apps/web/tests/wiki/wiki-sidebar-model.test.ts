@@ -3,6 +3,7 @@ import {
   buildWikiSidebarModel,
   expandWikiWorkspace,
   getCollectionSubtreePages,
+  getCreatableWikiScopes,
   getLooseWikiPages,
 } from "../../core/components/wiki/sidebar/model";
 import { WikiNavigationStore } from "../../core/store/wiki/wiki-navigation.store";
@@ -41,6 +42,42 @@ describe("Wiki sidebar model", () => {
   test("contains only server-returned scopes", () => {
     const model = buildWikiSidebarModel(scopes, "home", "finance");
     expect(model.workspaces.find((scope) => scope.slug === "finance")).toBeUndefined();
+  });
+
+  test("new-page scope choices include only creatable visible scopes with the instance first", () => {
+    const choices = getCreatableWikiScopes([
+      { ...scopes[0], can_create: true },
+      scopes[1],
+      {
+        id: "3",
+        slug: "ops",
+        name: "Operations",
+        is_default: false,
+        is_member: true,
+        can_create: true,
+        can_manage_collections: false,
+      },
+      {
+        id: "4",
+        slug: "finance",
+        name: "Finance",
+        is_default: false,
+        is_member: false,
+        can_create: true,
+        can_manage_collections: false,
+      },
+      {
+        id: "5",
+        slug: "readonly",
+        name: "Read only",
+        is_default: false,
+        is_member: true,
+        can_create: false,
+        can_manage_collections: false,
+      },
+    ]);
+
+    expect(choices.map((scope) => scope.slug)).toEqual(["home", "mkt", "ops"]);
   });
 
   test("expanding a workspace loads it once without clearing another scope", async () => {
