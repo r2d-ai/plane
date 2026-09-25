@@ -216,7 +216,7 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
 
     // Anchor the selected calendar period immediately after the sticky sidebar.
     // The generated range remains larger as an off-screen pan buffer.
-    scrollContainer.scrollLeft = Math.max(0, daysDifference * currentState.data.dayWidth);
+    scrollContainer.scrollLeft = Math.max(0, Math.abs(daysDifference) * currentState.data.dayWidth);
   };
 
   const portalContainer = document.getElementById("full-screen-portal") as HTMLElement;
