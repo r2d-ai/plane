@@ -162,6 +162,70 @@ export const NotificationsProfileSettingsForm = observer(function NotificationsP
           />
         }
       />
+      <div className="mt-6 border-t border-subtle pt-6">
+        <p className="text-13 font-medium text-primary">{t("email_digests_heading")}</p>
+        <p className="mt-1 text-13 text-secondary">{t("email_digests_description")}</p>
+      </div>
+      <SettingsControlItem
+        title={t("personal_daily_digest")}
+        description={t("personal_daily_digest_description")}
+        control={
+          <Controller
+            control={control}
+            name="personal_daily_digest"
+            render={({ field: { value, onChange } }) => (
+              <ToggleSwitch
+                value={value}
+                onChange={(newValue) => {
+                  onChange(newValue);
+                  handleSettingChange("personal_daily_digest", newValue);
+                }}
+                size="sm"
+              />
+            )}
+          />
+        }
+      />
+      <SettingsControlItem
+        title={t("leader_morning_digest")}
+        description={t("leader_morning_digest_description")}
+        control={
+          <Controller
+            control={control}
+            name="leader_morning_digest"
+            render={({ field: { value, onChange } }) => (
+              <ToggleSwitch
+                value={value}
+                onChange={(newValue) => {
+                  onChange(newValue);
+                  handleSettingChange("leader_morning_digest", newValue);
+                }}
+                size="sm"
+              />
+            )}
+          />
+        }
+      />
+      <SettingsControlItem
+        title={t("leader_weekly_digest")}
+        description={t("leader_weekly_digest_description")}
+        control={
+          <Controller
+            control={control}
+            name="leader_weekly_digest"
+            render={({ field: { value, onChange } }) => (
+              <ToggleSwitch
+                value={value}
+                onChange={(newValue) => {
+                  onChange(newValue);
+                  handleSettingChange("leader_weekly_digest", newValue);
+                }}
+                size="sm"
+              />
+            )}
+          />
+        }
+      />
     </div>
   );
 });

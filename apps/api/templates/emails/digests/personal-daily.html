@@ -1,0 +1,41 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Personal Daily Digest</title>
+    <style type="text/css">
+      body { font-family: system-ui, sans-serif; background-color: #f7f9ff; color: #1f2d5c; margin: 20px; }
+      .container { width: 600px; margin: 0 auto; background: #fcfcfd; padding: 30px; border-radius: 4px; }
+      h1 { font-size: 1.25rem; margin: 0 0 8px 0; }
+      h2 { font-size: 1rem; margin: 24px 0 8px 0; }
+      p { margin: 0 0 12px 0; line-height: 1.5; }
+      .item { background: #fff; border: 1px solid #e0e7ff; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; }
+      .meta { font-size: 0.85rem; color: #60646c; }
+      .footer { margin-top: 24px; font-size: 0.85rem; color: #60646c; }
+      a { color: #3358d4; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Today's work</h1>
+      <p>Hi {{ recipient_name }}, here is the work that needs your attention.</p>
+      {% for section in sections %}
+      <h2>{{ section.label }}</h2>
+      {% for item in section.items %}
+      <div class="item">
+        <p><a href="{{ item.url }}"><strong>{{ item.identifier }}</strong></a> — {{ item.name }}</p>
+        <p class="meta">{{ item.workspace }} / {{ item.project }} · {{ item.state }}{% if item.target_date %} · due {{ item.target_date }}{% endif %}{% if item.priority and item.priority != "none" %} · {{ item.priority }}{% endif %}</p>
+      </div>
+      {% endfor %}
+      {% if section.overflow %}
+      <p class="meta">+ {{ section.overflow }} more</p>
+      {% endif %}
+      {% endfor %}
+      <div class="footer">
+        <p>Generated at {{ generated_at }}.</p>
+        <p><a href="{{ plane_url }}">Open Plane</a> · <a href="{{ preferences_url }}">Notification preferences</a></p>
+      </div>
+    </div>
+  </body>
+</html>
