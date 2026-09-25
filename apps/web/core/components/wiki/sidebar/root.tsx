@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { observer } from "mobx-react";
+import { ChevronDown } from "lucide-react";
 import { useParams } from "react-router";
 import useSWR from "swr";
 import { EPageAccess } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
+import type { TWikiScope } from "@plane/types";
+import { CustomMenu } from "@plane/ui";
 import { EPageStoreType, usePageStore } from "../../../hooks/store";
 import { useAppRouter } from "../../../hooks/use-app-router";
 import { resolveDefaultWikiScope } from "../../../helpers/wiki-access";
 import { getWikiPagePath } from "../../../helpers/wiki-routes";
 import { WikiService } from "../../../services/wiki.service";
-import { buildWikiSidebarModel } from "./model";
+import { buildWikiSidebarModel, getCreatableWikiScopes } from "./model";
 import { WikiPersonalSections } from "./personal-sections";
 import { WikiWorkspaceSection } from "./workspace-section";
 
@@ -24,16 +27,18 @@ export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNav
   const [isCreating, setCreating] = useState(false);
   const defaultSlug = resolveDefaultWikiScope(scopes ?? [])?.slug ?? "";
   const model = buildWikiSidebarModel(scopes ?? [], defaultSlug, workspaceSlug, pageId);
-  const activeScope = scopes?.find((scope) => scope.slug === workspaceSlug);
+  const creatableScopes = getCreatableWikiScopes(scopes ?? []);
+  const defaultCreatableScope = creatableScopes.find((scope) => scope.is_default);
+  const workspaceCreatableScopes = creatableScopes.filter((scope) => !scope.is_default);
 
-  const createPage = async () => {
-    if (!activeScope?.can_create || isCreating) return;
+  const createPage = async (scope: TWikiScope) => {
+    if (!scope.can_create || isCreating) return;
     setCreating(true);
     try {
-      pageStore.activateScope(activeScope.slug);
+      pageStore.activateScope(scope.slug);
       const page = await pageStore.createPage({ name: t("wiki.untitled"), access: EPageAccess.PUBLIC });
       if (page?.id) {
-        router.push(getWikiPagePath(activeScope.slug, page.id));
+        router.push(getWikiPagePath(scope.slug, page.id));
         onNavigate();
       }
     } catch (creationError) {
@@ -48,15 +53,45 @@ export const WikiSidebar = observer(function WikiSidebar({ onNavigate }: { onNav
       <div className="mb-3 flex items-center justify-between px-2">
         <h2 className="text-14 font-semibold text-primary">{t("wiki.sidebar.title")}</h2>
       </div>
-      {activeScope?.can_create && (
-        <button
-          type="button"
+      {creatableScopes.length > 0 && (
+        <CustomMenu
+          customButton={
+            <span className="flex w-full items-center justify-between rounded-md bg-accent-primary px-3 py-2 text-left text-13 font-medium text-white">
+              <span>+ {t("wiki.sidebar.new_page")}</span>
+              <ChevronDown className="size-3.5" />
+            </span>
+          }
+          customButtonClassName="w-full focus-visible:outline-accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50"
+          className="mb-3 w-full"
+          placement="bottom-start"
+          optionsClassName="min-w-56 max-w-72"
+          ariaLabel={t("wiki.sidebar.new_page")}
           disabled={isCreating}
-          onClick={() => void createPage()}
-          className="focus-visible:outline-accent-primary mb-3 w-full rounded-md bg-accent-primary px-3 py-2 text-left text-13 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50"
+          closeOnSelect
         >
-          + {t("wiki.sidebar.new_page")}
-        </button>
+          {defaultCreatableScope && (
+            <CustomMenu.MenuItem onClick={() => void createPage(defaultCreatableScope)}>
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate font-medium text-primary">{t("wiki.sidebar.instance_wiki")}</span>
+                {defaultCreatableScope.name !== t("wiki.sidebar.instance_wiki") && (
+                  <span className="truncate text-10 text-tertiary">{defaultCreatableScope.name}</span>
+                )}
+              </span>
+            </CustomMenu.MenuItem>
+          )}
+          {workspaceCreatableScopes.length > 0 && (
+            <>
+              <div className="px-1 pb-1 pt-2 text-10 font-semibold tracking-wide text-tertiary uppercase">
+                {t("wiki.sidebar.workspaces")}
+              </div>
+              {workspaceCreatableScopes.map((scope) => (
+                <CustomMenu.MenuItem key={scope.id} onClick={() => void createPage(scope)}>
+                  <span className="block truncate font-medium text-primary">{scope.name}</span>
+                </CustomMenu.MenuItem>
+              ))}
+            </>
+          )}
+        </CustomMenu>
       )}
       {isLoading && (
         <div className="space-y-2 p-2" aria-label={t("wiki.sidebar.loading")}>
