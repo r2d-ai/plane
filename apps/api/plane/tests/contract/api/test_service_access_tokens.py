@@ -13,7 +13,7 @@ from plane.api.service_tokens import (
     create_service_access_token,
     revoke_service_access_token,
 )
-from plane.db.models import APIToken, Project, ProjectMember, Workspace
+from plane.db.models import APIToken, Page, Project, ProjectMember, Workspace, WorkspaceMember
 
 
 def make_workspace(owner, *, slug):
@@ -265,3 +265,307 @@ class TestServiceAccessTokenContract:
             status.HTTP_401_UNAUTHORIZED,
             status.HTTP_403_FORBIDDEN,
         }
+
+
+
+@pytest.mark.contract
+class TestServiceAccessTokenWikiWriteContract:
+    @pytest.mark.django_db
+    def test_workspace_write_token_creates_page_without_membership(
+        self, api_client, create_user, workspace
+    ):
+        token, raw_token = create_service_access_token(
+            label="Wiki writer",
+            description="",
+            created_by=create_user,
+            scope_level=SCOPE_LEVEL_WORKSPACE,
+            scopes=["wiki.pages:read", "wiki.pages:write"],
+            workspace=workspace,
+        )
+        client = api_client_for_service_token(api_client, raw_token)
+
+        response = client.post(
+            f"/api/v1/workspaces/{workspace.slug}/wiki/pages/",
+            {
+                "name": "Agent runbook",
+                "description_html": "<p>Safe</p><script>alert(1)</script>",
+                "description_json": {"type": "doc"},
+            },
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        page = Page.objects.get(pk=response.data["id"])
+        assert page.is_global is True
+        assert page.workspace_id == workspace.id
+        assert page.owned_by_id == token.user_id
+        assert page.access == Page.PUBLIC_ACCESS
+        assert "<script" not in page.description_html
+        assert not WorkspaceMember.objects.filter(workspace=workspace, member=token.user).exists()
+        assert not ProjectMember.objects.filter(member=token.user).exists()
+
+    @pytest.mark.django_db
+    def test_read_only_token_cannot_create_or_update_wiki(
+        self, api_client, create_user, workspace
+    ):
+        page = Page.objects.create(
+            workspace=workspace,
+            name="Existing",
+            owned_by=create_user,
+            is_global=True,
+        )
+        _token, raw_token = create_service_access_token(
+            label="Read only",
+            description="",
+            created_by=create_user,
+            scope_level=SCOPE_LEVEL_WORKSPACE,
+            scopes=["wiki.pages:read"],
+            workspace=workspace,
+        )
+        client = api_client_for_service_token(api_client, raw_token)
+
+        create_response = client.post(
+            f"/api/v1/workspaces/{workspace.slug}/wiki/pages/",
+            {"name": "Denied"},
+            format="json",
+        )
+        update_response = client.patch(
+            f"/api/v1/workspaces/{workspace.slug}/wiki/pages/{page.id}/",
+            {"name": "Denied"},
+            format="json",
+        )
+
+        assert create_response.status_code == status.HTTP_403_FORBIDDEN
+        assert update_response.status_code == status.HTTP_403_FORBIDDEN
+        page.refresh_from_db()
+        assert page.name == "Existing"
+
+    @pytest.mark.django_db
+    def test_workspace_write_token_cannot_escape_workspace(
+        self, api_client, create_user, workspace
+    ):
+        other_workspace = make_workspace(create_user, slug=f"wiki-other-{uuid4().hex[:8]}")
+        page = Page.objects.create(
+            workspace=other_workspace,
+            name="Other workspace page",
+            owned_by=create_user,
+            is_global=True,
+        )
+        _token, raw_token = create_service_access_token(
+            label="Bound wiki writer",
+            description="",
+            created_by=create_user,
+            scope_level=SCOPE_LEVEL_WORKSPACE,
+            scopes=["wiki.pages:write"],
+            workspace=workspace,
+        )
+        client = api_client_for_service_token(api_client, raw_token)
+
+        create_response = client.post(
+            f"/api/v1/workspaces/{other_workspace.slug}/wiki/pages/",
+            {"name": "Escape attempt"},
+            format="json",
+        )
+        update_response = client.patch(
+            f"/api/v1/workspaces/{other_workspace.slug}/wiki/pages/{page.id}/",
+            {"name": "Escape attempt"},
+            format="json",
+        )
+
+        assert create_response.status_code == status.HTTP_403_FORBIDDEN
+        assert update_response.status_code == status.HTTP_403_FORBIDDEN
+        page.refresh_from_db()
+        assert page.name == "Other workspace page"
+
+    @pytest.mark.django_db
+    def test_write_scope_updates_and_reparents_page(
+        self, api_client, create_user, workspace
+    ):
+        parent = Page.objects.create(
+            workspace=workspace,
+            name="Runbooks",
+            owned_by=create_user,
+            is_global=True,
+        )
+        page = Page.objects.create(
+            workspace=workspace,
+            name="Old name",
+            description_html="<p>Old</p>",
+            owned_by=create_user,
+            is_global=True,
+            access=Page.PRIVATE_ACCESS,
+        )
+        _token, raw_token = create_service_access_token(
+            label="Wiki editor",
+            description="",
+            created_by=create_user,
+            scope_level=SCOPE_LEVEL_WORKSPACE,
+            scopes=["wiki.pages:write"],
+            workspace=workspace,
+        )
+        client = api_client_for_service_token(api_client, raw_token)
+
+        response = client.patch(
+            f"/api/v1/workspaces/{workspace.slug}/wiki/pages/{page.id}/",
+            {
+                "name": "Updated by agent",
+                "description_html": "<p>Updated</p>",
+                "parent": str(parent.id),
+            },
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        page.refresh_from_db()
+        assert page.name == "Updated by agent"
+        assert page.description_html == "<p>Updated</p>"
+        assert page.parent_id == parent.id
+        assert page.access == Page.PRIVATE_ACCESS
+
+    @pytest.mark.django_db
+    def test_write_scope_rejects_acl_fields(
+        self, api_client, create_user, workspace
+    ):
+        page = Page.objects.create(
+            workspace=workspace,
+            name="Private policy",
+            owned_by=create_user,
+            is_global=True,
+            access=Page.PRIVATE_ACCESS,
+        )
+        _token, raw_token = create_service_access_token(
+            label="Content writer",
+            description="",
+            created_by=create_user,
+            scope_level=SCOPE_LEVEL_WORKSPACE,
+            scopes=["wiki.pages:write"],
+            workspace=workspace,
+        )
+        client = api_client_for_service_token(api_client, raw_token)
+
+        response = client.patch(
+            f"/api/v1/workspaces/{workspace.slug}/wiki/pages/{page.id}/",
+            {"access": Page.PUBLIC_ACCESS},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["unsupported_fields"] == ["access"]
+        page.refresh_from_db()
+        assert page.access == Page.PRIVATE_ACCESS
+
+    @pytest.mark.django_db
+    def test_write_scope_enforces_hierarchy_invariants(
+        self, api_client, create_user, workspace
+    ):
+        parent = Page.objects.create(
+            workspace=workspace,
+            name="Parent",
+            owned_by=create_user,
+            is_global=True,
+        )
+        child = Page.objects.create(
+            workspace=workspace,
+            name="Child",
+            owned_by=create_user,
+            is_global=True,
+            parent=parent,
+        )
+        _token, raw_token = create_service_access_token(
+            label="Hierarchy writer",
+            description="",
+            created_by=create_user,
+            scope_level=SCOPE_LEVEL_WORKSPACE,
+            scopes=["wiki.pages:write"],
+            workspace=workspace,
+        )
+        client = api_client_for_service_token(api_client, raw_token)
+
+        response = client.patch(
+            f"/api/v1/workspaces/{workspace.slug}/wiki/pages/{parent.id}/",
+            {"parent": str(child.id)},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["error_code"] == "PAGE_PARENT_CYCLE"
+        parent.refresh_from_db()
+        assert parent.parent_id is None
+
+    @pytest.mark.django_db
+    def test_write_scope_controls_archive_and_lock_lifecycle(
+        self, api_client, create_user, workspace
+    ):
+        page = Page.objects.create(
+            workspace=workspace,
+            name="Lifecycle page",
+            owned_by=create_user,
+            is_global=True,
+        )
+        _token, raw_token = create_service_access_token(
+            label="Lifecycle writer",
+            description="",
+            created_by=create_user,
+            scope_level=SCOPE_LEVEL_WORKSPACE,
+            scopes=["wiki.pages:write"],
+            workspace=workspace,
+        )
+        client = api_client_for_service_token(api_client, raw_token)
+        base = f"/api/v1/workspaces/{workspace.slug}/wiki/pages/{page.id}"
+
+        lock_response = client.post(f"{base}/lock/")
+        assert lock_response.status_code == status.HTTP_200_OK
+        page.refresh_from_db()
+        assert page.is_locked is True
+
+        blocked_update = client.patch(
+            f"{base}/",
+            {"name": "Must not change while locked"},
+            format="json",
+        )
+        assert blocked_update.status_code == status.HTTP_400_BAD_REQUEST
+
+        unlock_response = client.post(f"{base}/unlock/")
+        assert unlock_response.status_code == status.HTTP_200_OK
+        page.refresh_from_db()
+        assert page.is_locked is False
+
+        archive_response = client.post(f"{base}/archive/")
+        assert archive_response.status_code == status.HTTP_200_OK
+        page.refresh_from_db()
+        assert page.archived_at is not None
+
+        update_archived = client.patch(
+            f"{base}/",
+            {"name": "Must not update archived page"},
+            format="json",
+        )
+        assert update_archived.status_code == status.HTTP_404_NOT_FOUND
+
+        unarchive_response = client.post(f"{base}/unarchive/")
+        assert unarchive_response.status_code == status.HTTP_200_OK
+        page.refresh_from_db()
+        assert page.archived_at is None
+
+    @pytest.mark.django_db
+    def test_instance_write_token_can_target_explicit_workspace(
+        self, api_client, create_user, workspace
+    ):
+        _token, raw_token = create_service_access_token(
+            label="Instance wiki writer",
+            description="",
+            created_by=create_user,
+            scope_level=SCOPE_LEVEL_INSTANCE,
+            scopes=["wiki.pages:write"],
+        )
+        client = api_client_for_service_token(api_client, raw_token)
+
+        response = client.post(
+            f"/api/v1/workspaces/{workspace.slug}/wiki/pages/",
+            {"name": "Company digest"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+        page = Page.objects.get(pk=response.data["id"])
+        assert page.workspace_id == workspace.id
