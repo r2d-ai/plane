@@ -49,6 +49,22 @@ const ALLOWED_VIDEO_ORIGINS = [
 
 const SAFE_PROTOCOLS = ["https:", "data:"];
 
+function isExactOrSubdomain(hostname: string, domain: string): boolean {
+  return hostname === domain || hostname.endsWith(`.${domain}`);
+}
+
+function isYoutubeHostname(hostname: string): boolean {
+  return hostname === "youtu.be" || isExactOrSubdomain(hostname, "youtube.com");
+}
+
+function isVimeoHostname(hostname: string): boolean {
+  return isExactOrSubdomain(hostname, "vimeo.com");
+}
+
+function isDailymotionHostname(hostname: string): boolean {
+  return isExactOrSubdomain(hostname, "dailymotion.com");
+}
+
 export function isAllowedMediaOrigin(url: string, mediaType: "image" | "video"): boolean {
   try {
     const parsed = new URL(url);
@@ -70,25 +86,34 @@ export function detectMediaType(url: string): "image" | "video" {
   const videoExtensions = [".mp4", ".webm", ".ogg", ".mov", ".avi"];
   const lowerUrl = url.toLowerCase();
   if (videoExtensions.some((ext) => lowerUrl.includes(ext))) return "video";
-  if (lowerUrl.includes("youtube.com") || lowerUrl.includes("youtu.be")) return "video";
-  if (lowerUrl.includes("vimeo.com")) return "video";
-  if (lowerUrl.includes("dailymotion.com")) return "video";
+  try {
+    const parsed = new URL(url);
+    if (
+      isYoutubeHostname(parsed.hostname) ||
+      isVimeoHostname(parsed.hostname) ||
+      isDailymotionHostname(parsed.hostname)
+    ) {
+      return "video";
+    }
+  } catch {
+    // Not a valid URL; fall through to image default.
+  }
   return "image";
 }
 
 export function extractVideoEmbedUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
-    if (parsed.hostname.includes("youtube.com") && parsed.searchParams.has("v")) {
+    if (isYoutubeHostname(parsed.hostname) && parsed.searchParams.has("v")) {
       return `https://www.youtube.com/embed/${parsed.searchParams.get("v")}`;
     }
     if (parsed.hostname === "youtu.be") {
       return `https://www.youtube.com/embed${parsed.pathname}`;
     }
-    if (parsed.hostname.includes("youtube.com") && parsed.pathname.includes("/embed/")) {
+    if (isYoutubeHostname(parsed.hostname) && parsed.pathname.includes("/embed/")) {
       return url;
     }
-    if (parsed.hostname.includes("vimeo.com")) {
+    if (isVimeoHostname(parsed.hostname)) {
       const match = parsed.pathname.match(/\/(\d+)/);
       if (match) return `https://player.vimeo.com/video/${match[1]}`;
     }

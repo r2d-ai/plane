@@ -110,11 +110,19 @@ class ServiceTokenInputSerializer(serializers.Serializer):
             raise serializers.ValidationError("Expiration must be in the future")
         return value
 
+    _SCOPE_VALIDATION_MESSAGES = {
+        "scopes must be a list": "Scopes must be a list",
+        "At least one scope is required": "At least one scope is required",
+    }
+
     def validate_scopes(self, value):
         try:
             return normalize_service_scopes(value)
         except ValueError as exc:
-            raise serializers.ValidationError(str(exc)) from exc
+            message = self._SCOPE_VALIDATION_MESSAGES.get(str(exc))
+            if message is not None:
+                raise serializers.ValidationError(message) from exc
+            raise serializers.ValidationError("Unsupported scopes") from exc
 
 
 class APIActivityLogSerializer(BaseSerializer):

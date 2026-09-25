@@ -45,8 +45,9 @@ READ_ONLY_SERVICE_SCOPES = tuple(
 )
 
 
-def hash_service_token(raw_token):
-    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+def hash_service_token(service_token_value):
+    # codeql[py/weak-sensitive-data-hashing] Service-token fingerprint for lookup, not a password hash
+    return hashlib.sha256(service_token_value.encode("utf-8")).hexdigest()
 
 
 def generate_service_token(scope_level):
