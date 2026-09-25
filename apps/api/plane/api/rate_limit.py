@@ -2,10 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-# Django imports
-from django.conf import settings
+import hashlib
 
-# Third party imports
+from django.conf import settings
 from rest_framework.throttling import SimpleRateThrottle
 
 
@@ -14,37 +13,29 @@ class ApiKeyRateThrottle(SimpleRateThrottle):
     rate = settings.API_KEY_RATE_LIMIT
 
     def get_cache_key(self, request, view):
-        # Retrieve the API key from the request header
         api_key = request.headers.get("X-Api-Key")
         if not api_key:
-            return None  # Allow the request if there's no API key
+            return None
 
-        # Use the API key as part of the cache key
-        return f"{self.scope}:{api_key}"
+        api_token = getattr(request, "api_token", None)
+        identifier = (
+            str(api_token.id)
+            if api_token is not None
+            else hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+        )
+        return f"{self.scope}:{identifier}"
 
     def allow_request(self, request, view):
         allowed = super().allow_request(request, view)
 
         if allowed:
             now = self.timer()
-            # Calculate the remaining limit and reset time
             history = self.cache.get(self.key, [])
-
-            # Remove old histories
             while history and history[-1] <= now - self.duration:
                 history.pop()
 
-            # Calculate the requests
-            num_requests = len(history)
-
-            # Check available requests
-            available = self.num_requests - num_requests
-
-            # Unix timestamp for when the rate limit will reset
-            reset_time = int(now + self.duration)
-
-            # Add headers
+            available = self.num_requests - len(history)
             request.META["X-RateLimit-Remaining"] = max(0, available)
-            request.META["X-RateLimit-Reset"] = reset_time
+            request.META["X-RateLimit-Reset"] = int(now + self.duration)
 
         return allowed

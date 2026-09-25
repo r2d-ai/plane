@@ -2,22 +2,20 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-# Django imports
+from datetime import timedelta
+
 from django.utils import timezone
 from django.db.models import Q
 
-# Third party imports
 from rest_framework import authentication
 from rest_framework.exceptions import AuthenticationFailed
 
-# Module imports
+from plane.api.service_tokens import SERVICE_SCOPE_LEVELS, hash_service_token
 from plane.db.models import APIToken
 
 
 class APIKeyAuthentication(authentication.BaseAuthentication):
-    """
-    Authentication with an API Key
-    """
+    """Authentication with an API key."""
 
     www_authenticate_realm = "api"
     media_type = "application/json"
@@ -26,27 +24,52 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
     def get_api_token(self, request):
         return request.headers.get(self.auth_header_name)
 
-    def validate_api_token(self, token):
-        try:
-            api_token = APIToken.objects.get(
-                Q(Q(expired_at__gt=timezone.now()) | Q(expired_at__isnull=True)),
-                token=token,
+    def validate_api_token(self, raw_token):
+        now = timezone.now()
+        validity = Q(expired_at__gt=now) | Q(expired_at__isnull=True)
+
+        api_token = (
+            APIToken.objects.select_related("user", "workspace")
+            .filter(
+                validity,
+                token_hash=hash_service_token(raw_token),
                 is_active=True,
+                revoked_at__isnull=True,
                 user__is_active=True,
             )
-        except APIToken.DoesNotExist:
+            .first()
+        )
+
+        if api_token is None:
+            api_token = (
+                APIToken.objects.select_related("user", "workspace")
+                .filter(
+                    validity,
+                    token=raw_token,
+                    is_active=True,
+                    revoked_at__isnull=True,
+                    user__is_active=True,
+                )
+                .first()
+            )
+
+        if api_token is None:
             raise AuthenticationFailed("Given API token is not valid")
 
-        # save api token last used
-        api_token.last_used = timezone.now()
-        api_token.save(update_fields=["last_used"])
-        return (api_token.user, api_token.token)
+        if api_token.last_used is None or api_token.last_used < now - timedelta(minutes=1):
+            APIToken.objects.filter(pk=api_token.pk).update(last_used=now)
+            api_token.last_used = now
+
+        return api_token
 
     def authenticate(self, request):
-        token = self.get_api_token(request=request)
-        if not token:
+        raw_token = self.get_api_token(request=request)
+        if not raw_token:
             return None
 
-        # Validate the API token
-        user, token = self.validate_api_token(token)
-        return user, token
+        api_token = self.validate_api_token(raw_token)
+        request.api_token = api_token
+        if api_token.is_service and api_token.scope_level in SERVICE_SCOPE_LEVELS:
+            request.service_token = api_token
+
+        return api_token.user, raw_token
