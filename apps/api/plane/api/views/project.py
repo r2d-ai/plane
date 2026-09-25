@@ -41,6 +41,7 @@ from plane.db.models import (
 from plane.bgtasks.webhook_task import model_activity, webhook_activity
 from plane.utils.exception_logger import log_exception
 from .base import BaseAPIView
+from plane.api.service_tokens import is_service_principal
 from plane.utils.host import base_host
 from plane.utils.order_queryset import PROJECT_ORDER_BY_ALLOWLIST, sanitize_order_by
 from plane.api.serializers import (
@@ -82,16 +83,21 @@ class ProjectListCreateAPIEndpoint(BaseAPIView):
     webhook_event = "project"
     permission_classes = [ProjectBasePermission]
     use_read_replica = True
+    service_scope = "projects"
 
     def get_queryset(self):
         return (
             Project.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(
-                Q(
-                    project_projectmember__member=self.request.user,
-                    project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else (
+                    Q(
+                        project_projectmember__member=self.request.user,
+                        project_projectmember__is_active=True,
+                    )
+                    | Q(network=2)
                 )
-                | Q(network=2)
             )
             .select_related("project_lead")
             .annotate(
@@ -236,8 +242,10 @@ class ProjectListCreateAPIEndpoint(BaseAPIView):
                 with transaction.atomic():
                     serializer.save()
 
-                    # Add the creator as Administrator of the project.
-                    _ = ProjectMember.objects.create(project_id=serializer.instance.id, member=request.user, role=20)
+                    # Human creators become project members. Service principals are
+                    # authorized by token scope/boundary and must not create synthetic memberships.
+                    if not is_service_principal(request):
+                        _ = ProjectMember.objects.create(project_id=serializer.instance.id, member=request.user, role=20)
 
                     # If a different project_lead was provided, add them as
                     # Administrator too. Use project_lead_id (the FK column)
@@ -346,6 +354,7 @@ class ProjectListLiteAPIEndpoint(BaseAPIView):
     model = Project
     permission_classes = [ProjectBasePermission]
     use_read_replica = True
+    service_scope = "projects"
 
     def get_queryset(self):
         # Projects the user can access: those they are an active member of, plus
@@ -353,11 +362,15 @@ class ProjectListLiteAPIEndpoint(BaseAPIView):
         return (
             Project.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(
-                Q(
-                    project_projectmember__member=self.request.user,
-                    project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else (
+                    Q(
+                        project_projectmember__member=self.request.user,
+                        project_projectmember__is_active=True,
+                    )
+                    | Q(network=2)
                 )
-                | Q(network=2)
             )
             .distinct()
         )
@@ -436,16 +449,21 @@ class ProjectDetailAPIEndpoint(BaseAPIView):
 
     permission_classes = [ProjectBasePermission]
     use_read_replica = True
+    service_scope = "projects"
 
     def get_queryset(self):
         return (
             Project.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(
-                Q(
-                    project_projectmember__member=self.request.user,
-                    project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else (
+                    Q(
+                        project_projectmember__member=self.request.user,
+                        project_projectmember__is_active=True,
+                    )
+                    | Q(network=2)
                 )
-                | Q(network=2)
             )
             .select_related("workspace", "workspace__owner", "default_assignee", "project_lead")
             .annotate(
@@ -650,6 +668,7 @@ class ProjectArchiveUnarchiveAPIEndpoint(BaseAPIView):
     """Project Archive and Unarchive Endpoint"""
 
     permission_classes = [ProjectBasePermission]
+    service_scope = "projects"
 
     @project_docs(
         operation_id="archive_project",
@@ -714,6 +733,7 @@ ALLOWED_PROJECT_SUMMARY_FIELDS = [
 class ProjectSummaryAPIEndpoint(BaseAPIView):
     permission_classes = [WorkSpaceAdminPermission]
     use_read_replica = True
+    service_scope = "projects"
 
     def get(self, request, slug, project_id):
         """Get project summary

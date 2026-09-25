@@ -87,6 +87,7 @@ from plane.utils.order_queryset import (
 )
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from .base import BaseAPIView
+from plane.api.service_tokens import is_service_principal
 from plane.utils.host import base_host
 from plane.utils.issue_relation_mapper import get_actual_relation
 from plane.bgtasks.webhook_task import model_activity
@@ -187,6 +188,7 @@ class WorkspaceIssueAPIEndpoint(BaseAPIView):
     permission_classes = [ProjectEntityPermission]
     serializer_class = IssueSerializer
     use_read_replica = True
+    service_scope = "work_items"
 
     @property
     def project_identifier(self):
@@ -263,6 +265,7 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
     permission_classes = [ProjectEntityPermission]
     serializer_class = IssueSerializer
     use_read_replica = True
+    service_scope = "work_items"
 
     def get_queryset(self):
         return (
@@ -530,6 +533,7 @@ class IssueDetailAPIEndpoint(BaseAPIView):
     permission_classes = [ProjectEntityPermission]
     serializer_class = IssueSerializer
     use_read_replica = True
+    service_scope = "work_items"
 
     def get_queryset(self):
         return (
@@ -848,7 +852,7 @@ class IssueDetailAPIEndpoint(BaseAPIView):
         Only admins or the item creator can perform this action.
         """
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
-        if issue.created_by_id != request.user.id and (
+        if not is_service_principal(request) and issue.created_by_id != request.user.id and (
             not ProjectMember.objects.filter(
                 workspace__slug=slug,
                 member=request.user,
@@ -882,14 +886,19 @@ class LabelListCreateAPIEndpoint(BaseAPIView):
     model = Label
     permission_classes = [ProjectMemberPermission]
     use_read_replica = True
+    service_scope = "labels"
 
     def get_queryset(self):
         return (
             Label.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(project__archived_at__isnull=True)
             .select_related("project")
@@ -1008,6 +1017,7 @@ class LabelDetailAPIEndpoint(LabelListCreateAPIEndpoint):
     model = Label
     permission_classes = [ProjectMemberPermission]
     use_read_replica = True
+    service_scope = "labels"
 
     @label_docs(
         operation_id="get_labels",
@@ -1124,8 +1134,12 @@ class IssueLinkListCreateAPIEndpoint(BaseAPIView):
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(issue_id=self.kwargs.get("issue_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(project__archived_at__isnull=True)
             .order_by(self.kwargs.get("order_by", "-created_at"))
@@ -1229,8 +1243,12 @@ class IssueLinkDetailAPIEndpoint(BaseAPIView):
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(issue_id=self.kwargs.get("issue_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(project__archived_at__isnull=True)
             .order_by(self.kwargs.get("order_by", "-created_at"))
@@ -1372,8 +1390,12 @@ class IssueCommentListCreateAPIEndpoint(BaseAPIView):
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(issue_id=self.kwargs.get("issue_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(project__archived_at__isnull=True)
             .select_related("workspace", "project", "issue", "actor")
@@ -1528,8 +1550,12 @@ class IssueCommentDetailAPIEndpoint(BaseAPIView):
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(issue_id=self.kwargs.get("issue_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(project__archived_at__isnull=True)
             .select_related("workspace", "project", "issue", "actor")

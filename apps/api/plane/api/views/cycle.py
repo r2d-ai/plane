@@ -50,6 +50,7 @@ from plane.utils.cycle_transfer_issues import transfer_cycle_issues
 from plane.utils.order_queryset import CYCLE_ORDER_BY_ALLOWLIST, ISSUE_ORDER_BY_ALLOWLIST, sanitize_order_by
 from plane.utils.host import base_host
 from .base import BaseAPIView
+from plane.api.service_tokens import is_service_principal
 from plane.bgtasks.webhook_task import model_activity
 from plane.utils.openapi.decorators import cycle_docs
 from plane.utils.openapi import (
@@ -87,14 +88,19 @@ class CycleListCreateAPIEndpoint(BaseAPIView):
     webhook_event = "cycle"
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "cycles"
 
     def get_queryset(self):
         return (
             Cycle.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .select_related("project")
             .select_related("workspace")
@@ -364,6 +370,7 @@ class CycleListLiteAPIEndpoint(BaseAPIView):
     model = Cycle
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "cycles"
 
     @cycle_docs(
         operation_id="list_cycles_lite",
@@ -415,14 +422,19 @@ class CycleDetailAPIEndpoint(BaseAPIView):
     webhook_event = "cycle"
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "cycles"
 
     def get_queryset(self):
         return (
             Cycle.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .select_related("project")
             .select_related("workspace")
@@ -664,14 +676,19 @@ class CycleArchiveUnarchiveAPIEndpoint(BaseAPIView):
 
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "cycles"
 
     def get_queryset(self):
         return (
             Cycle.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(archived_at__isnull=False)
             .select_related("project")
@@ -857,6 +874,7 @@ class CycleIssueListCreateAPIEndpoint(BaseAPIView):
     webhook_event = "cycle_issue"
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "cycles"
 
     def get_queryset(self):
         return (
@@ -869,8 +887,12 @@ class CycleIssueListCreateAPIEndpoint(BaseAPIView):
             .filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(cycle_id=self.kwargs.get("cycle_id"))
             .select_related("project")
@@ -1079,6 +1101,7 @@ class CycleIssueDetailAPIEndpoint(BaseAPIView):
     bulk = True
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "cycles"
 
     def get_queryset(self):
         return (
@@ -1091,8 +1114,12 @@ class CycleIssueDetailAPIEndpoint(BaseAPIView):
             .filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(cycle_id=self.kwargs.get("cycle_id"))
             .select_related("project")
@@ -1177,6 +1204,7 @@ class TransferCycleIssueAPIEndpoint(BaseAPIView):
     """
 
     permission_classes = [ProjectEntityPermission]
+    service_scope = "cycles"
 
     @cycle_docs(
         operation_id="transfer_cycle_work_items",

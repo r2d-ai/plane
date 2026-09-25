@@ -4,6 +4,7 @@
 
 # Django imports
 from django.db import IntegrityError
+from django.db.models import Q
 
 # Third party imports
 from rest_framework import status
@@ -15,6 +16,7 @@ from plane.api.serializers import StateSerializer
 from plane.app.permissions import ProjectEntityPermission
 from plane.db.models import Issue, State
 from .base import BaseAPIView
+from plane.api.service_tokens import is_service_principal
 from plane.utils.openapi import (
     state_docs,
     STATE_ID_PARAMETER,
@@ -43,14 +45,19 @@ class StateListCreateAPIEndpoint(BaseAPIView):
     model = State
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "states"
 
     def get_queryset(self):
         return (
             State.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(is_triage=False)
             .filter(project__archived_at__isnull=True)
@@ -166,14 +173,19 @@ class StateDetailAPIEndpoint(BaseAPIView):
     model = State
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "states"
 
     def get_queryset(self):
         return (
             State.objects.filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(is_triage=False)
             .filter(project__archived_at__isnull=True)

@@ -7,6 +7,7 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 # Module imports
 from plane.db.models import WorkspaceMember
+from plane.api.service_tokens import authorize_service_request, is_service_principal
 
 
 # Permission Mappings
@@ -21,6 +22,13 @@ class WorkSpaceBasePermission(BasePermission):
         # allow anyone to create a workspace
         if request.user.is_anonymous:
             return False
+
+        if is_service_principal(request):
+            return authorize_service_request(
+                request,
+                view.workspace_slug,
+                getattr(view, "service_scope", None),
+            )
 
         if request.method == "POST":
             return True
@@ -53,6 +61,13 @@ class WorkspaceOwnerPermission(BasePermission):
         if request.user.is_anonymous:
             return False
 
+        if is_service_principal(request):
+            return authorize_service_request(
+                request,
+                view.workspace_slug,
+                getattr(view, "service_scope", None),
+            )
+
         return WorkspaceMember.objects.filter(
             workspace__slug=view.workspace_slug, member=request.user, role=Admin, is_active=True
         ).exists()
@@ -62,6 +77,13 @@ class WorkSpaceAdminPermission(BasePermission):
     def has_permission(self, request, view):
         if request.user.is_anonymous:
             return False
+
+        if is_service_principal(request):
+            return authorize_service_request(
+                request,
+                view.workspace_slug,
+                getattr(view, "service_scope", None),
+            )
 
         return WorkspaceMember.objects.filter(
             member=request.user,
@@ -75,6 +97,13 @@ class WorkspaceEntityPermission(BasePermission):
     def has_permission(self, request, view):
         if request.user.is_anonymous:
             return False
+
+        if is_service_principal(request):
+            return authorize_service_request(
+                request,
+                view.workspace_slug,
+                getattr(view, "service_scope", None),
+            )
 
         ## Safe Methods -> Handle the filtering logic in queryset
         if request.method in SAFE_METHODS:
@@ -95,6 +124,13 @@ class WorkspaceViewerPermission(BasePermission):
         if request.user.is_anonymous:
             return False
 
+        if is_service_principal(request):
+            return authorize_service_request(
+                request,
+                view.workspace_slug,
+                getattr(view, "service_scope", None),
+            )
+
         return WorkspaceMember.objects.filter(
             member=request.user, workspace__slug=view.workspace_slug, is_active=True
         ).exists()
@@ -104,6 +140,13 @@ class WorkspaceUserPermission(BasePermission):
     def has_permission(self, request, view):
         if request.user.is_anonymous:
             return False
+
+        if is_service_principal(request):
+            return authorize_service_request(
+                request,
+                view.workspace_slug,
+                getattr(view, "service_scope", None),
+            )
 
         return WorkspaceMember.objects.filter(
             member=request.user, workspace__slug=view.workspace_slug, is_active=True

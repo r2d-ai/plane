@@ -41,6 +41,7 @@ from plane.db.models import (
 )
 
 from .base import BaseAPIView
+from plane.api.service_tokens import is_service_principal
 from plane.bgtasks.webhook_task import model_activity
 from plane.utils.host import base_host
 from plane.utils.order_queryset import ISSUE_ORDER_BY_ALLOWLIST, MODULE_ORDER_BY_ALLOWLIST, sanitize_order_by
@@ -83,6 +84,7 @@ class ModuleListCreateAPIEndpoint(BaseAPIView):
     webhook_event = "module"
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "modules"
 
     def get_queryset(self):
         return (
@@ -285,6 +287,7 @@ class ModuleListLiteAPIEndpoint(BaseAPIView):
     model = Module
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "modules"
 
     @module_docs(
         operation_id="list_modules_lite",
@@ -334,6 +337,7 @@ class ModuleDetailAPIEndpoint(BaseAPIView):
     serializer_class = ModuleSerializer
     webhook_event = "module"
     use_read_replica = True
+    service_scope = "modules"
 
     def get_queryset(self):
         return (
@@ -591,6 +595,7 @@ class ModuleIssueListCreateAPIEndpoint(BaseAPIView):
     webhook_event = "module_issue"
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "modules"
 
     def get_queryset(self):
         return (
@@ -604,8 +609,12 @@ class ModuleIssueListCreateAPIEndpoint(BaseAPIView):
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(module_id=self.kwargs.get("module_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(project__archived_at__isnull=True)
             .select_related("project")
@@ -795,6 +804,7 @@ class ModuleIssueDetailAPIEndpoint(BaseAPIView):
     webhook_event = "module_issue"
     bulk = True
     use_read_replica = True
+    service_scope = "modules"
 
     permission_classes = [ProjectEntityPermission]
 
@@ -810,8 +820,12 @@ class ModuleIssueDetailAPIEndpoint(BaseAPIView):
             .filter(project_id=self.kwargs.get("project_id"))
             .filter(module_id=self.kwargs.get("module_id"))
             .filter(
-                project__project_projectmember__member=self.request.user,
-                project__project_projectmember__is_active=True,
+                Q()
+                if is_service_principal(self.request)
+                else Q(
+                    project__project_projectmember__member=self.request.user,
+                    project__project_projectmember__is_active=True,
+                )
             )
             .filter(project__archived_at__isnull=True)
             .select_related("project")
@@ -941,6 +955,7 @@ class ModuleIssueDetailAPIEndpoint(BaseAPIView):
 class ModuleArchiveUnarchiveAPIEndpoint(BaseAPIView):
     permission_classes = [ProjectEntityPermission]
     use_read_replica = True
+    service_scope = "modules"
 
     def get_queryset(self):
         return (
