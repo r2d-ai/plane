@@ -40,7 +40,7 @@ export interface IMonthView {
 const generateMonthChart = (monthPayload: ChartDataType, side: null | "left" | "right", targetDate?: Date) => {
   let renderState = cloneDeep(monthPayload);
 
-  const range: number = renderState.data.approxFilterRange || 6;
+  const range: number = renderState.data.approxFilterRange || 2;
   let filteredDates: IMonthView = { months: [], weeks: [] };
   let minusDate: Date = new Date();
   let plusDate: Date = new Date();

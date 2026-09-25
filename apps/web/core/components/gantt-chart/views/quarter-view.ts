@@ -29,7 +29,7 @@ export interface IQuarterMonthBlock {
 const generateQuarterChart = (quarterPayload: ChartDataType, side: null | "left" | "right", targetDate?: Date) => {
   let renderState = quarterPayload;
 
-  const range: number = renderState.data.approxFilterRange || 12;
+  const range: number = renderState.data.approxFilterRange || 3;
   let filteredDates: IMonthBlock[] = [];
   let minusDate: Date = new Date();
   let plusDate: Date = new Date();
@@ -41,8 +41,9 @@ const generateQuarterChart = (quarterPayload: ChartDataType, side: null | "left"
   if (side === null) {
     const currentDate = renderState.data.currentDate;
 
-    minusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - range, 1);
-    plusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + range, 0);
+    const quarterStartMonth = Math.floor(currentDate.getMonth() / 3) * 3;
+    minusDate = new Date(currentDate.getFullYear(), quarterStartMonth - range, 1);
+    plusDate = new Date(currentDate.getFullYear(), quarterStartMonth + 3 + range, 0);
 
     if (minusDate && plusDate) filteredDates = getMonthsBetweenTwoDates(minusDate, plusDate);
 
@@ -65,7 +66,7 @@ const generateQuarterChart = (quarterPayload: ChartDataType, side: null | "left"
     const chartStartDate = renderState.data.startDate;
     const currentDate = targetDate ? targetDate : chartStartDate;
 
-    minusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - range / 2, 1);
+    minusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - range, 1);
     plusDate = new Date(chartStartDate.getFullYear(), chartStartDate.getMonth() - 1, 1);
 
     if (minusDate && plusDate) filteredDates = getMonthsBetweenTwoDates(minusDate, plusDate);
@@ -84,7 +85,7 @@ const generateQuarterChart = (quarterPayload: ChartDataType, side: null | "left"
     const currentDate = targetDate ? targetDate : chartEndDate;
 
     minusDate = new Date(chartEndDate.getFullYear(), chartEndDate.getMonth() + 1, 1);
-    plusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + range / 2, 1);
+    plusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + range, 1);
 
     if (minusDate && plusDate) filteredDates = getMonthsBetweenTwoDates(minusDate, plusDate);
 

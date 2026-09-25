@@ -71,6 +71,94 @@ export const datePreview = (date: Date, includeTime: boolean = false) => {
   return `${charCapitalize(month?.shortTitle)} ${day}, ${year}${includeTime ? `, ${timePreview(date)}` : ``}`;
 };
 
+const SCALE_FALLBACK_DAY_WIDTH: Record<TGanttViews, number> = {
+  day: 160,
+  week: 100,
+  month: 28,
+  quarter: 9,
+};
+
+const SCALE_MIN_DAY_WIDTH: Record<TGanttViews, number> = {
+  day: 120,
+  week: 88,
+  month: 24,
+  quarter: 8,
+};
+
+const SCALE_MAX_DAY_WIDTH: Record<TGanttViews, number> = {
+  day: 240,
+  week: 180,
+  month: 64,
+  quarter: 24,
+};
+
+/**
+ * Returns the calendar boundary that should be anchored at the left edge when
+ * a scale is selected. This keeps "Month" looking like a calendar month and
+ * "Quarter" looking like an actual calendar quarter instead of a rolling range.
+ */
+export const getTimelinePeriodStart = (
+  view: TGanttViews,
+  date: Date,
+  startOfWeek: EStartOfTheWeek = EStartOfTheWeek.SUNDAY
+): Date => {
+  const periodStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  periodStart.setHours(0, 0, 0, 0);
+
+  if (view === "week") {
+    const diff = (periodStart.getDay() + 7 - startOfWeek) % 7;
+    periodStart.setDate(periodStart.getDate() - diff);
+  } else if (view === "month") {
+    periodStart.setDate(1);
+  } else if (view === "quarter") {
+    periodStart.setMonth(Math.floor(periodStart.getMonth() / 3) * 3, 1);
+  }
+
+  return periodStart;
+};
+
+export const getTimelineTargetDays = (
+  view: TGanttViews,
+  date: Date,
+  startOfWeek: EStartOfTheWeek = EStartOfTheWeek.SUNDAY
+): number => {
+  if (view === "day") return 5;
+  if (view === "week") return 7;
+  if (view === "month") return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+
+  const quarterStart = getTimelinePeriodStart("quarter", date, startOfWeek);
+  const nextQuarterStart = new Date(quarterStart.getFullYear(), quarterStart.getMonth() + 3, 1);
+  return Math.round(
+    (Date.UTC(nextQuarterStart.getFullYear(), nextQuarterStart.getMonth(), nextQuarterStart.getDate()) -
+      Date.UTC(quarterStart.getFullYear(), quarterStart.getMonth(), quarterStart.getDate())) /
+      86_400_000
+  );
+};
+
+/**
+ * Computes day width from the available timeline viewport so each scale shows
+ * approximately one semantic period:
+ * - Week: 7 days
+ * - Month: one calendar month
+ * - Quarter: one calendar quarter
+ *
+ * Minimums keep columns readable on small screens; maximums avoid oversized
+ * cells on ultra-wide displays.
+ */
+export const getTimelineDayWidth = (
+  view: TGanttViews,
+  date: Date,
+  viewportWidth: number,
+  startOfWeek: EStartOfTheWeek = EStartOfTheWeek.SUNDAY
+): number => {
+  if (!Number.isFinite(viewportWidth) || viewportWidth <= 0) return SCALE_FALLBACK_DAY_WIDTH[view];
+
+  const targetDays = getTimelineTargetDays(view, date, startOfWeek);
+  const calculatedWidth = viewportWidth / targetDays;
+
+  return Math.min(SCALE_MAX_DAY_WIDTH[view], Math.max(SCALE_MIN_DAY_WIDTH[view], calculatedWidth));
+};
+
 // context data
 export const VIEWS_LIST: ChartDataType[] = [
   {
@@ -80,8 +168,8 @@ export const VIEWS_LIST: ChartDataType[] = [
       startDate: new Date(),
       currentDate: new Date(),
       endDate: new Date(),
-      approxFilterRange: 2,
-      dayWidth: 120,
+      approxFilterRange: 1,
+      dayWidth: 160,
     },
   },
   {
@@ -91,8 +179,8 @@ export const VIEWS_LIST: ChartDataType[] = [
       startDate: new Date(),
       currentDate: new Date(),
       endDate: new Date(),
-      approxFilterRange: 4, // it will preview week dates with weekends highlighted with 1 week limitations ex: title (Wed 1, Thu 2, Fri 3)
-      dayWidth: 60,
+      approxFilterRange: 1, // buffer month on each side; visible viewport is one semantic week
+      dayWidth: 100,
     },
   },
   {
@@ -102,8 +190,8 @@ export const VIEWS_LIST: ChartDataType[] = [
       startDate: new Date(),
       currentDate: new Date(),
       endDate: new Date(),
-      approxFilterRange: 6, // it will preview monthly all dates with weekends highlighted with no limitations ex: title (1, 2, 3)
-      dayWidth: 20,
+      approxFilterRange: 2, // render buffer only; visible viewport is one calendar month
+      dayWidth: 28,
     },
   },
   {
@@ -113,8 +201,8 @@ export const VIEWS_LIST: ChartDataType[] = [
       startDate: new Date(),
       currentDate: new Date(),
       endDate: new Date(),
-      approxFilterRange: 24, // it will preview week starting dates all months data and there is 3 months limitation for preview ex: title (2, 9, 16, 23, 30)
-      dayWidth: 5,
+      approxFilterRange: 3, // render buffer only; visible viewport is one calendar quarter
+      dayWidth: 9,
     },
   },
 ];

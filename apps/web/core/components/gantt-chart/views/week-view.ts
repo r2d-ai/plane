@@ -53,7 +53,7 @@ const generateWeekChart = (
 ) => {
   let renderState = weekPayload;
 
-  const range: number = renderState.data.approxFilterRange || 6;
+  const range: number = renderState.data.approxFilterRange || 1;
   let filteredDates: IWeekBlock[] = [];
   let minusDate: Date = new Date();
   let plusDate: Date = new Date();

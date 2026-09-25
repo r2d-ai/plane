@@ -19,8 +19,7 @@ import { GanttChartHeader, GanttChartMainContent } from "@/components/gantt-char
 import { useUserProfile } from "@/hooks/store/user";
 import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 //
-import { SIDEBAR_WIDTH } from "../constants";
-import { currentViewDataWithView } from "../data";
+import { currentViewDataWithView, getTimelineDayWidth, getTimelinePeriodStart } from "../data";
 import type { IMonthBlock, IMonthView, IWeekBlock } from "../views";
 import { dayView, getNumberOfDaysBetweenTwoDates, monthView, quarterView, weekView } from "../views";
 import type { IDayViewMonthBlock } from "../views/day-view";
@@ -126,12 +125,28 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
     if (side && rangeExpansionInFlightRef.current === side) return currentViewData;
 
     const selectedCurrentView: TGanttViews = view;
-    const selectedCurrentViewData: ChartDataType | undefined =
+    const baseCurrentViewData: ChartDataType | undefined =
       selectedCurrentView && selectedCurrentView === currentViewData?.key
         ? currentViewData
         : currentViewDataWithView(view);
 
-    if (selectedCurrentViewData === undefined) return;
+    if (baseCurrentViewData === undefined) return;
+
+    const focalDate = side === null && targetDate ? targetDate : baseCurrentViewData.data.currentDate;
+    const scrollContainer = document.querySelector("#gantt-container") as HTMLDivElement | null;
+    const timelineViewportWidth = Math.max(0, (scrollContainer?.clientWidth ?? 0) - sidebarWidth);
+
+    const selectedCurrentViewData: ChartDataType =
+      side === null
+        ? {
+            ...baseCurrentViewData,
+            data: {
+              ...baseCurrentViewData.data,
+              currentDate: focalDate,
+              dayWidth: getTimelineDayWidth(selectedCurrentView, focalDate, timelineViewportWidth, startOfWeek),
+            },
+          }
+        : baseCurrentViewData;
 
     const currentViewHelpers = timelineViewHelpers[selectedCurrentView];
     const currentRender = currentViewHelpers.generateChart(selectedCurrentViewData, side, targetDate, startOfWeek);
@@ -162,7 +177,7 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
         updateRenderView(currentRender.payload);
         setItemsContainerWidth(currentRender.scrollWidth);
         setTimeout(() => {
-          handleScrollToCurrentSelectedDate(currentRender.state, currentRender.state.data.currentDate);
+          handleScrollToCurrentSelectedDate(currentRender.state, currentRender.state.data.currentDate, view);
         }, 50);
       }
 
@@ -176,7 +191,7 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
     return currentRender.state;
   };
 
-  const handleToday = () => updateCurrentViewRenderPayload(null, currentView);
+  const handleToday = () => updateCurrentViewRenderPayload(null, currentView, new Date());
 
   // handling the scroll positioning from left and right
   useEffect(() => {
@@ -192,21 +207,16 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
     setItemsContainerWidth(width + scrollContainer?.scrollLeft);
   };
 
-  const handleScrollToCurrentSelectedDate = (currentState: ChartDataType, date: Date) => {
+  const handleScrollToCurrentSelectedDate = (currentState: ChartDataType, date: Date, view: TGanttViews) => {
     const scrollContainer = document.querySelector("#gantt-container") as HTMLDivElement;
     if (!scrollContainer) return;
 
-    const clientVisibleWidth: number = scrollContainer?.clientWidth;
-    let scrollWidth: number = 0;
-    let daysDifference: number = 0;
-    daysDifference = getNumberOfDaysBetweenTwoDates(currentState.data.startDate, date);
+    const periodStart = getTimelinePeriodStart(view, date, startOfWeek);
+    const daysDifference = getNumberOfDaysBetweenTwoDates(currentState.data.startDate, periodStart);
 
-    scrollWidth =
-      Math.abs(daysDifference) * currentState.data.dayWidth -
-      (clientVisibleWidth / 2 - currentState.data.dayWidth) +
-      SIDEBAR_WIDTH / 2;
-
-    scrollContainer.scrollLeft = scrollWidth;
+    // Anchor the selected calendar period immediately after the sticky sidebar.
+    // The generated range remains larger as an off-screen pan buffer.
+    scrollContainer.scrollLeft = Math.max(0, Math.abs(daysDifference) * currentState.data.dayWidth);
   };
 
   const portalContainer = document.getElementById("full-screen-portal") as HTMLElement;
