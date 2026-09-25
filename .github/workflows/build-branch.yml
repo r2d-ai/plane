@@ -81,7 +81,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${INPUT_ARM64_BUILD}" == "true" ] || { [ "${INPUT_BUILD_TYPE}" == "Release" ] && [ "${INPUT_IS_PRERELEASE}" != "true" ]; }; then
+          if [ "${INPUT_ARM64_BUILD}" == "true" ]; then
             echo "BUILDX_PLATFORMS=linux/amd64,linux/arm64" >> "$GITHUB_OUTPUT"
           else
             echo "BUILDX_PLATFORMS=linux/amd64" >> "$GITHUB_OUTPUT"
