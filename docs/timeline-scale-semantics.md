@@ -88,7 +88,7 @@ Zoom bounds:
 | --- | ---: | ---: |
 | Day | 64 px | 320 px |
 | Week | 32 px | 240 px |
-| Month | 12 px | 120 px |
+| Month | 18 px | 120 px |
 | Quarter | 4 px | 48 px |
 
 ## Calendar-boundary anchoring
