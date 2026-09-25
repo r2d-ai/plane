@@ -33,6 +33,7 @@ type ChartViewRootProps = {
   timelineRows: TimelineRow[];
   sidebarWidth: number;
   visibleColumns: TGanttColumnKey[];
+  initialView?: TGanttViews;
   onSidebarWidthChange: (width: number) => void;
   onToggleGroupCollapse?: (groupId: string) => void;
   onScaleChange?: (view: TGanttViews) => void;
@@ -80,6 +81,7 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
     timelineRows,
     sidebarWidth,
     visibleColumns,
+    initialView,
     onSidebarWidthChange,
     onToggleGroupCollapse,
     onScaleChange,
@@ -178,7 +180,9 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
 
   // handling the scroll positioning from left and right
   useEffect(() => {
-    handleToday();
+    updateCurrentViewRenderPayload(null, initialView ?? currentView);
+    // The initial view is consumed only on mount. Later scale changes go through
+    // handleChartView so the selected view and render payload are updated together.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

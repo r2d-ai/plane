@@ -540,11 +540,13 @@ with a configurable Timeline properties table.
 - Due date / Target date
 - Estimate, when available
 
-Recommended default:
+Default:
 
 ```text
-Work item | Status | Assignee | Duration
+Work item | Duration
 ```
+
+All optional Timeline properties are opt-in. Entering Timeline must not automatically enable Status, Assignee, ID, Priority, Module, Labels, Start date, Due date, or other optional display properties.
 
 ### Requirements
 

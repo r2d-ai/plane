@@ -33,6 +33,16 @@ const DEFAULT_PREFERENCES: TGanttPreferences = {
   sidebarWidth: GANTT_SIDEBAR_DEFAULT_WIDTH,
 };
 
+const GANTT_VIEWS: TGanttViews[] = ["day", "week", "month", "quarter"];
+
+const isGanttView = (value: unknown): value is TGanttViews =>
+  typeof value === "string" && GANTT_VIEWS.includes(value as TGanttViews);
+
+const normalizeSidebarWidth = (value: unknown): number => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return GANTT_SIDEBAR_DEFAULT_WIDTH;
+  return Math.min(GANTT_SIDEBAR_MAX_WIDTH, Math.max(GANTT_SIDEBAR_MIN_WIDTH, value));
+};
+
 const getStorageKey = (workspaceSlug: string, entityId: string) => `plane-gantt-prefs-${workspaceSlug}-${entityId}`;
 
 export const useGanttPreferences = (workspaceSlug: string | undefined, entityId: string | undefined) => {
@@ -47,8 +57,8 @@ export const useGanttPreferences = (workspaceSlug: string | undefined, entityId:
         const parsed = JSON.parse(stored) as Partial<TGanttPreferences>;
         setPreferences({
           ...DEFAULT_PREFERENCES,
-          scale: parsed.scale ?? DEFAULT_PREFERENCES.scale,
-          sidebarWidth: parsed.sidebarWidth ?? DEFAULT_PREFERENCES.sidebarWidth,
+          scale: isGanttView(parsed.scale) ? parsed.scale : DEFAULT_PREFERENCES.scale,
+          sidebarWidth: normalizeSidebarWidth(parsed.sidebarWidth),
         });
       }
     } catch {

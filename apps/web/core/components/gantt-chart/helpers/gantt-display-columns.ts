@@ -7,11 +7,25 @@
 import type { IIssueDisplayProperties } from "@plane/types";
 import type { TGanttColumnKey } from "@/hooks/use-gantt-preferences";
 
-export const GANTT_DEFAULT_VISIBLE_COLUMNS: TGanttColumnKey[] = ["work_item", "status", "assignee", "duration"];
+export const GANTT_DEFAULT_VISIBLE_COLUMNS: TGanttColumnKey[] = ["work_item", "duration"];
+
+export const GANTT_DISPLAY_PROPERTY_KEYS: (keyof IIssueDisplayProperties)[] = [
+  "key",
+  "issue_type",
+  "state",
+  "assignee",
+  "priority",
+  "modules",
+  "labels",
+  "start_date",
+  "due_date",
+];
 
 export const GANTT_LAYOUT_DISPLAY_PROPERTIES: Partial<IIssueDisplayProperties> = {
-  state: true,
-  assignee: true,
+  key: false,
+  issue_type: false,
+  state: false,
+  assignee: false,
   priority: false,
   estimate: false,
   modules: false,
@@ -19,6 +33,9 @@ export const GANTT_LAYOUT_DISPLAY_PROPERTIES: Partial<IIssueDisplayProperties> =
   start_date: false,
   due_date: false,
 };
+
+export const isLegacyDefaultGanttDisplayProperties = (displayProperties: IIssueDisplayProperties): boolean =>
+  GANTT_DISPLAY_PROPERTY_KEYS.every((property) => displayProperties[property] !== false);
 
 const OPTIONAL_DISPLAY_PROPERTY_COLUMNS: Partial<Record<keyof IIssueDisplayProperties, TGanttColumnKey>> = {
   priority: "priority",

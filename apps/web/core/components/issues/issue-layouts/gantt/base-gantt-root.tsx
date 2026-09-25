@@ -58,7 +58,7 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
   const storeType = useIssueStoreType() as GanttStoreType;
   const { issues, issuesFilter } = useIssues(storeType);
   const { fetchIssues, fetchNextIssues, updateIssue, quickAddIssue, updateFilters } = useIssuesActions(storeType);
-  const { initGantt, updateCurrentView } = useTimeLineChart(GANTT_TIMELINE_TYPE.ISSUE);
+  const { initGantt } = useTimeLineChart(GANTT_TIMELINE_TYPE.ISSUE);
   const { allowPermissions } = useUserPermissions();
   const isBulkOperationsEnabled = useBulkOperationStatus();
 
@@ -81,12 +81,6 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
   useEffect(() => {
     initGantt();
   }, [initGantt]);
-
-  useEffect(() => {
-    if (isLoaded) {
-      updateCurrentView(preferences.scale);
-    }
-  }, [isLoaded, preferences.scale, updateCurrentView]);
 
   const groupedIssueIds = issues.groupedIssueIds as TGroupedIssues | undefined;
 
@@ -146,14 +140,17 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
         start_date?: string;
         target_date?: string;
       }[]
-    ) =>
-      issues.updateIssueDates(workspaceSlug.toString(), updates, projectId.toString()).catch(() => {
+    ) => {
+      if (!workspaceSlug || !projectId) return Promise.resolve();
+
+      return issues.updateIssueDates(workspaceSlug.toString(), updates, projectId.toString()).catch(() => {
         setToast({
           type: TOAST_TYPE.ERROR,
           title: t("toast.error"),
           message: "Error while updating work item dates, Please try again Later",
         });
-      }),
+      });
+    },
     [issues, projectId, workspaceSlug, t]
   );
 
@@ -166,7 +163,7 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
 
   const handleCollapsedGroups = useCallback(
     (value: string) => {
-      if (!workspaceSlug) return;
+      if (!workspaceSlug || !projectId) return;
       let nextCollapsed = issuesFilter?.issueFilters?.kanbanFilters?.group_by || [];
       if (nextCollapsed.includes(value)) {
         nextCollapsed = nextCollapsed.filter((_value) => _value !== value);
@@ -179,6 +176,8 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
     },
     [workspaceSlug, issuesFilter, projectId, updateFilters]
   );
+
+  if (!isLoaded) return null;
 
   const quickAdd =
     enableIssueCreation && isAllowed && !isCompletedCycle ? (
@@ -207,6 +206,7 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
             timelineRows={timelineRows}
             sidebarWidth={preferences.sidebarWidth}
             visibleColumns={visibleColumns}
+            initialView={preferences.scale}
             onSidebarWidthChange={(width) => updatePreferences({ sidebarWidth: width })}
             onToggleGroupCollapse={handleCollapsedGroups}
             onScaleChange={handleScaleChange}
