@@ -21,6 +21,8 @@ from plane.db.models import (
     State,
     User,
     UserNotificationPreference,
+    Workspace,
+    WorkspaceMember,
 )
 from plane.digests.config import DigestConfig, get_digest_config, is_time_due
 from plane.digests.constants import (
@@ -28,8 +30,10 @@ from plane.digests.constants import (
     DELIVERY_STATUS_PENDING,
     DELIVERY_STATUS_SENT,
     PERSONAL_DAILY,
+    PERSONAL_DAILY_BUCKETS,
 )
 from plane.digests.delivery import claim_delivery, deliver_personal_daily
+from plane.digests.permissions import get_accessible_project_ids
 from plane.digests.queries import get_personal_actionable_items, has_actionable_items
 from plane.digests.snapshots import build_personal_daily_snapshot
 
@@ -431,6 +435,164 @@ class TestDigestDelivery:
         assert first is not None
         assert first.status == DELIVERY_STATUS_PENDING
         assert second is None
+        assert DigestDelivery.objects.count() == 1
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestRevocationGate:
+    """Defense-in-depth against the PATCH-revoke bypass described in the
+    security review.
+
+    `PATCH /api/workspaces/{slug}/members/{member_id}/` with
+    `{"is_active": false}` deactivates only `WorkspaceMember`; unlike
+    `destroy` / `leave`, it does NOT cascade to `ProjectMember`. Without
+    a workspace-level check the digest would still pick up issues from
+    projects the user has been removed from at the workspace boundary.
+    These tests guard `digests/permissions.get_accessible_project_ids`
+    plus the downstream `get_personal_actionable_items` /
+    `generate_personal_daily` paths that consume it.
+    """
+
+    @patch("plane.digests.delivery.send_digest_email")
+    def test_revoked_workspace_excludes_actionable_items_and_delivery(
+        self, mock_send, create_user, workspace, digest_project, started_state, digest_config
+    ):
+        # Project membership is still active; only the workspace boundary
+        # has been revoked. Before the fix, `get_personal_actionable_items`
+        # returned the issue and `generate_personal_daily` would deliver
+        # an email containing it.
+        _create_assigned_issue(
+            digest_project,
+            workspace,
+            create_user,
+            started_state,
+            "Revoked workspace issue",
+            target_date=timezone.now().date() - timedelta(days=1),
+        )
+        period_key = timezone.now().date().isoformat()
+
+        WorkspaceMember.objects.filter(workspace=workspace, member=create_user).update(is_active=False)
+
+        # Permission gate now returns empty.
+        assert get_accessible_project_ids(create_user.id) == set()
+
+        sections = get_personal_actionable_items(create_user, digest_config)
+        assert not has_actionable_items(sections)
+        for bucket in PERSONAL_DAILY_BUCKETS:
+            assert sections[bucket] == []
+
+        # End-to-end: dispatcher task does not send and does not create a
+        # delivery row.
+        result = generate_personal_daily(str(create_user.id), period_key)
+        assert result == "skipped_empty"
+        mock_send.assert_not_called()
+        assert DigestDelivery.objects.count() == 0
+
+    @patch("plane.digests.delivery.send_digest_email")
+    def test_revoked_workspace_only_filters_that_workspace(
+        self, mock_send, create_user, workspace, digest_project, started_state, digest_config
+    ):
+        # Multi-workspace setup: workspace (W1) plus a second workspace
+        # (W2) each with their own project, issue, and ProjectMember.
+        # Revoking W1 must NOT take W2 down with it.
+        _create_assigned_issue(
+            digest_project,
+            workspace,
+            create_user,
+            started_state,
+            "W1 overdue",
+            target_date=timezone.now().date() - timedelta(days=1),
+        )
+
+        workspace_2 = Workspace.objects.create(
+            name="Second Workspace",
+            slug="second-workspace",
+            owner=create_user,
+        )
+        WorkspaceMember.objects.create(workspace=workspace_2, member=create_user, role=20)
+        project_2 = Project.objects.create(
+            name="W2 Project",
+            identifier="W2",
+            workspace=workspace_2,
+            created_by=create_user,
+        )
+        ProjectMember.objects.create(project=project_2, member=create_user, role=20, is_active=True)
+        started_state_2 = State.objects.create(
+            name="In Progress",
+            project=project_2,
+            workspace=workspace_2,
+            group="started",
+        )
+        _create_assigned_issue(
+            project_2,
+            workspace_2,
+            create_user,
+            started_state_2,
+            "W2 overdue",
+            target_date=timezone.now().date() - timedelta(days=1),
+        )
+
+        WorkspaceMember.objects.filter(workspace=workspace, member=create_user).update(is_active=False)
+
+        accessible = get_accessible_project_ids(create_user.id)
+        assert digest_project.id not in accessible
+        assert project_2.id in accessible
+
+        sections = get_personal_actionable_items(create_user, digest_config)
+        assert has_actionable_items(sections)
+        workspace_names = {
+            entry["workspace"]["name"]
+            for bucket in PERSONAL_DAILY_BUCKETS
+            for entry in sections[bucket]
+        }
+        assert "Test Workspace" not in workspace_names
+        assert "Second Workspace" in workspace_names
+
+        # And the digest actually delivers, scoped to the surviving workspace.
+        result = generate_personal_daily(
+            str(create_user.id), timezone.now().date().isoformat()
+        )
+        assert result == "sent"
+        mock_send.assert_called_once()
+        assert DigestDelivery.objects.count() == 1
+
+    @patch("plane.digests.delivery.send_digest_email")
+    def test_reactivated_workspace_member_restores_digest(
+        self, mock_send, create_user, workspace, digest_project, started_state, digest_config
+    ):
+        # State check: the gate follows `WorkspaceMember.is_active` on every
+        # call (it is not "stuck off" once revoked). Revoke → no delivery;
+        # re-activate → delivery resumes. This guards against the gate
+        # getting accidentally memoized or stuck on a one-shot "deleted"
+        # flag.
+        _create_assigned_issue(
+            digest_project,
+            workspace,
+            create_user,
+            started_state,
+            "Re-activatable issue",
+            target_date=timezone.now().date() - timedelta(days=1),
+        )
+        period_key = timezone.now().date().isoformat()
+        member = WorkspaceMember.objects.get(workspace=workspace, member=create_user)
+
+        member.is_active = False
+        member.save()
+        assert get_accessible_project_ids(create_user.id) == set()
+        sections = get_personal_actionable_items(create_user, digest_config)
+        assert not has_actionable_items(sections)
+        assert generate_personal_daily(str(create_user.id), period_key) == "skipped_empty"
+        mock_send.assert_not_called()
+        assert DigestDelivery.objects.count() == 0
+
+        member.is_active = True
+        member.save()
+        assert digest_project.id in get_accessible_project_ids(create_user.id)
+        sections = get_personal_actionable_items(create_user, digest_config)
+        assert has_actionable_items(sections)
+        assert generate_personal_daily(str(create_user.id), period_key) == "sent"
+        mock_send.assert_called_once()
         assert DigestDelivery.objects.count() == 1
 
 
