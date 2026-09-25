@@ -92,6 +92,34 @@ const SCALE_MAX_DAY_WIDTH: Record<TGanttViews, number> = {
   quarter: 24,
 };
 
+const SCALE_ZOOM_MIN_DAY_WIDTH: Record<TGanttViews, number> = {
+  day: 64,
+  week: 32,
+  month: 12,
+  quarter: 4,
+};
+
+const SCALE_ZOOM_MAX_DAY_WIDTH: Record<TGanttViews, number> = {
+  day: 320,
+  week: 240,
+  month: 120,
+  quarter: 48,
+};
+
+export type TTimelineZoomDirection = "in" | "out";
+
+export const getTimelineZoomDayWidth = (
+  view: TGanttViews,
+  currentDayWidth: number,
+  direction: TTimelineZoomDirection
+): number => {
+  const factor = direction === "in" ? 1.15 : 1 / 1.15;
+  const nextWidth = currentDayWidth * factor;
+  const clamped = Math.min(SCALE_ZOOM_MAX_DAY_WIDTH[view], Math.max(SCALE_ZOOM_MIN_DAY_WIDTH[view], nextWidth));
+
+  return Math.round(clamped * 100) / 100;
+};
+
 /**
  * Returns the calendar boundary that should be anchored at the left edge when
  * a scale is selected. This keeps "Month" looking like a calendar month and
