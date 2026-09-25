@@ -106,6 +106,9 @@ class UserNotificationPreference(BaseModel):
     comment = models.BooleanField(default=True)
     mention = models.BooleanField(default=True)
     issue_completed = models.BooleanField(default=True)
+    personal_daily_digest = models.BooleanField(default=True)
+    leader_morning_digest = models.BooleanField(default=True)
+    leader_weekly_digest = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = "UserNotificationPreference"
@@ -116,6 +119,46 @@ class UserNotificationPreference(BaseModel):
     def __str__(self):
         """Return the user"""
         return f"<{self.user}>"
+
+
+class DigestDelivery(BaseModel):
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="digest_deliveries",
+    )
+    digest_type = models.CharField(max_length=32)
+    period_key = models.CharField(max_length=64)
+    status = models.CharField(
+        max_length=16,
+        choices=[
+            ("pending", "Pending"),
+            ("sending", "Sending"),
+            ("sent", "Sent"),
+            ("failed", "Failed"),
+        ],
+        default="pending",
+    )
+    snapshot = models.JSONField(default=dict)
+    scheduled_at = models.DateTimeField(null=True)
+    sent_at = models.DateTimeField(null=True)
+    failed_at = models.DateTimeField(null=True)
+    error = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "Digest Delivery"
+        verbose_name_plural = "Digest Deliveries"
+        db_table = "digest_deliveries"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recipient", "digest_type", "period_key"],
+                name="unique_digest_delivery_period_recipient",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.recipient_id} {self.digest_type} {self.period_key}"
 
 
 class EmailNotificationLog(BaseModel):

@@ -310,4 +310,7 @@ def create_user_notification(sender, instance, created, **kwargs):
             comment=True,
             mention=True,
             issue_completed=True,
+            personal_daily_digest=True,
+            leader_morning_digest=True,
+            leader_weekly_digest=True,
         )

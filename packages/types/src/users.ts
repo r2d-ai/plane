@@ -187,6 +187,9 @@ export interface IUserEmailNotificationSettings {
   comment: boolean;
   mention: boolean;
   issue_completed: boolean;
+  personal_daily_digest: boolean;
+  leader_morning_digest: boolean;
+  leader_weekly_digest: boolean;
 }
 
 export type TProfileViews = "assigned" | "created" | "subscribed";
