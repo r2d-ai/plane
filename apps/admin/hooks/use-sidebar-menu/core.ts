@@ -4,13 +4,20 @@
  * See the LICENSE file for details.
  */
 
-import { Image, BrainCog, Cog, Mail } from "lucide-react";
+import { Image, BrainCog, Cog, KeyRound, Mail } from "lucide-react";
 // plane imports
 import { LockIcon, WorkspaceIcon } from "@plane/propel/icons";
 // types
 import type { TSidebarMenuItem } from "./types";
 
-export type TCoreSidebarMenuKey = "general" | "email" | "workspace" | "authentication" | "ai" | "image";
+export type TCoreSidebarMenuKey =
+  | "general"
+  | "email"
+  | "workspace"
+  | "access_tokens"
+  | "authentication"
+  | "ai"
+  | "image";
 
 export const coreSidebarMenuLinks: Record<TCoreSidebarMenuKey, TSidebarMenuItem> = {
   general: {
@@ -30,6 +37,12 @@ export const coreSidebarMenuLinks: Record<TCoreSidebarMenuKey, TSidebarMenuItem>
     name: "Workspaces",
     description: "Manage all workspaces on this instance.",
     href: `/workspace/`,
+  },
+  access_tokens: {
+    Icon: KeyRound,
+    name: "Access tokens",
+    description: "Manage instance-wide service tokens.",
+    href: `/access-tokens/`,
   },
   authentication: {
     Icon: LockIcon,

@@ -20,3 +20,38 @@ export interface IApiToken {
   token?: string;
   workspace: string;
 }
+
+
+export type TServiceAccessTokenScopeLevel = "workspace" | "instance";
+
+export interface IServiceAccessTokenWorkspace {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface IServiceAccessToken {
+  id: string;
+  label: string;
+  description: string;
+  is_active: boolean;
+  last_used: string | null;
+  expired_at: string | null;
+  scope_level: TServiceAccessTokenScopeLevel;
+  scopes: string[];
+  token_prefix: string;
+  workspace: IServiceAccessTokenWorkspace | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  token?: string;
+}
+
+export interface IServiceAccessTokenCreate {
+  label: string;
+  description?: string;
+  expired_at?: string | null;
+  scopes: string[];
+}
