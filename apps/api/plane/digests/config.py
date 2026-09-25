@@ -70,9 +70,21 @@ def get_digest_config() -> DigestConfig:
 
 
 def is_time_due(scheduled: time, local_now: datetime) -> bool:
-    scheduled_minutes = scheduled.hour * 60 + scheduled.minute
-    current_minutes = local_now.hour * 60 + local_now.minute
-    return scheduled_minutes <= current_minutes < scheduled_minutes + 5
+    """Return True when `local_now` is inside the 5-minute dispatch window that
+    opens at `scheduled` (in `local_now`'s tz).
+
+    Compares absolute elapsed seconds rather than local-minute components so
+    the window stays correct for timezones with non-zero-minute offsets such
+    as Asia/Kolkata (+5:30) or Asia/Kathmandu (+5:45). Previously this
+    compared `hour * 60 + minute` in local time, which silently dropped the
+    digest when the scheduler's :00/:05/:10... grid landed in a window the
+    local-minute math couldn't represent.
+    """
+    scheduled_dt = datetime.combine(
+        local_now.date(), scheduled, tzinfo=local_now.tzinfo
+    )
+    delta_seconds = (local_now - scheduled_dt).total_seconds()
+    return 0 <= delta_seconds < 300
 
 
 def is_weekday(local_now: datetime) -> bool:

@@ -36,15 +36,56 @@ def claim_delivery(recipient: User, digest_type: str, period_key: str, snapshot:
             )
             return delivery
     except IntegrityError:
+        existing = (
+            DigestDelivery.objects.filter(
+                recipient=recipient,
+                digest_type=digest_type,
+                period_key=period_key,
+            )
+            .only("id", "status", "snapshot")
+            .first()
+        )
+        if existing is None:
+            logger.info(
+                "digest.delivery.duplicate_prevented",
+                extra={
+                    "recipient_id": str(recipient.id),
+                    "digest_type": digest_type,
+                    "period_key": period_key,
+                },
+            )
+            return None
+
+        updated = DigestDelivery.objects.filter(
+            pk=existing.pk, status=DELIVERY_STATUS_FAILED
+        ).update(
+            status=DELIVERY_STATUS_PENDING,
+            error="",
+            failed_at=None,
+            snapshot=snapshot,
+            scheduled_at=timezone.now(),
+        )
+        if updated != 1:
+            logger.info(
+                "digest.delivery.duplicate_prevented",
+                extra={
+                    "recipient_id": str(recipient.id),
+                    "digest_type": digest_type,
+                    "period_key": period_key,
+                    "existing_status": existing.status,
+                },
+            )
+            return None
+
         logger.info(
-            "digest.delivery.duplicate_prevented",
+            "digest.delivery.reclaimed",
             extra={
                 "recipient_id": str(recipient.id),
                 "digest_type": digest_type,
                 "period_key": period_key,
             },
         )
-        return None
+        return DigestDelivery.objects.get(pk=existing.pk)
 
 
 def send_digest_email(recipient: User, subject: str, html_content: str, text_content: str) -> None:

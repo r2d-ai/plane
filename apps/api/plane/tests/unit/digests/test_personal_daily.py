@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -22,8 +22,13 @@ from plane.db.models import (
     User,
     UserNotificationPreference,
 )
-from plane.digests.config import DigestConfig, get_digest_config
-from plane.digests.constants import PERSONAL_DAILY
+from plane.digests.config import DigestConfig, get_digest_config, is_time_due
+from plane.digests.constants import (
+    DELIVERY_STATUS_FAILED,
+    DELIVERY_STATUS_PENDING,
+    DELIVERY_STATUS_SENT,
+    PERSONAL_DAILY,
+)
 from plane.digests.delivery import claim_delivery, deliver_personal_daily
 from plane.digests.queries import get_personal_actionable_items, has_actionable_items
 from plane.digests.snapshots import build_personal_daily_snapshot
@@ -276,6 +281,145 @@ class TestDigestDelivery:
         assert second == "duplicate"
         assert DigestDelivery.objects.count() == 1
         mock_send.assert_called_once()
+
+    @patch("plane.digests.delivery.send_digest_email")
+    def test_retry_after_send_failure_reclaims_failed_row(self, mock_send, create_user, workspace, digest_project, started_state):
+        # First attempt: SMTP fails.
+        mock_send.side_effect = [
+            RuntimeError("smtp timeout"),
+            None,
+        ]
+        _create_assigned_issue(
+            digest_project,
+            workspace,
+            create_user,
+            started_state,
+            "Overdue",
+            target_date=timezone.now().date() - timedelta(days=1),
+        )
+        period_key = timezone.now().date().isoformat()
+
+        with pytest.raises(RuntimeError):
+            generate_personal_daily(str(create_user.id), period_key)
+
+        row = DigestDelivery.objects.get(
+            recipient=create_user,
+            digest_type=PERSONAL_DAILY,
+            period_key=period_key,
+        )
+        assert row.status == DELIVERY_STATUS_FAILED
+        assert row.error == "smtp timeout"
+        assert row.failed_at is not None
+        assert mock_send.call_count == 1
+
+        # Second attempt: row is reclaimed (FAILED → PENDING) and email is
+        # actually sent this time. Before the CAS fix this re-delivery was
+        # silently swallowed by the unique constraint and the user never
+        # received the digest.
+        result = generate_personal_daily(str(create_user.id), period_key)
+        assert result == "sent"
+        row.refresh_from_db()
+        assert row.status == DELIVERY_STATUS_SENT
+        assert row.error == ""
+        assert row.failed_at is None
+        assert DigestDelivery.objects.count() == 1
+        assert mock_send.call_count == 2
+
+    @patch("plane.digests.delivery.send_digest_email")
+    def test_concurrent_reclaim_of_failed_row_only_sends_once(self, mock_send, create_user, digest_config):
+        # Two reclaim attempts against the same FAILED row (e.g. a retry and
+        # the next dispatch tick). CAS guarantees exactly one winner; the
+        # loser must NOT call send_digest_email, otherwise duplicate-send is
+        # possible the moment the loser continues past claim_delivery.
+        sections = {"overdue": [], "due_today": [], "blocked": [], "due_soon": [], "stale": []}
+        snapshot = build_personal_daily_snapshot(create_user, sections, "2026-09-25")
+        snapshot["counts"]["overdue"] = 1
+        snapshot["sections"]["overdue"] = [{"identifier": "DIG-1", "name": "Test"}]
+
+        DigestDelivery.objects.create(
+            recipient=create_user,
+            digest_type=PERSONAL_DAILY,
+            period_key="2026-09-25",
+            status=DELIVERY_STATUS_FAILED,
+            error="previous failure",
+            failed_at=timezone.now(),
+            scheduled_at=timezone.now(),
+            snapshot=snapshot,
+        )
+
+        first = deliver_personal_daily(create_user, snapshot, "2026-09-25")
+        second = deliver_personal_daily(create_user, snapshot, "2026-09-25")
+
+        assert first == "sent"
+        assert second == "duplicate"
+        assert DigestDelivery.objects.count() == 1
+        mock_send.assert_called_once()
+
+        row = DigestDelivery.objects.get(
+            recipient=create_user,
+            digest_type=PERSONAL_DAILY,
+            period_key="2026-09-25",
+        )
+        assert row.status == DELIVERY_STATUS_SENT
+        assert row.error == ""
+        assert row.failed_at is None
+
+
+@pytest.mark.unit
+class TestIsTimeDue:
+    """Unit tests for the dispatch-window predicate.
+
+    Behaviour under non-zero-minute offsets (IST +5:30, NPT +5:45) used to
+    silently drop the digest because the comparison used `hour*60+minute`
+    in local time and could miss the beat's :00/:05/:10... grid.
+    """
+
+    def test_window_open(self):
+        ist = ZoneInfo("Asia/Kolkata")
+        local_now = datetime(2026, 9, 25, 8, 1, tzinfo=ist)
+        assert is_time_due(time(8, 0), local_now) is True
+
+    def test_window_close(self):
+        ist = ZoneInfo("Asia/Kolkata")
+        local_now = datetime(2026, 9, 25, 8, 5, tzinfo=ist)
+        assert is_time_due(time(8, 0), local_now) is False
+
+    def test_window_before_scheduled(self):
+        ist = ZoneInfo("Asia/Kolkata")
+        local_now = datetime(2026, 9, 25, 7, 59, tzinfo=ist)
+        assert is_time_due(time(8, 0), local_now) is False
+
+    def test_window_within_five_minutes_after_scheduled(self):
+        ist = ZoneInfo("Asia/Kolkata")
+        local_now = datetime(2026, 9, 25, 8, 4, 30, tzinfo=ist)
+        assert is_time_due(time(8, 0), local_now) is True
+
+    def test_window_matches_when_ist_offset_is_30_minutes(self):
+        # Scheduled 08:00 IST; dispatcher firing 1 minute into the window.
+        # The previous hour-based predicate still matched this case but
+        # the assertion guards against a regression.
+        ist = ZoneInfo("Asia/Kolkata")
+        local_now = datetime(2026, 9, 25, 8, 1, tzinfo=ist)
+        assert is_time_due(time(8, 0), local_now) is True
+
+    def test_window_matches_when_npt_offset_is_45_minutes(self):
+        # Asia/Kathmandu is UTC+5:45. The beat never visits minutes like
+        # :46 / :47 in local time, so a naive `hour*60+minute` comparison
+        # could never trigger the 08:00 schedule here. The replacement
+        # uses absolute elapsed seconds, which works for any IANA tz.
+        npt = ZoneInfo("Asia/Kathmandu")
+        local_now = datetime(2026, 9, 25, 8, 1, tzinfo=npt)
+        assert is_time_due(time(8, 0), local_now) is True
+
+    def test_window_off_grid_minute_in_ist(self):
+        # A scheduled minute that never lines up with the beat's
+        # :00/:05/.../:55 grid in IST +5:30 (e.g. 08:08 IST). The
+        # dispatcher fires at the next grid stop after 08:08, which is
+        # 08:10 IST (= 02:40 UTC). The predicate must still return True
+        # at 08:10 because the window is [08:08, 08:13).
+        ist = ZoneInfo("Asia/Kolkata")
+        local_now = datetime(2026, 9, 25, 8, 10, tzinfo=ist)
+        assert is_time_due(time(8, 8), local_now) is True
 
 
 @pytest.mark.unit

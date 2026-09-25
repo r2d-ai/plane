@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-from html import escape
 from typing import Any
 
 from django.conf import settings
@@ -59,13 +58,13 @@ def render_personal_daily_email(snapshot: dict[str, Any]) -> tuple[str, str, str
                 "label": SECTION_LABELS[bucket],
                 "items": [
                     {
-                        "identifier": escape(item.get("identifier", "")),
-                        "name": escape(item.get("name", "")),
-                        "workspace": escape(item.get("workspace", {}).get("name", "")),
-                        "project": escape(item.get("project", {}).get("name", "")),
-                        "state": escape(item.get("state", {}).get("name", "")),
-                        "priority": escape(item.get("priority", "")),
-                        "target_date": escape(item.get("target_date") or ""),
+                        "identifier": item.get("identifier", ""),
+                        "name": item.get("name", ""),
+                        "workspace": item.get("workspace", {}).get("name", ""),
+                        "project": item.get("project", {}).get("name", ""),
+                        "state": item.get("state", {}).get("name", ""),
+                        "priority": item.get("priority", ""),
+                        "target_date": item.get("target_date") or "",
                         "url": item.get("url", ""),
                     }
                     for item in visible_items
@@ -84,8 +83,8 @@ def render_personal_daily_email(snapshot: dict[str, Any]) -> tuple[str, str, str
             break
 
     context = {
-        "recipient_name": escape(snapshot.get("recipient", {}).get("display_name", "")),
-        "generated_at": escape(snapshot.get("generated_at", "")),
+        "recipient_name": snapshot.get("recipient", {}).get("display_name", ""),
+        "generated_at": snapshot.get("generated_at", ""),
         "sections": sections,
         "preferences_url": _preferences_url(first_workspace_slug),
         "plane_url": (settings.APP_BASE_URL or settings.WEB_URL or "").rstrip("/"),
