@@ -123,8 +123,20 @@ function CreateInstanceTokenModal({
               For central MCP agents, daily/weekly digests, and instance-wide automation. This is not an instance-admin token.
             </p>
           </div>
-          <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Token name" />
-          <TextArea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" />
+          <label className="block space-y-1 text-body-xs-regular text-secondary">
+            <span>Token name</span>
+            <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="e.g. MCP daily digest" />
+          </label>
+          <label className="block space-y-1 text-body-xs-regular text-secondary">
+            <span>Description (optional)</span>
+            <TextArea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="What will this token be used for?"
+              className="min-h-20"
+              rows={3}
+            />
+          </label>
           <div className="flex gap-2">
             {([
               ["read", "Read only"],
