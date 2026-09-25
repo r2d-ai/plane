@@ -13,7 +13,6 @@ import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 import { HEADER_HEIGHT, SIDEBAR_WIDTH } from "../../constants";
 import type { IMonthBlock, IQuarterMonthBlock } from "../../views";
 import { groupMonthsToQuarters } from "../../views";
-import { getWeekNumberByDate } from "../../views/helpers";
 
 type QuarterWeekChunk = {
   key: string;
@@ -49,7 +48,6 @@ const getQuarterWeekChunks = (
     if (endDate > quarterEnd) endDate.setTime(quarterEnd.getTime());
 
     const days = Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
-    const weekNumber = getWeekNumberByDate(startDate);
     const startMonth = months[startDate.getMonth()].abbreviation;
     const endMonth = months[endDate.getMonth()].abbreviation;
     const dateRange =
@@ -63,7 +61,7 @@ const getQuarterWeekChunks = (
       endDate,
       days,
       isToday: today >= startDate && today <= endDate,
-      label: `W${weekNumber} · ${dateRange}`,
+      label: dateRange,
     });
 
     cursor.setTime(endDate.getTime());
