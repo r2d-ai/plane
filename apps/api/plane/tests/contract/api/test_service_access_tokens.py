@@ -271,6 +271,19 @@ class TestServiceAccessTokenContract:
 @pytest.mark.contract
 class TestServiceAccessTokenWikiWriteContract:
     @pytest.mark.django_db
+    def test_human_pat_cannot_use_service_wiki_write_surface(
+        self, api_key_client, workspace
+    ):
+        response = api_key_client.post(
+            f"/api/v1/workspaces/{workspace.slug}/wiki/pages/",
+            {"name": "Human PAT write"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert not Page.objects.filter(name="Human PAT write").exists()
+
+    @pytest.mark.django_db
     def test_workspace_write_token_creates_page_without_membership(
         self, api_client, create_user, workspace
     ):
