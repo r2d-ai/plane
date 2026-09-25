@@ -4,6 +4,7 @@ import {
   getTimelineDayWidth,
   getTimelinePeriodStart,
   getTimelineTargetDays,
+  getTimelineZoomDayWidth,
 } from "@/components/gantt-chart/data";
 
 describe("timeline scale semantics", () => {
@@ -37,5 +38,12 @@ describe("timeline scale semantics", () => {
     expect(getTimelineDayWidth("week", new Date(2026, 8, 25), 320)).toBe(88);
     expect(getTimelineDayWidth("month", new Date(2026, 8, 25), 320)).toBe(24);
     expect(getTimelineDayWidth("quarter", new Date(2026, 8, 25), 320)).toBe(8);
+  });
+
+  test("zooms continuously without changing the selected scale", () => {
+    expect(getTimelineZoomDayWidth("month", 30, "in")).toBe(34.5);
+    expect(getTimelineZoomDayWidth("month", 30, "out")).toBe(26.09);
+    expect(getTimelineZoomDayWidth("quarter", 48, "in")).toBe(48);
+    expect(getTimelineZoomDayWidth("month", 18, "out")).toBe(18);
   });
 });

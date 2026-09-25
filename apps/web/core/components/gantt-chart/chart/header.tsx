@@ -5,7 +5,7 @@
  */
 
 import { observer } from "mobx-react";
-import { Expand, Shrink } from "lucide-react";
+import { Expand, Shrink, ZoomIn, ZoomOut } from "lucide-react";
 import { useTranslation } from "@plane/i18n";
 import type { TGanttViews } from "@plane/types";
 import { Row } from "@plane/ui";
@@ -19,6 +19,7 @@ type Props = {
   fullScreenMode: boolean;
   handleChartView: (view: TGanttViews) => void;
   handleToday: () => void;
+  handleZoom: (direction: "in" | "out") => void;
   loaderTitle: string;
   toggleFullScreenMode: () => void;
   showToday: boolean;
@@ -26,8 +27,16 @@ type Props = {
 
 export const GanttChartHeader = observer(function GanttChartHeader(props: Props) {
   const { t } = useTranslation();
-  const { blockIds, fullScreenMode, handleChartView, handleToday, loaderTitle, toggleFullScreenMode, showToday } =
-    props;
+  const {
+    blockIds,
+    fullScreenMode,
+    handleChartView,
+    handleToday,
+    handleZoom,
+    loaderTitle,
+    toggleFullScreenMode,
+    showToday,
+  } = props;
   // chart hook
   const { currentView } = useTimeLineChartStore();
 
@@ -58,6 +67,27 @@ export const GanttChartHeader = observer(function GanttChartHeader(props: Props)
             {t(chartView?.i18n_title)}
           </button>
         ))}
+      </div>
+
+      <div className="flex items-center overflow-hidden rounded-md border border-subtle">
+        <button
+          type="button"
+          className="flex items-center justify-center bg-layer-transparent p-1.5 transition-all hover:bg-layer-transparent-hover"
+          onClick={() => handleZoom("out")}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          <ZoomOut className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          className="flex items-center justify-center border-l border-subtle bg-layer-transparent p-1.5 transition-all hover:bg-layer-transparent-hover"
+          onClick={() => handleZoom("in")}
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
+          <ZoomIn className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {showToday && (

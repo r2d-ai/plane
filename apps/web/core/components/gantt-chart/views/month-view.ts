@@ -7,6 +7,7 @@
 import { cloneDeep, uniqBy } from "lodash-es";
 // plane imports
 import type { ChartDataType } from "@plane/types";
+import { EStartOfTheWeek } from "@plane/types";
 // local imports
 import { months } from "../data";
 import { getNumberOfDaysBetweenTwoDates, getNumberOfDaysInMonth } from "./helpers";
@@ -37,7 +38,12 @@ export interface IMonthView {
  * @param side
  * @returns
  */
-const generateMonthChart = (monthPayload: ChartDataType, side: null | "left" | "right", targetDate?: Date) => {
+const generateMonthChart = (
+  monthPayload: ChartDataType,
+  side: null | "left" | "right",
+  targetDate?: Date,
+  startOfWeek: EStartOfTheWeek = EStartOfTheWeek.SUNDAY
+) => {
   let renderState = cloneDeep(monthPayload);
 
   const range: number = renderState.data.approxFilterRange || 2;
@@ -52,13 +58,15 @@ const generateMonthChart = (monthPayload: ChartDataType, side: null | "left" | "
   if (side === null) {
     const currentDate = renderState.data.currentDate;
 
-    minusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - range, currentDate.getDate());
-    plusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + range, currentDate.getDate());
+    minusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - range, 1);
+    plusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + range + 1, 0);
 
-    if (minusDate && plusDate) filteredDates = getMonthsViewBetweenTwoDates(minusDate, plusDate);
+    if (minusDate && plusDate) filteredDates = getMonthsViewBetweenTwoDates(minusDate, plusDate, startOfWeek);
 
-    startDate = filteredDates.weeks[0]?.startDate;
-    endDate = filteredDates.weeks[filteredDates.weeks.length - 1]?.endDate;
+    const firstMonth = filteredDates.months[0];
+    const lastMonth = filteredDates.months[filteredDates.months.length - 1];
+    startDate = new Date(firstMonth.year, firstMonth.month, 1);
+    endDate = new Date(lastMonth.year, lastMonth.month + 1, 0);
     renderState = {
       ...renderState,
       data: {
@@ -76,9 +84,10 @@ const generateMonthChart = (monthPayload: ChartDataType, side: null | "left" | "
     minusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - range, 1);
     plusDate = new Date(chartStartDate.getFullYear(), chartStartDate.getMonth(), chartStartDate.getDate() - 1);
 
-    if (minusDate && plusDate) filteredDates = getMonthsViewBetweenTwoDates(minusDate, plusDate);
+    if (minusDate && plusDate) filteredDates = getMonthsViewBetweenTwoDates(minusDate, plusDate, startOfWeek);
 
-    startDate = filteredDates.weeks[0]?.startDate;
+    const firstMonth = filteredDates.months[0];
+    startDate = new Date(firstMonth.year, firstMonth.month, 1);
     endDate = new Date(chartStartDate.getFullYear(), chartStartDate.getMonth(), chartStartDate.getDate() - 1);
     renderState = {
       ...renderState,
@@ -93,13 +102,14 @@ const generateMonthChart = (monthPayload: ChartDataType, side: null | "left" | "
     minusDate = new Date(chartEndDate.getFullYear(), chartEndDate.getMonth(), chartEndDate.getDate() + 1);
     plusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + range, 1);
 
-    if (minusDate && plusDate) filteredDates = getMonthsViewBetweenTwoDates(minusDate, plusDate);
+    if (minusDate && plusDate) filteredDates = getMonthsViewBetweenTwoDates(minusDate, plusDate, startOfWeek);
 
+    const lastMonth = filteredDates.months[filteredDates.months.length - 1];
     startDate = new Date(chartEndDate.getFullYear(), chartEndDate.getMonth(), chartEndDate.getDate() + 1);
-    endDate = filteredDates.weeks[filteredDates.weeks.length - 1]?.endDate;
+    endDate = new Date(lastMonth.year, lastMonth.month + 1, 0);
     renderState = {
       ...renderState,
-      data: { ...renderState.data, endDate: filteredDates.weeks[filteredDates.weeks.length - 1]?.endDate },
+      data: { ...renderState.data, endDate },
     };
   }
 
@@ -115,9 +125,13 @@ const generateMonthChart = (monthPayload: ChartDataType, side: null | "left" | "
  * @param endDate
  * @returns
  */
-const getMonthsViewBetweenTwoDates = (startDate: Date, endDate: Date): IMonthView => ({
+const getMonthsViewBetweenTwoDates = (
+  startDate: Date,
+  endDate: Date,
+  startOfWeek: EStartOfTheWeek = EStartOfTheWeek.SUNDAY
+): IMonthView => ({
   months: getMonthsBetweenTwoDates(startDate, endDate),
-  weeks: getWeeksBetweenTwoDates(startDate, endDate, false),
+  weeks: getWeeksBetweenTwoDates(startDate, endDate, false, startOfWeek),
 });
 
 /**
