@@ -56,6 +56,7 @@ export interface IBaseTimelineStore {
   updateActiveBlockId: (blockId: string | null) => void;
   updateRenderView: (data: any) => void;
   updateAllBlocksOnChartChangeWhileDragging: (addedWidth: number) => void;
+  updateBlockPositionsForChartData: (chartData: ChartDataType) => void;
   getUpdatedPositionAfterDrag: (
     id: string,
     shouldUpdateHalfBlock: boolean,
@@ -102,6 +103,7 @@ export class BaseTimeLineStore implements IBaseTimelineStore {
       updateCurrentViewData: action.bound,
       updateActiveBlockId: action.bound,
       updateRenderView: action.bound,
+      updateBlockPositionsForChartData: action.bound,
     });
 
     this.initGantt();
@@ -288,6 +290,18 @@ export class BaseTimeLineStore implements IBaseTimelineStore {
       });
     });
   });
+
+  /**
+   * Recalculate rendered block geometry after the timeline pixel scale changes.
+   * This only changes presentation; task dates remain untouched.
+   */
+  updateBlockPositionsForChartData = (chartData: ChartDataType) => {
+    runInAction(() => {
+      for (const block of Object.values(this.blocksMap)) {
+        block.position = getItemPositionWidth(chartData, block);
+      }
+    });
+  };
 
   /**
    * returns updates dates of blocks post drag.
