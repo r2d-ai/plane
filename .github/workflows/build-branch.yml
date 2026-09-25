@@ -117,8 +117,6 @@ jobs:
               # Stable releases are additionally tagged as `stable`.
               IMAGE_TAGS="${IMAGE_TAGS},stable"
             fi
-
-            BUILD_AIO=true
           elif [ "${BR_NAME}" == "master" ]; then
             IMAGE_TAGS="latest"
           else
