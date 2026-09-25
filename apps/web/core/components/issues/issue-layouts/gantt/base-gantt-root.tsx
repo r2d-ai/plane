@@ -26,6 +26,8 @@ import { TimeLineTypeContext } from "@/components/gantt-chart/contexts";
 import { GanttChartRoot } from "@/components/gantt-chart/root";
 import { IssueGanttSidebar } from "@/components/gantt-chart/sidebar/issues/sidebar";
 import { useIssues } from "@/hooks/store/use-issues";
+import { useLabel } from "@/hooks/store/use-label";
+import { useModule } from "@/hooks/store/use-module";
 import { useUserPermissions } from "@/hooks/store/user";
 import { useGanttPreferences } from "@/hooks/use-gantt-preferences";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
@@ -58,6 +60,8 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
   const storeType = useIssueStoreType() as GanttStoreType;
   const { issues, issuesFilter } = useIssues(storeType);
   const { fetchIssues, fetchNextIssues, updateIssue, quickAddIssue, updateFilters } = useIssuesActions(storeType);
+  const { fetchedMap: labelFetchedMap, fetchProjectLabels } = useLabel();
+  const { fetchedMap: moduleFetchedMap, fetchModules } = useModule();
   const { initGantt } = useTimeLineChart(GANTT_TIMELINE_TYPE.ISSUE);
   const { allowPermissions } = useUserPermissions();
   const isBulkOperationsEnabled = useBulkOperationStatus();
@@ -112,6 +116,36 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
   // `getGanttVisibleColumnsFromDisplayProperties` are tracked by this observer, so recomputing
   // inline re-renders with fresh columns whenever a display property is toggled.
   const visibleColumns = getGanttVisibleColumnsFromDisplayProperties(displayProperties);
+  const workspaceSlugString = workspaceSlug?.toString();
+  const projectIdString = projectId?.toString();
+  const shouldLoadModules = visibleColumns.includes("module") && !isEpic;
+  const shouldLoadLabels = visibleColumns.includes("labels");
+  const areModulesFetched = projectIdString ? (moduleFetchedMap[projectIdString] ?? false) : false;
+  const areLabelsFetched =
+    projectIdString && workspaceSlugString
+      ? Boolean(labelFetchedMap[projectIdString] || labelFetchedMap[workspaceSlugString])
+      : false;
+
+  useEffect(() => {
+    if (!workspaceSlugString || !projectIdString) return;
+
+    if (shouldLoadModules && !areModulesFetched) {
+      void fetchModules(workspaceSlugString, projectIdString);
+    }
+    if (shouldLoadLabels && !areLabelsFetched) {
+      void fetchProjectLabels(workspaceSlugString, projectIdString).catch(() => undefined);
+    }
+  }, [
+    workspaceSlugString,
+    projectIdString,
+    shouldLoadModules,
+    areModulesFetched,
+    shouldLoadLabels,
+    areLabelsFetched,
+    fetchModules,
+    fetchProjectLabels,
+  ]);
+
   const nextPageResults = issues.getPaginationData(undefined, undefined)?.nextPageResults;
 
   const { enableIssueCreation } = issues?.viewFlags || {};
