@@ -75,3 +75,5 @@ from .sticky import StickyViewSet
 
 from .auth import APIAuthContextEndpoint
 from .workspace import WorkspaceDiscoveryAPIEndpoint
+
+from .wiki import WikiPageListAPIEndpoint, WikiPageDetailAPIEndpoint

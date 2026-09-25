@@ -36,7 +36,6 @@ const WRITE_SCOPES = [
   "modules:write",
   "states:write",
   "labels:write",
-  "wiki.pages:write",
 ];
 const ALL_SCOPES = [...READ_SCOPES, ...WRITE_SCOPES];
 

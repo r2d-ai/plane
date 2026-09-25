@@ -16,10 +16,12 @@ from .invite import urlpatterns as invite_patterns
 from .sticky import urlpatterns as sticky_patterns
 from .auth import urlpatterns as auth_patterns
 from .workspace import urlpatterns as workspace_patterns
+from .wiki import urlpatterns as wiki_patterns
 
 urlpatterns = [
     *auth_patterns,
     *workspace_patterns,
+    *wiki_patterns,
     *asset_patterns,
     *cycle_patterns,
     *intake_patterns,

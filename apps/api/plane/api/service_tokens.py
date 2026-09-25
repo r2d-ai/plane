@@ -36,7 +36,6 @@ VALID_SERVICE_SCOPES = frozenset(
         "labels:write",
         "workspaces.members:read",
         "wiki.pages:read",
-        "wiki.pages:write",
     }
 )
 

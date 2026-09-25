@@ -208,6 +208,40 @@ class TestServiceAccessTokenContract:
         assert not ProjectMember.objects.filter(member=token.user).exists()
 
     @pytest.mark.django_db
+    def test_workspace_token_reads_private_wiki_page(
+        self, api_client, create_user, workspace
+    ):
+        from plane.db.models import Page
+
+        page = Page.objects.create(
+            workspace=workspace,
+            name="Private runbook",
+            description_html="<p>Internal recovery procedure</p>",
+            owned_by=create_user,
+            access=Page.PRIVATE_ACCESS,
+            is_global=True,
+        )
+        token, raw_token = create_service_access_token(
+            label="Wiki digest",
+            description="",
+            created_by=create_user,
+            scope_level=SCOPE_LEVEL_WORKSPACE,
+            scopes=["wiki.pages:read"],
+            workspace=workspace,
+        )
+        client = api_client_for_service_token(api_client, raw_token)
+
+        response = client.get(
+            f"/api/v1/workspaces/{workspace.slug}/wiki/pages/"
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert str(page.id) in {
+            str(item["id"]) for item in response.data["results"]
+        }
+        assert not ProjectMember.objects.filter(member=token.user).exists()
+
+    @pytest.mark.django_db
     def test_revoked_service_token_stops_authenticating(
         self, api_client, create_user, workspace
     ):
