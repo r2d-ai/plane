@@ -4,7 +4,10 @@
  * See the LICENSE file for details.
  */
 
-import { GANTT_LAYOUT_DISPLAY_PROPERTIES } from "@/components/gantt-chart/helpers/gantt-display-columns";
+import {
+  GANTT_LAYOUT_DISPLAY_PROPERTIES,
+  isLegacyDefaultGanttDisplayProperties,
+} from "@/components/gantt-chart/helpers/gantt-display-columns";
 import type { IIssueDisplayFilterOptions, IIssueDisplayProperties } from "@plane/types";
 
 type GanttLayoutDefaultsResult = {
@@ -26,16 +29,20 @@ export const applyGanttLayoutFilterDefaults = (
     };
   }
 
+  const shouldApplyDisplayPropertyDefaults = isLegacyDefaultGanttDisplayProperties(displayProperties);
+
   return {
     displayFilters: {
       ...displayFilters,
       group_by: null,
       sub_group_by: null,
     },
-    displayProperties: {
-      ...displayProperties,
-      ...GANTT_LAYOUT_DISPLAY_PROPERTIES,
-    },
-    didUpdateDisplayProperties: true,
+    displayProperties: shouldApplyDisplayPropertyDefaults
+      ? {
+          ...displayProperties,
+          ...GANTT_LAYOUT_DISPLAY_PROPERTIES,
+        }
+      : displayProperties,
+    didUpdateDisplayProperties: shouldApplyDisplayPropertyDefaults,
   };
 };
