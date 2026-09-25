@@ -41,8 +41,9 @@ const generateQuarterChart = (quarterPayload: ChartDataType, side: null | "left"
   if (side === null) {
     const currentDate = renderState.data.currentDate;
 
-    minusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - range, 1);
-    plusDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + range, 0);
+    const quarterStartMonth = Math.floor(currentDate.getMonth() / 3) * 3;
+    minusDate = new Date(currentDate.getFullYear(), quarterStartMonth - range, 1);
+    plusDate = new Date(currentDate.getFullYear(), quarterStartMonth + 3 + range, 0);
 
     if (minusDate && plusDate) filteredDates = getMonthsBetweenTwoDates(minusDate, plusDate);
 
