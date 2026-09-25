@@ -19,7 +19,13 @@ import { GanttChartHeader, GanttChartMainContent } from "@/components/gantt-char
 import { useUserProfile } from "@/hooks/store/user";
 import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 //
-import { currentViewDataWithView, getTimelineDayWidth, getTimelinePeriodStart } from "../data";
+import {
+  currentViewDataWithView,
+  getTimelineDayWidth,
+  getTimelinePeriodStart,
+  getTimelineZoomDayWidth,
+  type TTimelineZoomDirection,
+} from "../data";
 import type { IMonthBlock, IMonthView, IWeekBlock } from "../views";
 import { dayView, getNumberOfDaysBetweenTwoDates, monthView, quarterView, weekView } from "../views";
 import type { IDayViewMonthBlock } from "../views/day-view";
@@ -117,6 +123,7 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
     updateCurrentViewData,
     updateRenderView,
     updateAllBlocksOnChartChangeWhileDragging,
+    updateBlockPositionsForChartData,
   } = useTimeLineChartStore();
   const { data } = useUserProfile();
   const startOfWeek = data?.start_of_the_week;
@@ -193,6 +200,47 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
 
   const handleToday = () => updateCurrentViewRenderPayload(null, currentView, new Date());
 
+  const handleZoom = (direction: TTimelineZoomDirection, clientX?: number) => {
+    const scrollContainer = document.querySelector("#gantt-container") as HTMLDivElement | null;
+    if (!scrollContainer || !currentViewData) return;
+
+    const previousDayWidth = currentViewData.data.dayWidth;
+    const nextDayWidth = getTimelineZoomDayWidth(currentView, previousDayWidth, direction);
+    if (nextDayWidth === previousDayWidth) return;
+
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const timelineViewportWidth = Math.max(0, scrollContainer.clientWidth - sidebarWidth);
+    const pointerOffset =
+      typeof clientX === "number"
+        ? Math.min(timelineViewportWidth, Math.max(0, clientX - containerRect.left - sidebarWidth))
+        : timelineViewportWidth / 2;
+
+    const dayOffsetAtPointer = (scrollContainer.scrollLeft + pointerOffset) / previousDayWidth;
+    const nextState: ChartDataType = {
+      ...currentViewData,
+      data: {
+        ...currentViewData.data,
+        dayWidth: nextDayWidth,
+      },
+    };
+
+    const renderedDays =
+      Math.abs(
+        getNumberOfDaysBetweenTwoDates(
+          new Date(currentViewData.data.startDate),
+          new Date(currentViewData.data.endDate)
+        )
+      ) + 1;
+
+    updateCurrentViewData(nextState);
+    updateBlockPositionsForChartData(nextState);
+    setItemsContainerWidth(renderedDays * nextDayWidth);
+
+    requestAnimationFrame(() => {
+      scrollContainer.scrollLeft = Math.max(0, dayOffsetAtPointer * nextDayWidth - pointerOffset);
+    });
+  };
+
   // handling the scroll positioning from left and right
   useEffect(() => {
     updateCurrentViewRenderPayload(null, initialView ?? currentView);
@@ -237,6 +285,7 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
           updateCurrentViewRenderPayload(null, key);
         }}
         handleToday={handleToday}
+        handleZoom={handleZoom}
         loaderTitle={loaderTitle}
         showToday={showToday}
       />
@@ -264,6 +313,7 @@ export const ChartViewRoot = observer(function ChartViewRoot(props: ChartViewRoo
         sidebarToRender={sidebarToRender}
         title={title}
         updateCurrentViewRenderPayload={updateCurrentViewRenderPayload}
+        onZoom={handleZoom}
         quickAdd={quickAdd}
         updateBlockDates={updateBlockDates}
         isEpic={isEpic}
