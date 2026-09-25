@@ -23,8 +23,8 @@ The selected scale defines the primary visible planning window, not merely the l
 | --- | --- | --- | --- |
 | Day | ~5 days | selected day | days |
 | Week | 7 days | configured start of week | days |
-| Month | one calendar month | day 1 | weeks, backed by day geometry |
-| Quarter | one calendar quarter | first day of quarter | months, backed by day geometry |
+| Month | one calendar month | day 1 | **days** |
+| Quarter | one calendar quarter | first day of quarter | **week-sized chunks** |
 
 Generated dates may extend beyond this visible window as an off-screen buffer for panning and infinite range expansion. Generated range and visible range are intentionally separate concepts.
 
@@ -55,6 +55,41 @@ Target days are:
 - Quarter: actual number of days in the selected calendar quarter
 
 This means a normal desktop viewport shows approximately one semantic period, while smaller screens overflow horizontally rather than compressing columns below usable widths.
+
+### Grid hierarchy
+
+The selected scale controls the default viewport, but it must not throw away lower-level detail:
+
+- **Month:** render one column per calendar day. Do not collapse the body/grid into week columns.
+- **Quarter:** render week-sized subdivisions inside each month. Do not collapse the body/grid into one column per month.
+- Task bars remain day-based in every scale, so drag/resize precision never becomes coarser than one day.
+
+## Interactive zoom
+
+Timeline supports continuous pixel zoom without changing the selected Day/Week/Month/Quarter mode.
+
+Controls:
+
+- toolbar **Zoom out / Zoom in** buttons
+- mouse wheel directly over the sticky time-axis header
+- `Ctrl + wheel` / `Cmd + wheel` anywhere in the timeline canvas; this also supports trackpad pinch gestures that arrive as modifier-wheel events
+
+Behavior:
+
+- zoom changes `dayWidth` only; it does not mutate dates or switch scale mode
+- zoom is anchored under the mouse pointer; the date under the pointer should remain visually stable
+- toolbar zoom anchors around the center of the visible timeline
+- ordinary wheel scrolling in the task body remains native so long work-item lists are still easy to scroll
+- zoom limits prevent unusably tiny or excessively large cells
+
+Zoom bounds:
+
+| Scale | Min day width | Max day width |
+| --- | ---: | ---: |
+| Day | 64 px | 320 px |
+| Week | 32 px | 240 px |
+| Month | 12 px | 120 px |
+| Quarter | 4 px | 48 px |
 
 ## Calendar-boundary anchoring
 
@@ -92,15 +127,19 @@ This change must not alter task scheduling semantics:
 ## Acceptance criteria
 
 - [ ] Week opens with one configured calendar week occupying approximately the timeline viewport.
-- [ ] Month opens at day 1 and exposes the whole selected month at useful density.
-- [ ] Quarter opens at the first month of the quarter and exposes exactly that quarter as the primary planning window.
+- [ ] Month opens at day 1, exposes the whole selected month, and renders **every day as its own column**.
+- [ ] Quarter opens at the first month of the quarter, exposes exactly that quarter, and renders **week-sized subdivisions** rather than month-only columns.
 - [ ] Month/Quarter no longer open as rolling date-centered windows.
 - [ ] Small screens overflow horizontally instead of shrinking below minimum readable widths.
 - [ ] Large generated buffers are not mistaken for the visible planning window.
 - [ ] Today re-anchors to the real current period.
 - [ ] Existing task drag/resize date calculations remain unchanged.
 - [ ] Existing infinite left/right range extension remains functional.
-- [ ] Unit tests cover period boundaries, target day counts, and responsive density.
+- [ ] Zoom buttons adjust timeline density without changing scale mode.
+- [ ] Wheel over the time header zooms in/out.
+- [ ] Ctrl/Cmd + wheel zooms from the pointer position inside the timeline.
+- [ ] Normal wheel scrolling in the task body remains available.
+- [ ] Unit tests cover period boundaries, target day counts, responsive density, and zoom bounds.
 
 ## Follow-up
 
