@@ -65,6 +65,7 @@ type Props = {
   ) => ChartDataType | undefined;
   onSidebarWidthChange: (width: number) => void;
   onToggleGroupCollapse?: (groupId: string) => void;
+  onZoom: (direction: "in" | "out", clientX?: number) => void;
   quickAdd?: React.ReactNode | undefined;
   isEpic?: boolean;
 };
@@ -94,6 +95,7 @@ export const GanttChartMainContent = observer(function GanttChartMainContent(pro
     updateCurrentViewRenderPayload,
     onSidebarWidthChange,
     onToggleGroupCollapse,
+    onZoom,
     quickAdd,
     updateBlockDates,
     isEpic = false,
@@ -130,6 +132,25 @@ export const GanttChartMainContent = observer(function GanttChartMainContent(pro
     if (approxRangeLeft < clientWidth) {
       updateCurrentViewRenderPayload("left", currentView);
     }
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const container = ganttContainerRef.current;
+    if (!container || e.deltaY === 0) return;
+
+    const rect = container.getBoundingClientRect();
+    const pointerX = e.clientX - rect.left;
+    const pointerY = e.clientY - rect.top;
+    const isOverTimeline = pointerX >= sidebarWidth;
+    const isOverTimeHeader = isOverTimeline && pointerY >= 0 && pointerY <= HEADER_HEIGHT;
+    const isModifierZoom = isOverTimeline && (e.ctrlKey || e.metaKey);
+
+    // Preserve native wheel scrolling in the work-item body.
+    // Wheel over the time axis zooms directly; Ctrl/Cmd + wheel zooms anywhere in the timeline.
+    if (!isOverTimeHeader && !isModifierZoom) return;
+
+    e.preventDefault();
+    onZoom(e.deltaY < 0 ? "in" : "out", e.clientX);
   };
 
   const handleScrollToBlock = (block: IGanttBlock) => {
@@ -189,6 +210,7 @@ export const GanttChartMainContent = observer(function GanttChartMainContent(pro
               )}
               ref={ganttContainerRef}
               onScroll={onScroll}
+              onWheel={handleWheel}
               {...panProps}
             >
               <GanttChartSidebar
