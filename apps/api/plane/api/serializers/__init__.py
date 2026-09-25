@@ -69,4 +69,4 @@ from .member import (
 )
 from .sticky import StickySerializer
 
-from .wiki import WikiPageAPISerializer
+from .wiki import WikiPageAPISerializer, WikiPageWriteSerializer
