@@ -3,19 +3,19 @@
 # See the LICENSE file for details.
 
 from django.urls import path
-from plane.app.views import ApiTokenEndpoint
+from plane.app.views import ApiTokenEndpoint, WorkspaceServiceTokenEndpoint
 
 urlpatterns = [
-    # API Tokens
+    path("users/api-tokens/", ApiTokenEndpoint.as_view(), name="api-tokens"),
+    path("users/api-tokens/<uuid:pk>/", ApiTokenEndpoint.as_view(), name="api-tokens-details"),
     path(
-        "users/api-tokens/",
-        ApiTokenEndpoint.as_view(),
-        name="api-tokens",
+        "workspaces/<str:slug>/service-tokens/",
+        WorkspaceServiceTokenEndpoint.as_view(http_method_names=["get", "post"]),
+        name="workspace-service-tokens",
     ),
     path(
-        "users/api-tokens/<uuid:pk>/",
-        ApiTokenEndpoint.as_view(),
-        name="api-tokens-details",
+        "workspaces/<str:slug>/service-tokens/<uuid:pk>/",
+        WorkspaceServiceTokenEndpoint.as_view(http_method_names=["get", "patch", "delete"]),
+        name="workspace-service-token-details",
     ),
-    ## End API Tokens
 ]

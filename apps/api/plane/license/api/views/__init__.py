@@ -26,3 +26,5 @@ from .workspace import (
     InstanceWorkSpaceAvailabilityCheckEndpoint,
     InstanceWorkSpaceEndpoint,
 )
+
+from .service_token import InstanceServiceTokenEndpoint

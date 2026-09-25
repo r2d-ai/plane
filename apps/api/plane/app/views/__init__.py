@@ -165,7 +165,7 @@ from .module.issue import ModuleIssueViewSet
 
 from .module.archive import ModuleArchiveUnarchiveEndpoint
 
-from .api import ApiTokenEndpoint
+from .api import ApiTokenEndpoint, WorkspaceServiceTokenEndpoint
 
 from .page.base import (
     PageViewSet,

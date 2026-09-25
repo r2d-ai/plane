@@ -72,3 +72,6 @@ from .user import UserEndpoint
 from .invite import WorkspaceInvitationsViewset
 
 from .sticky import StickyViewSet
+
+from .auth import APIAuthContextEndpoint
+from .workspace import WorkspaceDiscoveryAPIEndpoint

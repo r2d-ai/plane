@@ -18,6 +18,7 @@ from plane.license.api.views import (
     InstanceAdminUserSessionEndpoint,
     InstanceWorkSpaceAvailabilityCheckEndpoint,
     InstanceWorkSpaceEndpoint,
+    InstanceServiceTokenEndpoint,
 )
 
 urlpatterns = [
@@ -71,4 +72,14 @@ urlpatterns = [
         name="instance-workspace-availability",
     ),
     path("workspaces/", InstanceWorkSpaceEndpoint.as_view(), name="instance-workspace"),
+    path(
+        "service-tokens/",
+        InstanceServiceTokenEndpoint.as_view(http_method_names=["get", "post"]),
+        name="instance-service-tokens",
+    ),
+    path(
+        "service-tokens/<uuid:pk>/",
+        InstanceServiceTokenEndpoint.as_view(http_method_names=["get", "patch", "delete"]),
+        name="instance-service-token-details",
+    ),
 ]
