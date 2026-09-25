@@ -95,7 +95,7 @@ const SCALE_MAX_DAY_WIDTH: Record<TGanttViews, number> = {
 const SCALE_ZOOM_MIN_DAY_WIDTH: Record<TGanttViews, number> = {
   day: 64,
   week: 32,
-  month: 12,
+  month: 18,
   quarter: 4,
 };
 
