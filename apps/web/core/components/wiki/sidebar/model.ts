@@ -4,6 +4,15 @@ import type { IWikiNavigationStore } from "../../../store/wiki/wiki-navigation.s
 
 export type WikiSidebarScope = TWikiScope & { label: string; href: string; active: boolean };
 
+export function getCreatableWikiScopes(scopes: TWikiScope[]): TWikiScope[] {
+  return scopes
+    .filter((scope) => scope.can_create && (scope.is_default || scope.is_member))
+    .sort((a, b) => {
+      if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+}
+
 export function buildWikiSidebarModel(
   scopes: TWikiScope[],
   defaultSlug: string,
