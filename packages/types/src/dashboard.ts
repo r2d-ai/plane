@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import type { TAnalyticsQueryV2 } from "./analytics";
 import type { EDurationFilters } from "./enums";
 import type { IIssueActivity, TIssuePriorities } from "./issues";
 import type { TIssue } from "./issues/issue";
@@ -185,3 +186,60 @@ export type THomeDashboardResponse = {
   dashboard: TDeprecatedDashboard;
   widgets: TWidget[];
 };
+
+// ---------------------------------------------------------------------------
+// Workspace dashboards (RD-452 models / RD-453 CRUD API — §27, §33).
+// Additive: the legacy home-dashboard types above are untouched.
+// ---------------------------------------------------------------------------
+
+export type TDashboardVisibility = "workspace" | "private";
+
+/** §27.1 Dashboard — mirrors `DashboardSerializer` (§33). */
+export interface TWorkspaceDashboard {
+  id: string;
+  workspace?: string;
+  name: string;
+  description?: string;
+  owner?: string;
+  visibility: TDashboardVisibility;
+  filters?: Record<string, unknown>;
+  pql?: string | null;
+  default_time_scope?: Record<string, unknown>;
+  comparison?: Record<string, unknown>;
+  projects?: string[];
+  is_favorited?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** §45 P0 widget visualizations available to "save insight to dashboard". */
+export type TDashboardWidgetType =
+  | "number"
+  | "bar"
+  | "line"
+  | "pie"
+  | "donut"
+  | "table"
+  | "matrix"
+  | "statistics"
+  | "counter"
+  | "gauge"
+  | "text"
+  | "markdown";
+
+/**
+ * §27.3 — the persisted widget query. `query_config` MUST carry a
+ * `schema_version`; the AnalyticsQuery V2 body sits alongside it unchanged
+ * (§18.2 stores the configuration, never a snapshot of the results).
+ */
+export interface TDashboardWidgetQueryConfig extends TAnalyticsQueryV2 {
+  schema_version: number;
+}
+
+export interface TDashboardWidgetPayload {
+  title: string;
+  description?: string;
+  widget_type: TDashboardWidgetType;
+  query_config: TDashboardWidgetQueryConfig;
+  sort_order?: number;
+}

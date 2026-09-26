@@ -5,26 +5,36 @@
  */
 
 import { action, computed, makeObservable, observable, runInAction } from "mobx";
-import { ANALYTICS_DURATION_FILTER_OPTIONS } from "@plane/constants";
-import type { TAnalyticsTabsBase } from "@plane/types";
+import {
+  ANALYTICS_DATE_BASIS_OPTIONS,
+  ANALYTICS_DEFAULT_TIME_PRESET,
+  ANALYTICS_DURATION_FILTER_OPTIONS,
+  ANALYTICS_DURATION_TO_TIME_PRESET,
+} from "@plane/constants";
+import type { TAnalyticsTabsBase, TAnalyticsTimePreset } from "@plane/types";
 
 type DurationType = (typeof ANALYTICS_DURATION_FILTER_OPTIONS)[number]["value"];
+type DateBasisType = (typeof ANALYTICS_DATE_BASIS_OPTIONS)[number]["value"];
 
 export interface IBaseAnalyticsStore {
   //observables
   currentTab: TAnalyticsTabsBase;
   selectedProjects: string[];
   selectedDuration: DurationType;
+  selectedDateBasis: DateBasisType;
   selectedCycle: string;
   selectedModule: string;
   isPeekView?: boolean;
   isEpic?: boolean;
   //computed
   selectedDurationLabel: DurationType | null;
+  /** §9 V2 time preset resolved from the legacy duration key. */
+  selectedTimePreset: TAnalyticsTimePreset;
 
   //actions
   updateSelectedProjects: (projects: string[]) => void;
   updateSelectedDuration: (duration: DurationType) => void;
+  updateSelectedDateBasis: (basis: DateBasisType) => void;
   updateSelectedCycle: (cycle: string) => void;
   updateSelectedModule: (module: string) => void;
   updateIsPeekView: (isPeekView: boolean) => void;
@@ -36,6 +46,7 @@ export class BaseAnalyticsStore implements IBaseAnalyticsStore {
   currentTab: TAnalyticsTabsBase = "overview";
   selectedProjects: string[] = [];
   selectedDuration: DurationType = "last_30_days";
+  selectedDateBasis: DateBasisType = "created_at";
   selectedCycle: string = "";
   selectedModule: string = "";
   isPeekView: boolean = false;
@@ -45,6 +56,7 @@ export class BaseAnalyticsStore implements IBaseAnalyticsStore {
       // observables
       currentTab: observable.ref,
       selectedDuration: observable.ref,
+      selectedDateBasis: observable.ref,
       selectedProjects: observable,
       selectedCycle: observable.ref,
       selectedModule: observable.ref,
@@ -52,9 +64,11 @@ export class BaseAnalyticsStore implements IBaseAnalyticsStore {
       isEpic: observable.ref,
       // computed
       selectedDurationLabel: computed,
+      selectedTimePreset: computed,
       // actions
       updateSelectedProjects: action,
       updateSelectedDuration: action,
+      updateSelectedDateBasis: action,
       updateSelectedCycle: action,
       updateSelectedModule: action,
       updateIsPeekView: action,
@@ -77,6 +91,10 @@ export class BaseAnalyticsStore implements IBaseAnalyticsStore {
     }
   };
 
+  get selectedTimePreset(): TAnalyticsTimePreset {
+    return ANALYTICS_DURATION_TO_TIME_PRESET[this.selectedDuration] ?? ANALYTICS_DEFAULT_TIME_PRESET;
+  }
+
   updateSelectedDuration = (duration: DurationType) => {
     try {
       runInAction(() => {
@@ -86,6 +104,12 @@ export class BaseAnalyticsStore implements IBaseAnalyticsStore {
       console.error("Failed to update selected duration");
       throw error;
     }
+  };
+
+  updateSelectedDateBasis = (basis: DateBasisType) => {
+    runInAction(() => {
+      this.selectedDateBasis = basis;
+    });
   };
 
   updateSelectedCycle = (cycle: string) => {

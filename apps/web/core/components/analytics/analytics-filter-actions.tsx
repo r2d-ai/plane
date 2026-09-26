@@ -10,10 +10,19 @@ import { observer } from "mobx-react";
 import { useAnalytics } from "@/hooks/store/use-analytics";
 import { useProject } from "@/hooks/store/use-project";
 // components
+import DateBasisDropdown from "./select/date-basis";
+import DurationDropdown from "./select/duration";
 import { ProjectSelect } from "./select/project";
 
 const AnalyticsFilterActions = observer(function AnalyticsFilterActions() {
-  const { selectedProjects, updateSelectedProjects } = useAnalytics();
+  const {
+    selectedProjects,
+    updateSelectedProjects,
+    selectedDuration,
+    updateSelectedDuration,
+    selectedDateBasis,
+    updateSelectedDateBasis,
+  } = useAnalytics();
   const { joinedProjectIds } = useProject();
   return (
     <div className="flex items-center justify-end gap-2">
@@ -24,14 +33,22 @@ const AnalyticsFilterActions = observer(function AnalyticsFilterActions() {
         }}
         projectIds={joinedProjectIds}
       />
-      {/* <DurationDropdown
+      <DurationDropdown
         buttonVariant="border-with-text"
         value={selectedDuration}
         onChange={(val) => {
           updateSelectedDuration(val);
         }}
         dropdownArrow
-      /> */}
+      />
+      <DateBasisDropdown
+        buttonVariant="border-with-text"
+        value={selectedDateBasis}
+        onChange={(val) => {
+          updateSelectedDateBasis(val);
+        }}
+        dropdownArrow
+      />
     </div>
   );
 });

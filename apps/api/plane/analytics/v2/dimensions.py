@@ -12,7 +12,8 @@ should bucket by day/week/month/quarter/year.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
+from datetime import date, datetime, timedelta
+from typing import Callable, Dict, List, Optional, Union
 
 from django.db.models import F, QuerySet
 
@@ -52,6 +53,19 @@ class DimensionSpec:
     @property
     def group_field_resolved(self) -> str:
         return self.group_field or self.key
+
+    @property
+    def effective_field(self) -> str:
+        """The real DB column this dimension groups on.
+
+        Date dimensions are named after the *bucket* (``created_date``), not
+        the column (``created_at``), so the registry maps them explicitly —
+        without this the engine would raise ``FieldError`` for every calendar
+        x-axis (§9.3, §12).
+        """
+        if self.is_date:
+            return DATE_BASIS_FIELD.get(self.key, self.group_field_resolved)
+        return self.group_field_resolved
 
 
 def _annotate_labels(qs: QuerySet, alias: str) -> QuerySet:
@@ -181,6 +195,30 @@ REGISTRY: Dict[str, DimensionSpec] = {
         date_basis="target_date",
     ),
 }
+
+
+def bucket_label(value: Union[date, datetime, None], group: str) -> Optional[str]:
+    """Bucket a raw date value into the chart label for ``group`` (§9.3).
+
+    Labels are ISO-shaped so they sort chronologically as plain strings:
+    ``2026-07-12`` (day/week), ``2026-07`` (month), ``2026-Q3`` (quarter),
+    ``2026`` (year). ``None`` stays ``None`` so "no date" keeps its own group.
+    """
+    if value is None:
+        return None
+    day = value.date() if isinstance(value, datetime) else value
+    if not isinstance(day, date):
+        return str(value)
+    if group == "year":
+        return f"{day.year:04d}"
+    if group == "quarter":
+        return f"{day.year:04d}-Q{((day.month - 1) // 3) + 1}"
+    if group == "month":
+        return f"{day.year:04d}-{day.month:02d}"
+    if group == "week":
+        monday = day - timedelta(days=day.weekday())
+        return monday.strftime("%Y-%m-%d")
+    return day.strftime("%Y-%m-%d")
 
 
 def validate_dimension_keys(keys: List[str]) -> None:

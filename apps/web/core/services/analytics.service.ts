@@ -11,6 +11,10 @@ import type {
   TAnalyticsTabsBase,
   TAnalyticsGraphsBase,
   TAnalyticsFilterParams,
+  TAnalyticsDrilldownRequestV2,
+  TAnalyticsDrilldownResponseV2,
+  TAnalyticsQueryResponseV2,
+  TAnalyticsQueryV2,
 } from "@plane/types";
 // services
 import { APIService } from "./api.service";
@@ -82,6 +86,36 @@ export class AnalyticsService extends APIService {
         ...params,
       },
     })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /**
+   * Analytics Engine V2 (RD-451) — `POST /analytics/v2/query`.
+   *
+   * This is the single aggregation path for Customized Insights V2 (§3.1):
+   * the client never re-aggregates locally.
+   */
+  async postAnalyticsV2Query(workspaceSlug: string, query: TAnalyticsQueryV2): Promise<TAnalyticsQueryResponseV2> {
+    return this.post(`/api/workspaces/${workspaceSlug}/analytics/v2/query/`, query)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /**
+   * Analytics Engine V2 (RD-451) — `POST /analytics/v2/drilldown` (§25, §32.2).
+   * The drill-down derives from the exact resolved aggregate query; the client
+   * only supplies the selected dimension values.
+   */
+  async postAnalyticsV2Drilldown(
+    workspaceSlug: string,
+    payload: TAnalyticsDrilldownRequestV2
+  ): Promise<TAnalyticsDrilldownResponseV2> {
+    return this.post(`/api/workspaces/${workspaceSlug}/analytics/v2/drilldown/`, payload)
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;

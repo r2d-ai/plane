@@ -84,6 +84,12 @@ export type TBarItem<T extends string> = {
 export type TBarChartProps<K extends string, T extends string> = TAxisChartProps<K, T> & {
   bars: TBarItem<T>[];
   barSize?: number;
+  /**
+   * Fired when a bar or stacked segment is clicked. `datum` is the row object
+   * from `data`; `barKey` is the `key` of the clicked bar (the series key).
+   * Used by drill-down (Analytics V2 §25).
+   */
+  onBarClick?: (payload: { datum: Record<string, unknown>; barKey: string }) => void;
 };
 
 // ============================================================
