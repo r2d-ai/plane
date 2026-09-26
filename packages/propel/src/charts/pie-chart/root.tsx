@@ -30,6 +30,7 @@ export const PieChart = React.memo(function PieChart<K extends string, T extends
     cornerRadius,
     paddingAngle,
     tooltipLabel,
+    onPieClick,
   } = props;
   // states
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -68,6 +69,15 @@ export const PieChart = React.memo(function PieChart<K extends string, T extends
           <Pie
             activeIndex={activeIndex === null ? undefined : activeIndex}
             onMouseLeave={() => setActiveIndex(null)}
+            onClick={
+              onPieClick
+                ? (_event, index) => {
+                    if (index === undefined || index < 0) return;
+                    const datum = (data[index] ?? {}) as Record<string, unknown>;
+                    onPieClick({ datum });
+                  }
+                : undefined
+            }
             data={data}
             dataKey={dataKey}
             cx="50%"
@@ -81,15 +91,15 @@ export const PieChart = React.memo(function PieChart<K extends string, T extends
             labelLine={false}
             label={
               showLabel
-                ? ({ payload, ...props }) => (
+                ? ({ payload, ...labelProps }) => (
                     <text
                       className="text-sm font-medium transition-opacity duration-200"
-                      cx={props.cx}
-                      cy={props.cy}
-                      x={props.x}
-                      y={props.y}
-                      textAnchor={props.textAnchor}
-                      dominantBaseline={props.dominantBaseline}
+                      cx={labelProps.cx}
+                      cy={labelProps.cy}
+                      x={labelProps.x}
+                      y={labelProps.y}
+                      textAnchor={labelProps.textAnchor}
+                      dominantBaseline={labelProps.dominantBaseline}
                       fill="var(--text-color-secondary)"
                       opacity={!!activeLegend && activeLegend !== payload.key ? 0.1 : 1}
                     >

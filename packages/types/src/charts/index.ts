@@ -109,6 +109,8 @@ export type TLineItem<T extends string> = {
 
 export type TLineChartProps<K extends string, T extends string> = TAxisChartProps<K, T> & {
   lines: TLineItem<T>[];
+  /** Fired when a line point is clicked — used for analytics drill-down (§25). */
+  onLineClick?: (payload: { datum: Record<string, unknown>; lineKey: string }) => void;
 };
 
 // ============================================================
@@ -180,6 +182,8 @@ export type TPieChartProps<K extends string, T extends string> = Pick<
   };
   tooltipLabel?: string | ((payload: any) => string);
   customLegend?: (props: any) => React.ReactNode;
+  /** Fired when a pie/donut segment is clicked — used for analytics drill-down (§25). */
+  onPieClick?: (payload: { datum: Record<string, unknown> }) => void;
 };
 
 // ============================================================

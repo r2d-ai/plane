@@ -41,6 +41,7 @@ export const LineChart = React.memo(function LineChart<K extends string, T exten
     legend,
     showTooltip = true,
     customTooltipContent,
+    onLineClick,
   } = props;
   // states
   const [activeLine, setActiveLine] = useState<string | null>(null);
@@ -87,9 +88,15 @@ export const LineChart = React.memo(function LineChart<K extends string, T exten
           }}
           onMouseEnter={() => setActiveLine(line.key)}
           onMouseLeave={() => setActiveLine(null)}
+          onClick={
+            onLineClick
+              ? (clickData: { payload?: Record<string, unknown> }) =>
+                  onLineClick({ datum: clickData?.payload ?? {}, lineKey: line.key })
+              : undefined
+          }
         />
       )),
-    [activeLegend, lines]
+    [activeLegend, lines, onLineClick]
   );
 
   return (
@@ -107,9 +114,9 @@ export const LineChart = React.memo(function LineChart<K extends string, T exten
           <CartesianGrid stroke="var(--border-color-subtle)" vertical={false} />
           <XAxis
             dataKey={xAxis.key}
-            tick={(props) => {
+            tick={(tickProps) => {
               const TickComponent = customTicks?.x || CustomXAxisTick;
-              return <TickComponent {...props} />;
+              return <TickComponent {...tickProps} />;
             }}
             tickLine={false}
             axisLine={false}
@@ -136,9 +143,9 @@ export const LineChart = React.memo(function LineChart<K extends string, T exten
                 className: AXIS_LABEL_CLASSNAME,
               }
             }
-            tick={(props) => {
+            tick={(tickProps) => {
               const TickComponent = customTicks?.y || CustomYAxisTick;
-              return <TickComponent {...props} />;
+              return <TickComponent {...tickProps} />;
             }}
             tickCount={tickCount.y}
             allowDecimals={!!yAxis.allowDecimals}
