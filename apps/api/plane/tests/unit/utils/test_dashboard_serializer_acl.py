@@ -15,6 +15,7 @@ from plane.app.serializers.dashboard import DashboardSerializer
 from plane.db.models import (
     Dashboard,
     DashboardProject,
+    DashboardWidget,
     Project,
     ProjectMember,
     ProjectNetwork,
@@ -82,3 +83,67 @@ def test_serializer_projects_filtered_for_viewer(db):
     assert str(secret.id) not in data["projects"]
     assert data["pql"] is None
     assert str(secret.id) not in str(data["filters"])
+
+
+@pytest.mark.django_db
+def test_serializer_nested_query_config_redacts_inaccessible_projects(db):
+    owner = _user("owner-nested-acl@plane.so")
+    viewer = _user("viewer-nested-acl@plane.so")
+    workspace = Workspace.objects.create(
+        name="Nested ACL", slug=f"nested-acl-{uuid4().hex[:6]}", owner=owner, timezone="UTC"
+    )
+    public = Project.objects.create(
+        workspace=workspace,
+        name="A",
+        identifier="NACLPA",
+        created_by=owner,
+        updated_by=owner,
+        network=ProjectNetwork.PUBLIC.value,
+    )
+    secret = Project.objects.create(
+        workspace=workspace,
+        name="B-secret",
+        identifier="NACLPS",
+        created_by=owner,
+        updated_by=owner,
+        network=ProjectNetwork.SECRET.value,
+    )
+    WorkspaceMember.objects.create(workspace=workspace, member=owner, role=20, is_active=True)
+    WorkspaceMember.objects.create(workspace=workspace, member=viewer, role=15, is_active=True)
+    ProjectMember.objects.create(project=public, member=viewer, role=20, is_active=True)
+
+    dashboard = Dashboard.objects.create(
+        workspace=workspace,
+        owner=owner,
+        name="Nested leak test",
+        visibility=Dashboard.VISIBILITY_WORKSPACE,
+    )
+    DashboardProject.objects.create(dashboard=dashboard, project_id=public.id)
+    DashboardProject.objects.create(dashboard=dashboard, project_id=secret.id)
+    DashboardWidget.objects.create(
+        dashboard=dashboard,
+        title="Nested widget",
+        widget_type="number",
+        query_config={
+            "schema_version": 1,
+            "query": {
+                "metrics": [{"key": "work_item_count"}],
+                "project_ids": [str(public.id), str(secret.id)],
+                "filters": {"project_id": [str(public.id), str(secret.id)]},
+                "pql": f"project_id = '{secret.id}'",
+                "time": {"preset": "none"},
+            },
+        },
+    )
+
+    factory = APIRequestFactory()
+    request = factory.get("/")
+    request.user = viewer
+
+    data = DashboardSerializer(dashboard, context={"request": request}).data
+    widget = data["widgets"][0]
+    nested = widget["query_config"]["query"]
+    assert str(secret.id) not in str(widget["query_config"])
+    assert str(secret.id) not in nested.get("project_ids", [])
+    assert str(secret.id) not in str(nested.get("filters", {}))
+    assert nested.get("pql") is None

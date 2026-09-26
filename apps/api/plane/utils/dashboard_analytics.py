@@ -115,6 +115,28 @@ def viewer_dashboard_project_scope(
     return accessible, hidden
 
 
+def _redact_query_body_for_viewer(
+    body: Dict[str, Any],
+    *,
+    accessible: Set[str],
+    hidden: Set[str],
+    scoped_project_ids: List[str],
+) -> None:
+    """Apply read-side ACL to a widget query body (flat or nested under query_config.query)."""
+    body["project_ids"] = scoped_project_ids
+    if not hidden:
+        return
+    if "filters" in body:
+        body["filters"] = (
+            redact_json_metadata(
+                body.get("filters"), accessible=accessible, hidden=hidden
+            )
+            or {}
+        )
+    if body.get("pql"):
+        body["pql"] = redact_pql_for_viewer(body.get("pql"), hidden)
+
+
 def redact_widget_query_config_for_viewer(
     query_config: Optional[Dict[str, Any]],
     *,
@@ -123,17 +145,24 @@ def redact_widget_query_config_for_viewer(
     principal,
 ) -> Dict[str, Any]:
     config = deepcopy(query_config or {})
-    config["project_ids"] = resolve_scoped_project_ids(
+    accessible, hidden = viewer_dashboard_project_scope(dashboard, principal=principal)
+    scoped_project_ids = resolve_scoped_project_ids(
         dashboard, workspace=workspace, principal=principal
     )
-    accessible, hidden = viewer_dashboard_project_scope(dashboard, principal=principal)
-    if hidden:
-        if "filters" in config:
-            config["filters"] = redact_json_metadata(
-                config.get("filters"), accessible=accessible, hidden=hidden
-            ) or {}
-        if config.get("pql"):
-            config["pql"] = redact_pql_for_viewer(config.get("pql"), hidden)
+    _redact_query_body_for_viewer(
+        config,
+        accessible=accessible,
+        hidden=hidden,
+        scoped_project_ids=scoped_project_ids,
+    )
+    nested = config.get("query")
+    if isinstance(nested, dict):
+        _redact_query_body_for_viewer(
+            nested,
+            accessible=accessible,
+            hidden=hidden,
+            scoped_project_ids=scoped_project_ids,
+        )
     return config
 
 
