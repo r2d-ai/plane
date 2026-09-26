@@ -66,6 +66,8 @@ export interface IInstanceConfig {
   admin_base_url: string | undefined;
   is_self_managed: boolean;
   instance_changelog_url?: string;
+  /** Mirrors backend WORKSPACE_DASHBOARDS; default off when absent. */
+  is_workspace_dashboards_enabled?: boolean;
 }
 
 export interface IInstanceAdmin {

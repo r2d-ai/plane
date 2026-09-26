@@ -13,6 +13,8 @@ import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { Button } from "@plane/propel/button";
 import { EModalPosition, EModalWidth, ModalCore, CustomSelect } from "@plane/ui";
 // services
+import { isWorkspaceDashboardsEnabled } from "@/helpers/workspace-dashboards-access";
+import { useInstance } from "@/hooks/store/use-instance";
 import { DashboardService } from "@/services/dashboard.service";
 
 const dashboardService = new DashboardService();
@@ -45,6 +47,11 @@ export default function SaveInsightToDashboard(props: Props) {
   const { query, defaultTitle, disabled } = props;
   const { workspaceSlug } = useParams();
   const slug = workspaceSlug?.toString() ?? "";
+  const { config } = useInstance();
+
+  if (!isWorkspaceDashboardsEnabled(config)) {
+    return null;
+  }
 
   const [isOpen, setIsOpen] = useState(false);
   const [dashboardId, setDashboardId] = useState<string | undefined>(undefined);
@@ -86,10 +93,7 @@ export default function SaveInsightToDashboard(props: Props) {
       handleClose();
     } catch (err) {
       const payload = (err ?? {}) as { detail?: string; error?: string };
-      const message =
-        payload.detail === "Not found."
-          ? "Workspace dashboards are disabled on this instance (WORKSPACE_DASHBOARDS is off). No widget was saved."
-          : payload.detail || payload.error || "Could not save this insight to a dashboard.";
+      const message = payload.detail || payload.error || "Could not save this insight to a dashboard.";
       setToast({ type: TOAST_TYPE.ERROR, title: "Save failed", message });
       setIsSubmitting(false);
     }
