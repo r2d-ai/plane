@@ -33,7 +33,6 @@ from plane.tests.fixtures.v3_dashboard_batch import (
     build_v3_dashboard_batch_payload,
     v3_batch_response_contract_keys,
 )
-
 from plane.db.models import (
     Issue,
     IssueAssignee,
