@@ -32,6 +32,7 @@ from plane.tests.fixtures.v3_dashboard_batch import (
     build_v3_card_query,
     build_v3_dashboard_batch_payload,
     v3_batch_response_contract_keys,
+    warm_app_urlconf_for_freezegun,
 )
 from plane.db.models import (
     Issue,
@@ -354,6 +355,7 @@ class TestV2BatchEndpoint:
         )
         assert len(payload["queries"]) == V3_DASHBOARD_CARD_COUNT
         frozen = datetime(2026, 9, 15, 12, 0, tzinfo=pytz.UTC)
+        warm_app_urlconf_for_freezegun()
         with freeze_time(frozen):
             response = client.post(
                 _batch_url(acme["workspace"].slug),

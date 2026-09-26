@@ -11,14 +11,16 @@ them with its own URL prefix ``/api/workspaces/{slug}/analytics/v2/``.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Tuple
 
+from django.db import close_old_connections
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 from plane.analytics.v2 import AnalyticsEngineV2, AnalyticsQueryV2
-from plane.analytics.v2.query import MAX_BATCH_QUERIES
+from plane.analytics.v2.query import AnalyticsRequestScope, MAX_BATCH_QUERIES
 from plane.analytics.v2.drilldown import DrilldownSelection
 from plane.analytics.v2.serializer import serialise_response
 from plane.app.permissions import ROLE, allow_permission
@@ -27,6 +29,50 @@ from plane.db.models import Workspace
 
 
 logger = logging.getLogger("plane.analytics.v2")
+
+# Cap parallel batch workers below MAX_BATCH_QUERIES; each worker owns a DB connection.
+BATCH_PARALLEL_WORKERS = 12
+
+
+def _execute_batch_entry(
+    *,
+    request_scope: AnalyticsRequestScope,
+    workspace: Workspace,
+    user,
+    index: int,
+    entry: Dict[str, Any],
+) -> Tuple[int, Dict[str, Any]]:
+    close_old_connections()
+    key = str(entry.get("key") or index)
+    try:
+        engine = AnalyticsEngineV2(
+            workspace=workspace,
+            principal=user,
+            request_scope=request_scope,
+        )
+        query = AnalyticsQueryV2.from_payload(entry)
+        response = engine.execute(query)
+        return index, {
+            "key": key,
+            "status": "ok",
+            "data": serialise_response(response),
+        }
+    except (ValueError, TypeError) as exc:
+        logger.exception("analytics_v2 batch failure: %s", exc)
+        return index, {
+            "key": key,
+            "status": "error",
+            "error": {"code": "INVALID_QUERY", "message": "Invalid query"},
+        }
+    except Exception as exc:  # pragma: no cover — defensive guard
+        logger.exception("analytics_v2 unexpected failure: %s", exc)
+        return index, {
+            "key": key,
+            "status": "error",
+            "error": {"code": "ENGINE_FAILURE", "message": "Internal error"},
+        }
+    finally:
+        close_old_connections()
 
 
 def _workspace_or_400(slug: str):
@@ -209,36 +255,39 @@ class AnalyticsV2BatchEndpoint(BaseAPIView):
         if len(entries) > MAX_BATCH_QUERIES:
             return _bad_request("Invalid query payload.", code="INVALID_QUERY")
 
-        engine = AnalyticsEngineV2(workspace=workspace, principal=request.user)
-        out: Dict[str, Any] = {"workspace_slug": slug, "results": []}
-        for index, entry in enumerate(entries):
-            key = str(entry.get("key") or index)
-            try:
-                query = AnalyticsQueryV2.from_payload(entry)
-                response = engine.execute(query)
-                out["results"].append(
-                    {
-                        "key": key,
-                        "status": "ok",
-                        "data": serialise_response(response),
-                    }
+        request_scope = AnalyticsRequestScope()
+        workers = min(len(entries), BATCH_PARALLEL_WORKERS)
+        indexed_results: List[Dict[str, Any] | None] = [None] * len(entries)
+
+        if workers <= 1:
+            for index, entry in enumerate(entries):
+                _, result = _execute_batch_entry(
+                    request_scope=request_scope,
+                    workspace=workspace,
+                    user=request.user,
+                    index=index,
+                    entry=entry,
                 )
-            except (ValueError, TypeError) as exc:
-                logger.exception("analytics_v2 batch failure: %s", exc)
-                out["results"].append(
-                    {
-                        "key": key,
-                        "status": "error",
-                        "error": {"code": "INVALID_QUERY", "message": "Invalid query"},
-                    }
-                )
-            except Exception as exc:  # pragma: no cover — defensive guard
-                logger.exception("analytics_v2 unexpected failure: %s", exc)
-                out["results"].append(
-                    {
-                        "key": key,
-                        "status": "error",
-                        "error": {"code": "ENGINE_FAILURE", "message": "Internal error"},
-                    }
-                )
+                indexed_results[index] = result
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = [
+                    pool.submit(
+                        _execute_batch_entry,
+                        request_scope=request_scope,
+                        workspace=workspace,
+                        user=request.user,
+                        index=index,
+                        entry=entry,
+                    )
+                    for index, entry in enumerate(entries)
+                ]
+                for future in as_completed(futures):
+                    index, result = future.result()
+                    indexed_results[index] = result
+
+        out: Dict[str, Any] = {
+            "workspace_slug": slug,
+            "results": list(indexed_results),
+        }
         return Response(out, status=status.HTTP_200_OK)
