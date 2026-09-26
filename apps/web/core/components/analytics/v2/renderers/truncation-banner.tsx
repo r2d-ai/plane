@@ -7,12 +7,13 @@
 import { Info } from "lucide-react";
 import { useTranslation } from "@plane/i18n";
 import type { TAnalyticsWarning } from "@plane/types";
-import { findTruncationWarning } from "./analytics-data";
+import { findTruncationWarning } from "../warnings";
 
 type Props = {
   warnings?: TAnalyticsWarning[];
 };
 
+/** §12.2 — the on-screen `RESULT_TRUNCATED` notice every renderer shares. */
 export function WidgetTruncationBanner({ warnings }: Props) {
   const { t } = useTranslation();
   const warning = findTruncationWarning(warnings);

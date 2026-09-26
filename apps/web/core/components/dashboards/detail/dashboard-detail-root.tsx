@@ -14,13 +14,14 @@
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useTranslation } from "@plane/i18n";
-import type { TAnalyticsTimePreset, TDashboardViewMode } from "@plane/types";
+import type { TAnalyticsTimePreset, TDashboardBatchDataResponse, TDashboardViewMode } from "@plane/types";
 import { Button } from "@plane/ui";
 import { SimpleEmptyState } from "@/components/empty-state/simple-empty-state-root";
 import { useUser } from "@/hooks/store/user";
 import { DashboardService } from "@/services/dashboard.service";
 import { MARKDOWN_PLACEHOLDER_QUERY_CONFIG } from "../constants";
 import { defaultLayoutForIndex } from "../layout";
+import { fetchDashboardWidgetBatch } from "../widgets/analytics-data";
 import { buildDashboardTimePatch, DashboardDetailHeader } from "./dashboard-header";
 import { DashboardGrid } from "./dashboard-grid";
 
@@ -45,11 +46,16 @@ export function WorkspaceDashboardDetailRoot({ workspaceSlug, dashboardId }: Pro
   } = useSWR(detailKey, () => dashboardService.getWorkspaceDashboard(workspaceSlug, dashboardId));
 
   const batchKey = dashboard ? `${detailKey}-data` : null;
+  // Unreachable while `batchKey` is null; keeps the fetcher total.
+  const emptyBatch: TDashboardBatchDataResponse = { dashboard_id: dashboardId, resolved_time: {}, widgets: {} };
   const {
     data: batch,
     isLoading: batchLoading,
     mutate: mutateBatch,
-  } = useSWR(batchKey, () => dashboardService.fetchDashboardBatchData(workspaceSlug, dashboardId));
+  } = useSWR(batchKey, async () => {
+    if (!dashboard) return emptyBatch;
+    return fetchDashboardWidgetBatch(workspaceSlug, dashboard, dashboard.widgets, currentUser?.id ?? "");
+  });
 
   const timePreset = useMemo(() => {
     const preset = dashboard?.default_time_scope?.preset;

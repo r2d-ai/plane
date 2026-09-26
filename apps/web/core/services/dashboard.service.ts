@@ -6,7 +6,6 @@
 
 import { API_BASE_URL } from "@plane/constants";
 import type {
-  TDashboardBatchDataResponse,
   TDashboardCreatePayload,
   TDashboardLayoutUpdateEntry,
   TDashboardWidgetPayload,
@@ -145,15 +144,6 @@ export class DashboardService extends APIService {
     widgets: TDashboardLayoutUpdateEntry[]
   ): Promise<TWorkspaceDashboardWidget[]> {
     return this.post(`/api/workspaces/${workspaceSlug}/dashboards/${dashboardId}/layout/`, { widgets })
-      .then((response) => response?.data)
-      .catch((error) => {
-        throw error?.response?.data;
-      });
-  }
-
-  /** §40.2 — batch widget data in one request. */
-  async fetchDashboardBatchData(workspaceSlug: string, dashboardId: string): Promise<TDashboardBatchDataResponse> {
-    return this.post(`/api/workspaces/${workspaceSlug}/dashboards/${dashboardId}/data/`, {})
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

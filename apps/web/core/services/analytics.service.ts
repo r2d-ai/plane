@@ -18,6 +18,7 @@ import type {
 } from "@plane/types";
 // services
 import { APIService } from "./api.service";
+import type { TAnalyticsBatchRequest, TAnalyticsBatchResponse } from "@/components/analytics/v2/batch-composer";
 
 export class AnalyticsService extends APIService {
   constructor() {
@@ -116,6 +117,21 @@ export class AnalyticsService extends APIService {
     payload: TAnalyticsDrilldownRequestV2
   ): Promise<TAnalyticsDrilldownResponseV2> {
     return this.post(`/api/workspaces/${workspaceSlug}/analytics/v2/drilldown/`, payload)
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /**
+   * Analytics Engine V2 (RD-451) — `POST /analytics/v2/batch` (§32.3, §40.2).
+   *
+   * `{"queries": [{key, ...query}]}` — each entry is executed independently, so
+   * one malformed card query answers `status: "error"` while its neighbours
+   * still return data.
+   */
+  async postAnalyticsV2Batch(workspaceSlug: string, payload: TAnalyticsBatchRequest): Promise<TAnalyticsBatchResponse> {
+    return this.post(`/api/workspaces/${workspaceSlug}/analytics/v2/batch/`, payload)
       .then((res) => res?.data)
       .catch((err) => {
         throw err?.response?.data;

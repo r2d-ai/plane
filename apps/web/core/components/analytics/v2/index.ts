@@ -8,3 +8,5 @@ export * from "./mapping";
 export * from "./query";
 export * from "./cells";
 export * from "./drilldown";
+export * from "./warnings";
+export * from "./renderers";

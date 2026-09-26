@@ -9,14 +9,45 @@ import type {
   TAnalyticsDisplay,
   TAnalyticsQueryResponseV2,
   TAnalyticsQueryV2,
-  TAnalyticsWarning,
+  TDashboardBatchDataResponse,
+  TWorkspaceDashboardDetail,
   TWorkspaceDashboardWidget,
 } from "@plane/types";
+import { buildWidgetBatchRequest, normalizeWidgetBatchResults } from "@/components/analytics/v2/batch-composer";
 import { formatPercentage, formatValue } from "@/components/analytics/v2/cells";
+import { findTruncationWarning } from "@/components/analytics/v2/warnings";
+import { AnalyticsService } from "@/services/analytics.service";
 
-export const WARNING_RESULT_TRUNCATED = "RESULT_TRUNCATED";
+/** Re-exported from the analytics namespace so generic renderers can read it (§12.1). */
+export {
+  WARNING_RESULT_TRUNCATED,
+  findTruncationWarning,
+  hasTruncatedResult,
+} from "@/components/analytics/v2/warnings";
+export { VIEWER_FILTER_TOKENS, resolveViewerFilterPlaceholders } from "@/components/analytics/v2/viewer-filters";
 
-export const VIEWER_FILTER_TOKENS = new Set(["current_user", "@current_user"]);
+const analyticsService = new AnalyticsService();
+
+/**
+ * §32.3 — every card's data in one `POST /analytics/v2/batch/` call.
+ *
+ * The client composes the entries (scoped project ids, intersected filters,
+ * inherited time scope) and the engine answers each one independently, so a
+ * single broken card degrades to its own error state instead of blanking the
+ * dashboard. Replaces the dashboard-scoped `POST /dashboards/{id}/data/`.
+ */
+export async function fetchDashboardWidgetBatch(
+  workspaceSlug: string,
+  dashboard: TWorkspaceDashboardDetail,
+  widgets: TWorkspaceDashboardWidget[],
+  viewerId: string
+): Promise<TDashboardBatchDataResponse> {
+  const payload = await analyticsService.postAnalyticsV2Batch(
+    workspaceSlug,
+    buildWidgetBatchRequest(dashboard, widgets, viewerId)
+  );
+  return normalizeWidgetBatchResults(dashboard, widgets, payload?.results);
+}
 
 export function parseWidgetQuery(widget: TWorkspaceDashboardWidget): TAnalyticsQueryV2 | null {
   const config = widget.query_config;
@@ -35,34 +66,6 @@ export function asAnalyticsResponse(data: unknown): TAnalyticsQueryResponseV2 | 
   const candidate = data as TAnalyticsQueryResponseV2;
   if (!Array.isArray(candidate.data)) return null;
   return candidate;
-}
-
-export function findTruncationWarning(warnings: TAnalyticsWarning[] | undefined): TAnalyticsWarning | undefined {
-  return warnings?.find((entry) => entry.code === WARNING_RESULT_TRUNCATED);
-}
-
-export function hasTruncatedResult(warnings: TAnalyticsWarning[] | undefined): boolean {
-  return !!findTruncationWarning(warnings);
-}
-
-/** §22 — substitute viewer tokens for display/tests (server resolves on query). */
-export function resolveViewerFilterPlaceholders(
-  filters: Record<string, unknown> | undefined,
-  viewerId: string
-): Record<string, unknown> {
-  if (!filters) return {};
-  const out: Record<string, unknown> = {};
-  for (const [key, raw] of Object.entries(filters)) {
-    if (raw === null || raw === undefined) continue;
-    if (Array.isArray(raw)) {
-      out[key] = raw.map((token) => (typeof token === "string" && VIEWER_FILTER_TOKENS.has(token) ? viewerId : token));
-    } else if (typeof raw === "string" && VIEWER_FILTER_TOKENS.has(raw)) {
-      out[key] = viewerId;
-    } else {
-      out[key] = raw;
-    }
-  }
-  return out;
 }
 
 export type MatrixTableModel = {
