@@ -66,7 +66,13 @@ export interface IInstanceConfig {
   admin_base_url: string | undefined;
   is_self_managed: boolean;
   instance_changelog_url?: string;
-  /** Mirrors backend WORKSPACE_DASHBOARDS; default off when absent. */
+  /**
+   * Toggles the v3 fixed Workspace Dashboard at `/:workspaceSlug/dashboards`
+   * (RD-475 / `docs/workspace-dashboards-analytics-v2-spec.md` §4).
+   * Mirrors the backend `WORKSPACE_DASHBOARDS` env flag — only the literal
+   * value `1` enables the route. Treated as `false` when absent, so older
+   * instances built before the v3 cutover don't accidentally flip the route on.
+   */
   is_workspace_dashboards_enabled?: boolean;
 }
 

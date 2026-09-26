@@ -152,7 +152,7 @@ Below are the most import keys you must refer to. _<span style="color: #fcba03">
 
 There are many other settings you can play with, but we suggest you configure `EMAIL SETTINGS` as it will enable you to invite your teammates onto the platform.
 
-> `WORKSPACE_DASHBOARDS` — in `plane.env` / API environment (see `apps/api/.env.example`). Master flag for workspace dashboards (RD-452 / spec §44.3). Only the literal value `1` enables the feature; default `0` (fail-closed).
+> `WORKSPACE_DASHBOARDS` — in `plane.env` / API environment (see `apps/api/.env.example`). Toggle for the v3 fixed Workspace Dashboard at `/:workspaceSlug/dashboards` (RD-475 / `docs/workspace-dashboards-analytics-v2-spec.md` §4 and §44.3). On (`1`) renders the single built-in dashboard with the 12 spec cards; off leaves the route read-only. Only the literal value `1` enables the feature (`true` and any other value are treated as off); default `0` (v3 dashboard disabled).
 
 ---
 

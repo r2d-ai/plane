@@ -102,7 +102,7 @@ docker run --name myaio --rm -it \
 #### API Configuration
 
 - `API_KEY_RATE_LIMIT`: API key rate limit (default: `60/minute`)
-- `WORKSPACE_DASHBOARDS`: Master flag for workspace dashboards (RD-452 / spec §44.3). Only the literal value `1` enables the feature (`true` and other values are treated as off). Default `0` (fail-closed). See `apps/api/.env.example`.
+- `WORKSPACE_DASHBOARDS`: Toggle for the v3 fixed Workspace Dashboard at `/:workspaceSlug/dashboards` (RD-475 / `docs/workspace-dashboards-analytics-v2-spec.md` §4 and §44.3). On (`1`) — every workspace exposes the single built-in dashboard with the 12 spec cards. Off — visits to the route fall through to the read-only "no dashboards" notice. Only the literal value `1` enables the feature (`true` and any other value are treated as off). Default `0` (v3 dashboard disabled). See `apps/api/.env.example`.
 
 ## Port Mapping
 
