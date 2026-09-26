@@ -20,12 +20,8 @@ from django.utils import timezone
 from freezegun import freeze_time
 
 from plane.analytics.v2 import AnalyticsEngineV2, AnalyticsQueryV2
-from plane.analytics.v2.normalization import (
-    DISPLAY_VALUE_AND_PCT,
-    NORMALIZATION_GRAND_TOTAL,
-    NORMALIZATION_GROUP_TOTAL,
-)
 from plane.analytics.v2.serializer import serialise_response
+from plane.tests.fixtures.v3_dashboard_batch import SECTION_7_CARD_QUERIES
 from plane.db.models import (
     Issue,
     IssueAssignee,
@@ -42,79 +38,6 @@ from plane.db.models import (
 pytestmark = pytest.mark.unit
 
 FROZEN_NOW = datetime(2026, 9, 15, 12, 0, tzinfo=pytz.UTC)
-
-# Product-default Analytics V2 payloads for cards A–L (spec §7).
-SECTION_7_CARD_QUERIES: Dict[str, Dict[str, Any]] = {
-    "A": {
-        "metrics": [{"key": "pending_work_items"}],
-        "time": {"preset": "none"},
-    },
-    "B": {
-        "metrics": [{"key": "in_progress_work_items"}],
-        "time": {"preset": "none"},
-    },
-    "C": {
-        "metrics": [{"key": "completed_work_items"}],
-        "time": {"preset": "this_month", "basis": "completed_at"},
-    },
-    "D": {
-        "metrics": [{"key": "overdue_work_items"}],
-        "time": {"preset": "none"},
-    },
-    "E": {
-        "metrics": [{"key": "blocked_work_items"}],
-        "time": {"preset": "none"},
-    },
-    "F": {
-        "metrics": [{"key": "work_item_count"}, {"key": "completed_work_items"}],
-        "dimensions": [{"key": "created_date"}],
-        "time": {"preset": "this_month", "basis": "created_at", "group": "week"},
-    },
-    "G": {
-        "metrics": [{"key": "work_item_count"}],
-        "dimensions": [{"key": "state_group"}],
-        "display": DISPLAY_VALUE_AND_PCT,
-        "normalization": NORMALIZATION_GROUP_TOTAL,
-        "time": {"preset": "none"},
-    },
-    "H": {
-        "metrics": [{"key": "work_item_count", "allocation": "split_equal"}],
-        "dimensions": [{"key": "assignees"}],
-        "display": DISPLAY_VALUE_AND_PCT,
-        "normalization": NORMALIZATION_GROUP_TOTAL,
-        "allocation": "split_equal",
-        "time": {"preset": "none"},
-    },
-    "I": {
-        "metrics": [{"key": "work_item_count", "allocation": "split_equal"}],
-        "dimensions": [{"key": "assignees"}, {"key": "project"}],
-        "display": DISPLAY_VALUE_AND_PCT,
-        "normalization": NORMALIZATION_GRAND_TOTAL,
-        "allocation": "split_equal",
-        "time": {"preset": "none"},
-    },
-    "J": {
-        "metrics": [{"key": "work_item_count"}],
-        "dimensions": [{"key": "priority"}],
-        "display": DISPLAY_VALUE_AND_PCT,
-        "normalization": NORMALIZATION_GROUP_TOTAL,
-        "time": {"preset": "none"},
-    },
-    "K": {
-        "metrics": [{"key": "work_item_count"}],
-        "dimensions": [{"key": "project"}],
-        "display": DISPLAY_VALUE_AND_PCT,
-        "normalization": NORMALIZATION_GROUP_TOTAL,
-        "time": {"preset": "none"},
-    },
-    # Attention table (§7.5): P0 pins a deterministic urgent-work slice until the
-    # dedicated work-item table renderer lands in Phase C.
-    "L": {
-        "metrics": [{"key": "work_item_count"}],
-        "filters": {"priority": ["urgent"]},
-        "time": {"preset": "none"},
-    },
-}
 
 
 def _sort_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
