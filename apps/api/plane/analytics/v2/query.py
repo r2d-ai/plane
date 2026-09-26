@@ -396,15 +396,21 @@ class AnalyticsEngineV2:
         # rather than an annotation alias so that the bucket filter resolves
         # to the Issue table itself and never picks up a joined column.
         group_field = spec_dim.group_field_resolved
+        # ``values_list(..., flat=True).distinct()`` can still return duplicate
+        # dimension values when the queryset carries joins; dedupe while capping.
         groups: List[object] = []
+        seen: set[object] = set()
         distinct_values = (
             qs.order_by(group_field)
             .values_list(group_field, flat=True)
             .distinct()
             .iterator()
         )
-        for index, dim_value in enumerate(distinct_values):
-            if index >= work_cap:
+        for dim_value in distinct_values:
+            if dim_value in seen:
+                continue
+            seen.add(dim_value)
+            if len(groups) >= work_cap:
                 self._note_truncation()
                 break
             groups.append(dim_value)
@@ -442,7 +448,10 @@ class AnalyticsEngineV2:
             and mode == allocation_module.ALLOCATION_SPLIT_EQUAL
         ):
             return _split_equal_total(qs, spec, on_truncated=self._note_truncation)
-        return float(metrics_module.aggregate(qs, spec, distinct=spec.predicate is not None))
+        # Count metrics must use DISTINCT because the Issue queryset can carry
+        # joins that duplicate rows; drill-down already does this (§37).
+        use_distinct = spec.predicate is not None or spec.aggregation == "count"
+        return float(metrics_module.aggregate(qs, spec, distinct=use_distinct))
 
     def _resolve_metric_allocation(self, metric: Dict[str, Any], query_default: str = "") -> str:
         spec = metrics_module.REGISTRY[metric["key"]]
