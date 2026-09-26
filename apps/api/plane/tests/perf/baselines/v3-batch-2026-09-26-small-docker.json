@@ -1,0 +1,29 @@
+{
+  "endpoint": "/api/workspaces/{slug}/analytics/v2/batch/",
+  "query_count": 12,
+  "note": "Global scope merged into each card query per v3_dashboard_batch fixture (not a 13th row).",
+  "environment": "docker-compose-test.yml api-tests (RD-480, 2026-09-26)",
+  "profiles": [
+    {
+      "profile": "small",
+      "dataset": "5 projects x 200 issues (1k work items)",
+      "iterations": 21,
+      "p50_ms": null,
+      "p95_ms": null,
+      "p99_ms": null,
+      "budget_ms": {"p50": 200.0, "p95": 400.0, "p99": 800.0},
+      "within_budget": {"p50": false, "p95": false, "p99": false}
+    },
+    {
+      "profile": "medium",
+      "dataset": "25 projects x 2000 issues (50k work items)",
+      "iterations": 21,
+      "p50_ms": 25935.32,
+      "p95_ms": 27175.48,
+      "p99_ms": 28308.22,
+      "budget_ms": {"p50": 600.0, "p95": 1200.0, "p99": 2000.0},
+      "within_budget": {"p50": false, "p95": false, "p99": false},
+      "note": "Measured with prior 13-query harness; re-run with merged-scope fixture for apples-to-apples."
+    }
+  ]
+}
