@@ -573,17 +573,6 @@ class ProjectDetailAPIEndpoint(BaseAPIView):
             project = Project.objects.get(pk=pk)
             current_instance = json.dumps(ProjectSerializer(project).data, cls=DjangoJSONEncoder)
 
-            # RD-447: PATCH project_lead=X used to update
-            # ``project.project_lead_id`` without creating a matching
-            # ``ProjectMember`` row, so the new lead had ``project_lead ==
-            # self`` but every membership gate (Leader Morning Pulse digest,
-            # project archive, ...) stripped them. We must read the *current*
-            # lead before the serializer save so we can detect a real change
-            # and only then call the membership_lifecycle service -- a no-op
-            # PATCH that re-submits the same lead must not bump updated_at on
-            # the existing ProjectMember.
-            previous_lead_id = project.project_lead_id
-
             intake_view = request.data.get("intake_view", project.intake_view)
 
             if project.archived_at:
@@ -608,15 +597,23 @@ class ProjectDetailAPIEndpoint(BaseAPIView):
                 # stay outside the block: the intake creation is idempotent on
                 # the (project, is_default=True) predicate and model_activity
                 # already runs on a successful commit.
+                #
+                # RD-447 follow-up: call ensure_project_lead_membership on
+                # *every* PATCH, not only when project_lead transitions to a
+                # new user. Pre-existing broken projects (lead set without a
+                # matching ProjectMember) only heal via a later PATCH that
+                # doesn't touch project_lead -- and the service is idempotent:
+                # when the lead already has active role=20 membership, no row
+                # is written and ``updated_at`` is left alone (see
+                # ``test_noop_when_already_correct`` in
+                # tests/unit/services/test_membership_lifecycle.py).
                 with transaction.atomic():
                     serializer.save()
-                    new_lead_id = serializer.instance.project_lead_id
-                    if new_lead_id and new_lead_id != previous_lead_id:
-                        ensure_project_lead_membership(
-                            project_id=serializer.instance.id,
-                            new_lead_id=new_lead_id,
-                            workspace_id=workspace.id,
-                        )
+                    ensure_project_lead_membership(
+                        project_id=serializer.instance.id,
+                        new_lead_id=serializer.instance.project_lead_id,
+                        workspace_id=workspace.id,
+                    )
 
                 if serializer.data["intake_view"]:
                     intake = Intake.objects.filter(project=project, is_default=True).first()

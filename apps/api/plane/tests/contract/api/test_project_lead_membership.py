@@ -80,6 +80,19 @@ def outsider_user(db):
     return user
 
 
+def project_lead_response_is_rejected(response, project, expected_lead, outsider):
+    """Shared assertions for the \"outsider as lead\" negative case."""
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "project_lead" in response.data
+
+    project.refresh_from_db()
+    assert project.project_lead_id == expected_lead.id
+    assert not ProjectMember.objects.filter(
+        project=project, member=outsider
+    ).exists()
+    return True
+
+
 @pytest.mark.contract
 @pytest.mark.django_db
 class TestProjectLeadMembershipOnPatch:
@@ -338,12 +351,98 @@ class TestProjectLeadMembershipOnPatch:
             format="json",
         )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "project_lead" in response.data
+        assert project_lead_response_is_rejected(response, project, create_user, outsider_user)
 
-        project.refresh_from_db()
-        assert project.project_lead_id == create_user.id
-        # Outsider must not have a ProjectMember row.
+    def test_unrelated_patch_repairs_pre_existing_broken_lead(
+        self, api_key_client, workspace, create_user
+    ):
+        """Regression guard for the review-gate follow-up.
+
+        Pre-fix the view only called ensure_project_lead_membership
+        when ``project_lead`` *transitioned* to a new user. A project
+        whose lead was set without a matching ProjectMember (the
+        pre-fix bug for projects created before the patch lands)
+        would stay broken forever -- a no-op PATCH wouldn't heal it.
+
+        Post-fix the service runs on every PATCH (idempotent, no
+        updated_at bump when role=20 + is_active=True already match)
+        so any PATCH on a broken project repairs it. The new lead
+        gets an active ProjectMember row at role=20.
+        """
+        # Construct a pre-existing broken project: project_lead points
+        # at a workspace member who has NO ProjectMember row.
+        broken_lead = _make_user("broken-lead@plane.so")
+        _add_workspace_member(workspace, broken_lead, role=15)
+        project = Project.objects.create(
+            name="Pre-existing Broken",
+            identifier="PB",
+            workspace=workspace,
+            created_by=create_user,
+            project_lead=broken_lead,
+        )
+        # create_user is the workspace owner and a project admin (so the
+        # ProjectBasePermission PATCH check passes), but broken_lead has
+        # NO ProjectMember -- this is the broken state we want to heal.
+        ProjectMember.objects.create(
+            workspace=workspace, project=project, member=create_user, role=20, is_active=True
+        )
         assert not ProjectMember.objects.filter(
-            project=project, member=outsider_user
+            project=project, member=broken_lead
         ).exists()
+
+        # An unrelated PATCH (no project_lead in the payload) must
+        # still repair the membership.
+        response = api_key_client.patch(
+            _project_url(workspace.slug, project.id),
+            {"name": "Renamed", "description": "Updated"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+
+        pm = ProjectMember.objects.get(project=project, member=broken_lead)
+        assert pm.is_active is True
+        assert pm.role == 20
+
+    def test_unrelated_patch_does_not_touch_unrelated_member_row(
+        self, api_key_client, workspace, create_user
+    ):
+        """Regression guard for the no-bump-on-noop property of the
+        service when called on every PATCH. A bystander ProjectMember
+        row that already has the correct (role=15, is_active=True)
+        state must NOT have its updated_at bumped by an unrelated
+        PATCH. The service's ``if needs_update:`` short-circuit
+        prevents the write."""
+        project = _make_project(
+            workspace,
+            name="Bystander",
+            identifier="BS",
+            lead=create_user,
+            created_by=create_user,
+        )
+        bystander = _make_user("bystander@plane.so")
+        _add_workspace_member(workspace, bystander, role=15)
+        bystander_pm = ProjectMember.objects.create(
+            workspace=workspace, project=project, member=bystander, role=15, is_active=True
+        )
+        # Freeze updated_at into the past so we can detect a write.
+        from django.utils import timezone
+        past = timezone.now()
+        bystander_pm.updated_at = past
+        bystander_pm.save()
+
+        # Unrelated PATCH that triggers ensure_project_lead_membership.
+        response = api_key_client.patch(
+            _project_url(workspace.slug, project.id),
+            {"name": "Renamed"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        bystander_pm.refresh_from_db()
+        # updated_at preserved (microsecond-trimmed to dodge float drift
+        # in the test infra) -- the service did not write this row.
+        assert bystander_pm.updated_at.replace(microsecond=0) == past.replace(microsecond=0), (
+            "Service must not bump updated_at on bystander rows when "
+            "called on every PATCH (no-op when state already matches)."
+        )

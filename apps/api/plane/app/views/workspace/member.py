@@ -90,28 +90,22 @@ class WorkSpaceMemberViewSet(BaseViewSet):
 
         # RD-447: PATCH {"is_active": false} must cascade to ProjectMember just
         # like destroy/leave -- otherwise a revoked user keeps project access
-        # (and any membership-gated feature, e.g. digest emails). Detect the
-        # True -> False transition BEFORE the serializer save so a no-op PATCH
-        # (same value) doesn't accidentally deactivate project rows. The
-        # membership_lifecycle service runs the cascade inside one
-        # transaction; we still call serializer.save() so non-is_active
-        # fields (role, view_props, ...) get written in the same request.
-        raw_is_active = request.data.get("is_active", None)
-        deactivating = (
-            raw_is_active is not None
-            and not raw_is_active
-            and workspace_member.is_active
-        )
+        # (and any membership-gated feature, e.g. digest emails).
+        #
+        # Detect the True -> False transition from the *instance state* before
+        # vs after ``serializer.save()``, not from the raw payload. The raw
+        # payload check (e.g. ``not request.data.get("is_active")``) is
+        # unsafe: a JSON string ``"false"`` is truthy in Python (``not "false"
+        # `` is ``False``) so the cascade would skip, while DRF's BooleanField
+        # still parses it to ``False`` and writes ``is_active = False`` -- the
+        # exact RD-447 leak with a different payload shape.
+        was_active = workspace_member.is_active
 
         serializer = WorkSpaceMemberSerializer(workspace_member, data=request.data, partial=True)
 
         if serializer.is_valid():
             serializer.save()
-            if deactivating:
-                # Refresh so the service sees the row's current state after
-                # the serializer's save -- update_fields may not include
-                # is_active if the field was set to the same value via DRF.
-                workspace_member.refresh_from_db()
+            if was_active and not workspace_member.is_active:
                 revoke_workspace_member(workspace_member)
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

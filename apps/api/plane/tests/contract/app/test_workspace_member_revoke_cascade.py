@@ -412,6 +412,95 @@ class TestWorkspaceMemberRevokeCascade:
             member=victim, workspace=workspace, is_active=True
         ).count() == 0
 
+    def test_patch_is_active_false_string_cascades(
+        self, workspace, create_user, project_for_revoke
+    ):
+        """Regression guard for the review-gate blocker.
+
+        Pre-fix the view checked ``not request.data.get("is_active")``
+        on the raw payload. JSON string ``"false"`` is truthy in Python
+        (``not "false"`` is ``False``) so the cascade would skip, while
+        DRF's BooleanField still parses ``"false"`` to ``False`` and
+        writes ``is_active = False``. The exact RD-447 leak with a
+        different payload shape. Post-fix the view compares the
+        instance state before vs after ``serializer.save()`` instead,
+        so any payload shape that DRF coerces to ``False`` triggers the
+        cascade.
+        """
+        victim, _ = project_for_revoke
+        ws_member = WorkspaceMember.objects.get(workspace=workspace, member=victim)
+
+        client = APIClient()
+        client.force_authenticate(user=create_user)
+        # NOTE: ``"false"`` as a string, not a JSON boolean.
+        response = client.patch(
+            _member_detail_url(workspace.slug, ws_member.pk),
+            {"is_active": "false"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+
+        ws_member.refresh_from_db()
+        assert ws_member.is_active is False
+        # The cascade fired -- the entire point of this regression test.
+        assert ProjectMember.objects.filter(
+            member=victim, workspace=workspace, is_active=True
+        ).count() == 0, (
+            "String 'false' payload must cascade -- the raw-payload "
+            "truthiness check would silently skip this and re-open the "
+            "RD-447 leak."
+        )
+
+    def test_patch_is_active_false_string_variants_cascade(
+        self, workspace, create_user
+    ):
+        """All string variants that DRF's BooleanField coerces to
+        False (``"False"``, ``"0"``, ``"no"``, ``"off"``) must trigger
+        the cascade. Pinning the variants locks the contract that the
+        cascade fires on the *parsed* value, not the raw Python
+        truthiness of the payload."""
+        victim = _make_user("variant-victim@plane.so")
+        ws_member = _add_workspace_member(workspace, victim, role=15)
+        project = Project.objects.create(
+            name="Variant",
+            identifier="VR",
+            workspace=workspace,
+            created_by=create_user,
+        )
+        ProjectMember.objects.create(
+            workspace=workspace, project=project, member=victim, role=15, is_active=True
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=create_user)
+
+        for variant in ("False", "0", "no", "off"):
+            # Fresh active state for each variant -- test order-independence.
+            ws_member.is_active = True
+            ws_member.save()
+            ProjectMember.objects.filter(
+                member=victim, workspace=workspace
+            ).update(is_active=True)
+
+            response = client.patch(
+                _member_detail_url(workspace.slug, ws_member.pk),
+                {"is_active": variant},
+                format="json",
+            )
+            assert response.status_code == status.HTTP_200_OK, (
+                f"variant {variant!r} returned {response.status_code}: {response.content!r}"
+            )
+            ws_member.refresh_from_db()
+            assert ws_member.is_active is False, (
+                f"variant {variant!r} did not flip WorkspaceMember.is_active"
+            )
+            assert ProjectMember.objects.filter(
+                member=victim, workspace=workspace, is_active=True
+            ).count() == 0, (
+                f"variant {variant!r} did not cascade to ProjectMember"
+            )
+
 
 @pytest.mark.contract
 @pytest.mark.django_db
