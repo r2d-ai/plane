@@ -219,12 +219,12 @@ class AnalyticsV2BatchEndpoint(BaseAPIView):
                     }
                 )
             except (ValueError, TypeError) as exc:
-                logger.warning("analytics_v2 batch failure: %s", exc)
+                logger.exception("analytics_v2 batch failure: %s", exc)
                 out["results"].append(
                     {
                         "key": key,
                         "status": "error",
-                        "error": {"code": "INVALID_QUERY", "message": str(exc)},
+                        "error": {"code": "INVALID_QUERY", "message": "Invalid query"},
                     }
                 )
             except Exception as exc:  # pragma: no cover — defensive guard
