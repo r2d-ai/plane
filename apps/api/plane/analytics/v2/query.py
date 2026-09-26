@@ -58,6 +58,11 @@ MAX_GROUPS = 20
 MAX_ROWS = 100
 MAX_MATRIX_ROWS = 50
 MAX_MATRIX_COLS = 30
+MAX_MATRIX_CELLS = MAX_MATRIX_ROWS * MAX_MATRIX_COLS
+MAX_BATCH_QUERIES = MAX_GROUPS
+MAX_SPLIT_EQUAL_ISSUES = MAX_ROWS
+
+WARNING_RESULT_TRUNCATED = "RESULT_TRUNCATED"
 
 
 @dataclass
@@ -164,20 +169,20 @@ class AnalyticsEngineV2:
         self.workspace = workspace
         self.principal = principal
         self._default_allocation = ""
+        self._scope_cache: Dict[tuple, ResolvedTimeScope] = {}
+        self._base_qs_cache: Dict[tuple, QuerySet] = {}
+        self._aggregate_warnings: List[Dict[str, Any]] = []
 
     # ----- top-level API --------------------------------------------------
 
     def execute(self, query: AnalyticsQueryV2) -> AnalyticsResponseV2:
         self._validate_query(query)
+        self._aggregate_warnings = []
         # memoize per-request default allocation so it threads into _aggregate
         self._default_allocation = query.allocation
 
-        scope = self._resolve_scope(query)
-        base_qs = base_issue_queryset(
-            workspace=self.workspace,
-            principal=self.principal,
-            project_ids=query.project_ids,
-        )
+        scope = self._get_scope(query)
+        base_qs = self._get_base_qs(query)
         filtered = self._apply_filters_and_time(query, base_qs, scope)
 
         rows = self._aggregate(query, filtered)
@@ -190,6 +195,7 @@ class AnalyticsEngineV2:
         totals = self._compute_totals(rows)
 
         warnings = self._build_warnings(query, normalised)
+        warnings.extend(self._aggregate_warnings)
 
         response = AnalyticsResponseV2(
             query=_echo_query(query),
@@ -237,12 +243,8 @@ class AnalyticsEngineV2:
         self._validate_query(query)
         self._default_allocation = query.allocation
 
-        scope = self._resolve_scope(query)
-        base_qs = base_issue_queryset(
-            workspace=self.workspace,
-            principal=self.principal,
-            project_ids=query.project_ids,
-        )
+        scope = self._get_scope(query)
+        base_qs = self._get_base_qs(query)
         filtered = self._apply_filters_and_time(query, base_qs, scope)
         drilldown_qs = build_drilldown_queryset(filtered, selection)
 
@@ -301,6 +303,50 @@ class AnalyticsEngineV2:
             custom_end=custom_end,
         )
 
+    def _scope_cache_key(self, query: AnalyticsQueryV2) -> tuple:
+        t = query.time or {}
+        return (
+            t.get("timezone") or self.workspace.timezone or "UTC",
+            t.get("preset") or "none",
+            t.get("start"),
+            t.get("end"),
+        )
+
+    def _get_scope(self, query: AnalyticsQueryV2) -> ResolvedTimeScope:
+        key = self._scope_cache_key(query)
+        cached = self._scope_cache.get(key)
+        if cached is None:
+            cached = self._resolve_scope(query)
+            self._scope_cache[key] = cached
+        return cached
+
+    def _get_base_qs(self, query: AnalyticsQueryV2) -> QuerySet:
+        key = tuple(sorted(query.project_ids or []))
+        cached = self._base_qs_cache.get(key)
+        if cached is None:
+            cached = base_issue_queryset(
+                workspace=self.workspace,
+                principal=self.principal,
+                project_ids=query.project_ids,
+            )
+            self._base_qs_cache[key] = cached
+        return cached
+
+    def _bucket_work_cap(self, query: AnalyticsQueryV2, num_dimensions: int) -> int:
+        if num_dimensions == 0:
+            return 1
+        if num_dimensions == 1:
+            return min(query.limit, MAX_ROWS)
+        return MAX_MATRIX_CELLS
+
+    def _note_truncation(self) -> None:
+        warning = {
+            "code": WARNING_RESULT_TRUNCATED,
+            "message": "The query matched more dimension values than the server cap allows; results may be incomplete.",
+        }
+        if warning not in self._aggregate_warnings:
+            self._aggregate_warnings.append(warning)
+
     def _apply_filters_and_time(self, query: AnalyticsQueryV2, qs: QuerySet, scope: ResolvedTimeScope) -> QuerySet:
         qs = filters_module.apply_structured_filters(qs, query.filters)
         basis = (query.time or {}).get("basis") or "created_at"
@@ -323,12 +369,15 @@ class AnalyticsEngineV2:
         # ``Issue`` queryset already carries joins from the IssueManager
         # (state, project), and ``F("project_id")`` can resolve to a joined
         # table — that produces duplicate rows when filtering.
+        work_cap = self._bucket_work_cap(query, len(dimensions))
         if len(dimensions) == 0:
             rows = list(self._no_dimension_rows(qs, metrics))
         elif len(dimensions) == 1:
-            rows = list(self._one_dimension_rows(qs, dimensions[0], metrics))
+            rows = list(self._one_dimension_rows(qs, dimensions[0], metrics, work_cap=work_cap))
         else:
-            rows = list(self._two_dimension_rows(qs, dimensions[0], dimensions[1], metrics))
+            rows = list(
+                self._two_dimension_rows(qs, dimensions[0], dimensions[1], metrics, work_cap=work_cap)
+            )
 
         # Sort + cap.
         rows = self._sort_and_cap(rows, query)
@@ -339,14 +388,23 @@ class AnalyticsEngineV2:
         values = {spec.key: self._aggregate_metric(qs, spec, mode) for spec, mode in metrics}
         return [((), values)]
 
-    def _one_dimension_rows(self, qs: QuerySet, spec_dim, metrics):
+    def _one_dimension_rows(self, qs: QuerySet, spec_dim, metrics, *, work_cap: int):
         # Distinct values for the underlying field. Use the original column
         # rather than an annotation alias so that the bucket filter resolves
         # to the Issue table itself and never picks up a joined column.
         group_field = spec_dim.group_field_resolved
         # ``values_list(..., flat=True).distinct()`` can still return duplicate
-        # dimension values when the queryset carries joins; dedupe explicitly.
-        groups = list(dict.fromkeys(qs.values_list(group_field, flat=True)))
+        # dimension values when the queryset carries joins; dedupe while capping.
+        groups: List[object] = []
+        seen: set[object] = set()
+        for dim_value in qs.values_list(group_field, flat=True).distinct().iterator():
+            if dim_value in seen:
+                continue
+            seen.add(dim_value)
+            if len(groups) >= work_cap:
+                self._note_truncation()
+                break
+            groups.append(dim_value)
         out = []
         for dim_value in groups:
             bucket = qs.filter(**{group_field: dim_value}).distinct()
@@ -354,14 +412,17 @@ class AnalyticsEngineV2:
             out.append(((dim_value,), values))
         return out
 
-    def _two_dimension_rows(self, qs: QuerySet, spec_dim_a, spec_dim_b, metrics):
+    def _two_dimension_rows(self, qs: QuerySet, spec_dim_a, spec_dim_b, metrics, *, work_cap: int):
         group_field_a = spec_dim_a.group_field_resolved
         group_field_b = spec_dim_b.group_field_resolved
-        pairs = list(
-            qs.values(group_field_a, group_field_b).distinct().values_list(group_field_a, group_field_b)
-        )
+        pair_rows = qs.values(group_field_a, group_field_b).distinct().iterator()
         out = []
-        for g, s in pairs:
+        for index, row in enumerate(pair_rows):
+            if index >= work_cap:
+                self._note_truncation()
+                break
+            g = row[group_field_a]
+            s = row[group_field_b]
             bucket = qs.filter(**{group_field_a: g, group_field_b: s}).distinct()
             values = {spec.key: self._aggregate_metric(bucket, spec, mode) for spec, mode in metrics}
             out.append(((g, s), values))
@@ -507,21 +568,23 @@ class AnalyticsEngineV2:
 def _split_equal_total(qs: QuerySet, spec) -> float:
     """Return the sum of split-equal contributions for the queryset.
 
-    The implementation iterates per-issue so the per-row count of active
-    assignees stays accurate. For P0 sizes this is acceptable; the spec
-    explicitly caps result sets so we don't OOM on huge workspaces.
+    Issue-level iteration is capped (§40.1) so bucket loops cannot amplify N+1
+    scans without bound.
     """
     from plane.db.models import IssueAssignee
 
     total = 0.0
-    for issue in qs.distinct().only("id"):
+    issue_ids = list(qs.distinct().values_list("id", flat=True)[:MAX_SPLIT_EQUAL_ISSUES])
+    for issue_id in issue_ids:
         active_assignees = IssueAssignee.objects.filter(
-            issue_id=issue.id, deleted_at__isnull=True
+            issue_id=issue_id, deleted_at__isnull=True
         ).count()
         if active_assignees <= 1:
-            total += float(metrics_module.aggregate(qs.filter(id=issue.id), spec, distinct=True))
+            total += float(
+                metrics_module.aggregate(qs.filter(id=issue_id), spec, distinct=True)
+            )
             continue
-        issue_qs = qs.filter(id=issue.id)
+        issue_qs = qs.filter(id=issue_id)
         raw = float(metrics_module.aggregate(issue_qs, spec, distinct=True))
         total += raw / active_assignees
     return total
