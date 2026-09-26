@@ -97,6 +97,12 @@ vi.mock("swr", () => ({
   }),
 }));
 
+vi.mock("@/hooks/store/use-instance", () => ({
+  useInstance: () => ({
+    config: { is_workspace_dashboards_enabled: true },
+  }),
+}));
+
 import { DashboardWidgetShell } from "@/components/dashboards/detail/widget-shell";
 import { DashboardAnalyticsWidget } from "@/components/dashboards/widgets/analytics-widget";
 import SaveInsightToDashboard from "@/components/analytics/v2/save-insight-to-dashboard";
