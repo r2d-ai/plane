@@ -35,7 +35,9 @@ def _workspace_or_400(slug: str):
         return None
 
 
-def _bad_request(message: str, code: str = "BAD_REQUEST") -> Response:
+def _bad_request(message: str, code: str = "BAD_REQUEST", exc: Exception | None = None) -> Response:
+    if exc is not None:
+        logger.warning("Analytics V2 bad request: %s", code, exc_info=exc)
     return Response({"error": message, "code": code}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -57,13 +59,13 @@ class AnalyticsV2QueryEndpoint(BaseAPIView):
         try:
             query = AnalyticsQueryV2.from_payload(payload)
         except (ValueError, TypeError) as exc:
-            return _bad_request(str(exc), code="INVALID_QUERY")
+            return _bad_request("Invalid query payload.", code="INVALID_QUERY", exc=exc)
 
         engine = AnalyticsEngineV2(workspace=workspace, principal=request.user)
         try:
             response = engine.execute(query)
         except ValueError as exc:
-            return _bad_request(str(exc), code="INVALID_QUERY")
+            return _bad_request("Invalid query payload.", code="INVALID_QUERY", exc=exc)
 
         return Response(serialise_response(response), status=status.HTTP_200_OK)
 
@@ -86,7 +88,7 @@ class AnalyticsV2StatsEndpoint(BaseAPIView):
         try:
             query = AnalyticsQueryV2.from_payload(payload)
         except (ValueError, TypeError) as exc:
-            return _bad_request(str(exc), code="INVALID_QUERY")
+            return _bad_request("Invalid query payload.", code="INVALID_QUERY", exc=exc)
 
         engine = AnalyticsEngineV2(workspace=workspace, principal=request.user)
         response = engine.execute(query)
@@ -122,7 +124,7 @@ class AnalyticsV2ChartsEndpoint(BaseAPIView):
         try:
             query = AnalyticsQueryV2.from_payload(payload)
         except (ValueError, TypeError) as exc:
-            return _bad_request(str(exc), code="INVALID_QUERY")
+            return _bad_request("Invalid query payload.", code="INVALID_QUERY", exc=exc)
 
         engine = AnalyticsEngineV2(workspace=workspace, principal=request.user)
         response = engine.execute(query)
@@ -169,7 +171,7 @@ class AnalyticsV2DrilldownEndpoint(BaseAPIView):
             query = AnalyticsQueryV2.from_payload(query_payload)
             selection = DrilldownSelection(values=selection_payload)
         except (ValueError, TypeError) as exc:
-            return _bad_request(str(exc), code="INVALID_QUERY")
+            return _bad_request("Invalid query payload.", code="INVALID_QUERY", exc=exc)
 
         page = int(payload.get("page", 1))
         page_size = int(payload.get("page_size", 25))
