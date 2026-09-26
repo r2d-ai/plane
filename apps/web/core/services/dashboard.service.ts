@@ -10,6 +10,7 @@ import type {
   TDashboardCreatePayload,
   TDashboardLayoutUpdateEntry,
   TDashboardWidgetPayload,
+  TAnalyticsDrilldownResponseV2,
   THomeDashboardResponse,
   TWidget,
   TWidgetStatsResponse,
@@ -153,6 +154,23 @@ export class DashboardService extends APIService {
   /** §40.2 — batch widget data in one request. */
   async fetchDashboardBatchData(workspaceSlug: string, dashboardId: string): Promise<TDashboardBatchDataResponse> {
     return this.post(`/api/workspaces/${workspaceSlug}/dashboards/${dashboardId}/data/`, {})
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  /** §25 / §33 — widget drill-down under dashboard ACL scope. */
+  async postDashboardWidgetDrilldown(
+    workspaceSlug: string,
+    dashboardId: string,
+    widgetId: string,
+    payload: { selection: Record<string, string | string[] | null>; page?: number; page_size?: number }
+  ): Promise<TAnalyticsDrilldownResponseV2> {
+    return this.post(
+      `/api/workspaces/${workspaceSlug}/dashboards/${dashboardId}/widgets/${widgetId}/drilldown/`,
+      payload
+    )
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

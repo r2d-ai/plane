@@ -23,11 +23,22 @@ type Props = {
   batch?: TDashboardBatchDataResponse;
   batchLoading: boolean;
   editMode: boolean;
+  workspaceSlug: string;
+  dashboardId: string;
   onLayoutPersist: (layout: ReturnType<typeof buildLayoutPersistencePayload>) => Promise<void>;
   onRefreshData: () => void;
 };
 
-export function DashboardGrid({ widgets, batch, batchLoading, editMode, onLayoutPersist, onRefreshData }: Props) {
+export function DashboardGrid({
+  widgets,
+  batch,
+  batchLoading,
+  editMode,
+  workspaceSlug,
+  dashboardId,
+  onLayoutPersist,
+  onRefreshData,
+}: Props) {
   const [layout, setLayout] = useState<TDashboardGridItem[]>(() => normalizeGridLayout(widgets));
   const [isMobile, setIsMobile] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -121,6 +132,8 @@ export function DashboardGrid({ widgets, batch, batchLoading, editMode, onLayout
               widget={widget}
               batch={batch?.widgets?.[widget.id]}
               loading={batchLoading}
+              workspaceSlug={workspaceSlug}
+              dashboardId={dashboardId}
               onRetry={onRefreshData}
             />
           </div>

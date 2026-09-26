@@ -905,8 +905,11 @@
       "error": "This widget failed to load.",
       "retry": "Retry",
       "markdown_title": "Notes",
-      "markdown_placeholder": "Add markdown content in edit mode (widget renderer ships in RD-456).",
-      "renderer_pending": "Analytics widget renderer ships in RD-456. Query results load via the batch endpoint."
+      "markdown_placeholder": "Add markdown content in edit mode.",
+      "renderer_pending": "Analytics widget renderer ships in RD-456. Query results load via the batch endpoint.",
+      "no_data": "No matching data for this widget.",
+      "unsupported_type": "This widget type is not supported yet.",
+      "truncated": "Results were truncated because the query hit the work budget. Exported values may be partial."
     }
   },
   "pi_chat": "Plane AI",
