@@ -2,7 +2,12 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-"""Workspace dashboard CRUD and data endpoints (spec §33, §32.3, §30.1)."""
+"""Workspace dashboard CRUD and data endpoints (spec §33, §32.3, §30.1).
+
+FROZEN — do not extend: legacy dashboard *builder* API scheduled for deletion in
+Phase E (RD-475). Do not add endpoints, models, or behaviour here; pin changes in
+Analytics V2 tests and the fixed workspace dashboard instead.
+"""
 
 from __future__ import annotations
 
@@ -127,6 +132,8 @@ def _sync_projects(dashboard: Dashboard, project_ids: List[str], workspace: Work
 
 
 class DashboardMixin:
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     permission_classes = [DashboardPermission]
 
     def initial(self, request, *args, **kwargs):
@@ -139,6 +146,8 @@ class DashboardMixin:
 
 
 class DashboardListCreateEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     action = "list"
 
     def get(self, request: Request, slug: str) -> Response:
@@ -185,6 +194,8 @@ class DashboardListCreateEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardDetailEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     def get(self, request: Request, slug: str, dashboard_id) -> Response:
         self.action = "retrieve"
         workspace = _workspace(slug)
@@ -246,6 +257,8 @@ class DashboardDetailEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardDuplicateEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     action = "duplicate"
 
     def post(self, request: Request, slug: str, dashboard_id) -> Response:
@@ -298,6 +311,8 @@ class DashboardDuplicateEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardWidgetListCreateEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     def post(self, request: Request, slug: str, dashboard_id) -> Response:
         self.action = "widget_create"
         workspace = _workspace(slug)
@@ -321,6 +336,8 @@ class DashboardWidgetListCreateEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardWidgetDetailEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     def _widget(self, dashboard, widget_id):
         return DashboardWidget.objects.filter(
             id=widget_id,
@@ -370,6 +387,8 @@ class DashboardWidgetDetailEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardLayoutEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     action = "layout"
 
     def post(self, request: Request, slug: str, dashboard_id) -> Response:
@@ -417,6 +436,8 @@ class DashboardLayoutEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardFavoriteEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     def post(self, request: Request, slug: str, dashboard_id) -> Response:
         self.action = "favorite"
         workspace = _workspace(slug)
@@ -454,6 +475,8 @@ class DashboardFavoriteEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardMemberListCreateEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     def get(self, request: Request, slug: str, dashboard_id) -> Response:
         self.action = "members"
         workspace = _workspace(slug)
@@ -501,6 +524,8 @@ class DashboardMemberListCreateEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardMemberDetailEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     def patch(self, request: Request, slug: str, dashboard_id, member_id) -> Response:
         self.action = "member_update"
         workspace = _workspace(slug)
@@ -541,6 +566,8 @@ class DashboardMemberDetailEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardDataEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     action = "data"
 
     def post(self, request: Request, slug: str, dashboard_id) -> Response:
@@ -606,6 +633,8 @@ class DashboardDataEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardWidgetDrilldownEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     action = "drilldown"
 
     def post(self, request: Request, slug: str, dashboard_id, widget_id) -> Response:
@@ -646,6 +675,8 @@ class DashboardWidgetDrilldownEndpoint(DashboardMixin, BaseAPIView):
 
 
 class DashboardWidgetExportEndpoint(DashboardMixin, BaseAPIView):
+    """FROZEN — do not extend (legacy dashboard builder; Phase E deletion)."""
+
     action = "export"
 
     def get(self, request: Request, slug: str, dashboard_id, widget_id) -> Response:

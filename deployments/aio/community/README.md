@@ -102,6 +102,7 @@ docker run --name myaio --rm -it \
 #### API Configuration
 
 - `API_KEY_RATE_LIMIT`: API key rate limit (default: `60/minute`)
+- `WORKSPACE_DASHBOARDS`: Master flag for workspace dashboards (RD-452 / spec §44.3). Only the literal value `1` enables the feature (`true` and other values are treated as off). Default `0` (fail-closed). See `apps/api/.env.example`.
 
 ## Port Mapping
 
