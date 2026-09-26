@@ -9,6 +9,7 @@ from rest_framework import serializers
 from plane.app.serializers.base import BaseSerializer
 from plane.utils.dashboard_analytics import (
     redact_dashboard_representation_for_viewer,
+    redact_widget_query_config_for_viewer,
     resolve_scoped_project_ids,
 )
 from plane.db.models import (
@@ -46,6 +47,20 @@ class DashboardWidgetSerializer(BaseSerializer):
         if "schema_version" not in value:
             raise serializers.ValidationError("query_config must include schema_version.")
         return value
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if request is None or request.user.is_anonymous:
+            return data
+        dashboard = instance.dashboard
+        data["query_config"] = redact_widget_query_config_for_viewer(
+            data.get("query_config"),
+            dashboard=dashboard,
+            workspace=dashboard.workspace,
+            principal=request.user,
+        )
+        return data
 
 
 class DashboardMemberAccessSerializer(BaseSerializer):
