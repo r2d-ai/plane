@@ -9,10 +9,13 @@ import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import { Disclosure, Transition } from "@headlessui/react";
 // plane imports
-import { AnalyticsIcon, CycleIcon, ProjectIcon, ViewsIcon } from "@plane/propel/icons";
+import { AnalyticsIcon, CycleIcon, DashboardIcon, ProjectIcon, ViewsIcon } from "@plane/propel/icons";
 import { EUserWorkspaceRoles } from "@plane/types";
 // hooks
 import useLocalStorage from "@/hooks/use-local-storage";
+import { useInstance } from "@/hooks/store/use-instance";
+// helpers
+import { isWorkspaceDashboardsEnabled } from "@/helpers/workspace-dashboards-access";
 // local imports
 import { SidebarWorkspaceMenuHeader } from "./workspace-menu-header";
 import { SidebarWorkspaceMenuItem } from "./workspace-menu-item";
@@ -22,8 +25,10 @@ export const SidebarWorkspaceMenu = observer(function SidebarWorkspaceMenu() {
   const { workspaceSlug } = useParams();
   // local storage
   const { setValue: toggleWorkspaceMenu, storedValue } = useLocalStorage<boolean>("is_workspace_menu_open", true);
+  const { config } = useInstance();
   // derived values
   const isWorkspaceMenuOpen = !!storedValue;
+  const workspaceDashboardsEnabled = isWorkspaceDashboardsEnabled(config);
 
   const SIDEBAR_WORKSPACE_MENU_ITEMS = [
     {
@@ -47,6 +52,17 @@ export const SidebarWorkspaceMenu = observer(function SidebarWorkspaceMenu() {
       access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
       Icon: CycleIcon,
     },
+    ...(workspaceDashboardsEnabled
+      ? [
+          {
+            key: "dashboards",
+            labelTranslationKey: "sidebar.dashboards",
+            href: `/${workspaceSlug}/dashboards/`,
+            access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
+            Icon: DashboardIcon,
+          },
+        ]
+      : []),
     {
       key: "analytics",
       labelTranslationKey: "sidebar.analytics",
