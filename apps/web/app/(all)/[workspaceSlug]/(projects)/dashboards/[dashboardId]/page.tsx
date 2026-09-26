@@ -4,21 +4,25 @@
  * See the LICENSE file for details.
  */
 
-import { PageHead } from "@/components/core/page-title";
-import { WorkspaceDashboardDetailRoot } from "@/components/dashboards/detail/dashboard-detail-root";
+/**
+ * Legacy builder route (spec §4.1, §23.3).
+ *
+ * `/:workspaceSlug/dashboards/:dashboardId` addressed a user-authored
+ * dashboard row. The v3 dashboard is a workspace-level view with no ids, so
+ * every legacy link — saved bookmarks, a stale Slack paste, an old
+ * save-insight-to-dashboard deep link — lands on the single dashboard instead
+ * of a 404. The route stays registered until RD-483 removes the builder
+ * surface and its links for good.
+ */
+
+import { redirect } from "react-router";
 import type { Route } from "./+types/page";
 
-function WorkspaceDashboardDetailPage({ params }: Route.ComponentProps) {
-  const { workspaceSlug, dashboardId } = params;
+export const clientLoader = ({ params }: Route.ClientLoaderArgs) => {
+  const { workspaceSlug } = params;
+  throw redirect(`/${workspaceSlug}/dashboards/`);
+};
 
-  return (
-    <>
-      <PageHead title="Dashboard" />
-      <div className="relative h-full w-full overflow-hidden">
-        <WorkspaceDashboardDetailRoot workspaceSlug={workspaceSlug} dashboardId={dashboardId} />
-      </div>
-    </>
-  );
+export default function WorkspaceDashboardDetailPage() {
+  return null;
 }
-
-export default WorkspaceDashboardDetailPage;
