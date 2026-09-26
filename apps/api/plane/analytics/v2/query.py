@@ -62,6 +62,8 @@ MAX_MATRIX_COLS = 30
 AGGREGATE_WORK_BUDGET = MAX_ROWS
 MAX_BATCH_QUERIES = 20
 MAX_SPLIT_EQUAL_ISSUES = MAX_ROWS
+# Per-issue ORM cost for split_equal (assignee count + up to two aggregates).
+SPLIT_EQUAL_WORK_PER_ISSUE = 3
 
 WARNING_RESULT_TRUNCATED = "RESULT_TRUNCATED"
 
@@ -338,9 +340,32 @@ class AnalyticsEngineV2:
             self._base_qs_cache[key] = cached
         return cached
 
-    def _bucket_work_cap(self, metric_count: int) -> int:
+    def _metric_uses_split_equal(self, spec, mode: str) -> bool:
+        return (
+            spec.key in {"work_item_count", "estimate_points"}
+            and mode == allocation_module.ALLOCATION_SPLIT_EQUAL
+        )
+
+    def _min_bucket_work(self, metrics: Sequence[Tuple[Any, str]]) -> int:
+        """Minimum work units required to aggregate one dimension bucket."""
+        cost = 0
+        for spec, mode in metrics:
+            if self._metric_uses_split_equal(spec, mode):
+                cost += SPLIT_EQUAL_WORK_PER_ISSUE
+            else:
+                cost += 1
+        return max(1, cost)
+
+    def _bucket_work_cap(self, metrics: Sequence[Tuple[Any, str]]) -> int:
         """Maximum dimension buckets to aggregate before sort/limit."""
-        return max(1, AGGREGATE_WORK_BUDGET // max(1, metric_count))
+        return max(1, AGGREGATE_WORK_BUDGET // max(1, len(metrics)))
+
+    def _consume_aggregate_work(self, units: int) -> bool:
+        if units > self._aggregate_work_remaining:
+            self._note_truncation()
+            return False
+        self._aggregate_work_remaining -= units
+        return True
 
     def _note_truncation(self) -> None:
         warning = {
@@ -366,13 +391,14 @@ class AnalyticsEngineV2:
         """
         dimensions = [dimensions_module.REGISTRY[d["key"]] for d in query.dimensions]
         metrics = [(metrics_module.REGISTRY[m["key"]], self._resolve_metric_allocation(m, query.allocation)) for m in query.metrics]
+        self._aggregate_work_remaining = AGGREGATE_WORK_BUDGET
 
         # Use the dimension's underlying ``group_field`` for both the iteration
         # and the bucket filter. Annotations are skipped because the underlying
         # ``Issue`` queryset already carries joins from the IssueManager
         # (state, project), and ``F("project_id")`` can resolve to a joined
         # table — that produces duplicate rows when filtering.
-        work_cap = self._bucket_work_cap(len(metrics))
+        work_cap = self._bucket_work_cap(metrics)
         if len(dimensions) == 0:
             rows = list(self._no_dimension_rows(qs, metrics))
         elif len(dimensions) == 1:
@@ -415,7 +441,11 @@ class AnalyticsEngineV2:
                 break
             groups.append(dim_value)
         out = []
+        min_work = self._min_bucket_work(metrics)
         for dim_value in groups:
+            if self._aggregate_work_remaining < min_work:
+                self._note_truncation()
+                break
             bucket = qs.filter(**{group_field: dim_value}).distinct()
             values = {spec.key: self._aggregate_metric(bucket, spec, mode) for spec, mode in metrics}
             out.append(((dim_value,), values))
@@ -431,8 +461,12 @@ class AnalyticsEngineV2:
             .iterator()
         )
         out = []
+        min_work = self._min_bucket_work(metrics)
         for index, row in enumerate(pair_rows):
             if index >= work_cap:
+                self._note_truncation()
+                break
+            if self._aggregate_work_remaining < min_work:
                 self._note_truncation()
                 break
             g = row[group_field_a]
@@ -443,11 +477,15 @@ class AnalyticsEngineV2:
         return out
 
     def _aggregate_metric(self, qs: QuerySet, spec, mode: str) -> float:
-        if (
-            spec.key in {"work_item_count", "estimate_points"}
-            and mode == allocation_module.ALLOCATION_SPLIT_EQUAL
-        ):
-            return _split_equal_total(qs, spec, on_truncated=self._note_truncation)
+        if self._metric_uses_split_equal(spec, mode):
+            return _split_equal_total(
+                qs,
+                spec,
+                on_truncated=self._note_truncation,
+                consume_work=self._consume_aggregate_work,
+            )
+        if not self._consume_aggregate_work(1):
+            return 0.0
         # Count metrics must use DISTINCT because the Issue queryset can carry
         # joins that duplicate rows; drill-down already does this (§37).
         use_distinct = spec.predicate is not None or spec.aggregation == "count"
@@ -579,11 +617,19 @@ class AnalyticsEngineV2:
 # ----- helpers ------------------------------------------------------------
 
 
-def _split_equal_total(qs: QuerySet, spec, *, on_truncated=None) -> float:
+def _split_equal_total(
+    qs: QuerySet,
+    spec,
+    *,
+    on_truncated=None,
+    consume_work=None,
+    work_per_issue: int = SPLIT_EQUAL_WORK_PER_ISSUE,
+) -> float:
     """Return the sum of split-equal contributions for the queryset.
 
     Issue-level iteration is capped (§40.1) so bucket loops cannot amplify N+1
-    scans without bound.
+    scans without bound. When ``consume_work`` is provided, each issue also
+    debits the shared aggregate work budget.
     """
     from plane.db.models import IssueAssignee
 
@@ -593,11 +639,14 @@ def _split_equal_total(qs: QuerySet, spec, *, on_truncated=None) -> float:
         .order_by("id")
         .values_list("id", flat=True)[: MAX_SPLIT_EQUAL_ISSUES + 1]
     )
-    if len(issue_ids) > MAX_SPLIT_EQUAL_ISSUES:
-        if on_truncated is not None:
-            on_truncated()
+    per_bucket_cap_hit = len(issue_ids) > MAX_SPLIT_EQUAL_ISSUES
+    if per_bucket_cap_hit:
         issue_ids = issue_ids[:MAX_SPLIT_EQUAL_ISSUES]
+    budget_exhausted = False
     for issue_id in issue_ids:
+        if consume_work is not None and not consume_work(work_per_issue):
+            budget_exhausted = True
+            break
         active_assignees = IssueAssignee.objects.filter(
             issue_id=issue_id, deleted_at__isnull=True
         ).count()
@@ -609,6 +658,10 @@ def _split_equal_total(qs: QuerySet, spec, *, on_truncated=None) -> float:
         issue_qs = qs.filter(id=issue_id)
         raw = float(metrics_module.aggregate(issue_qs, spec, distinct=True))
         total += raw / active_assignees
+    if per_bucket_cap_hit and on_truncated is not None:
+        on_truncated()
+    elif budget_exhausted and on_truncated is not None and consume_work is None:
+        on_truncated()
     return total
 
 
