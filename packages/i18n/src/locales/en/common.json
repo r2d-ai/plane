@@ -850,6 +850,65 @@
   "pin": "Pin",
   "unpin": "Unpin",
   "workspace_dashboards": "Dashboards",
+  "dashboard_shell": {
+    "title": "Dashboards",
+    "loading": "Loading dashboards…",
+    "tabs": {
+      "all": "All",
+      "mine": "Mine",
+      "shared": "Shared",
+      "favorites": "Favorites"
+    },
+    "actions": {
+      "create": "Add dashboard",
+      "edit": "Edit",
+      "view": "View",
+      "favorite": "Toggle favorite"
+    },
+    "create": {
+      "title": "Create dashboard",
+      "name": "Dashboard name"
+    },
+    "header": {
+      "time_range": "Time range",
+      "add_widget": "Add text widget",
+      "edit_hint": "Drag widgets to rearrange. Use the corner handle to resize."
+    },
+    "time": {
+      "this_quarter": "This quarter",
+      "last_quarter": "Last quarter",
+      "this_month": "This month",
+      "last_month": "Last month",
+      "this_week": "This week",
+      "last_7_days": "Last 7 days",
+      "last_30_days": "Last 30 days",
+      "none": "All time"
+    },
+    "meta": {
+      "projects": "Projects:",
+      "updated": "Updated"
+    },
+    "empty_list": {
+      "title": "No dashboards yet",
+      "description": "Create a dashboard to monitor work across projects."
+    },
+    "empty_detail": {
+      "title": "This dashboard is empty",
+      "description": "Add a placeholder widget to validate layout and persistence."
+    },
+    "error": {
+      "title": "Could not load dashboards",
+      "description": "Workspace dashboards may be disabled or unavailable."
+    },
+    "widget": {
+      "loading": "Loading widget data…",
+      "error": "This widget failed to load.",
+      "retry": "Retry",
+      "markdown_title": "Notes",
+      "markdown_placeholder": "Add markdown content in edit mode (widget renderer ships in RD-456).",
+      "renderer_pending": "Analytics widget renderer ships in RD-456. Query results load via the batch endpoint."
+    }
+  },
   "pi_chat": "Plane AI",
   "in_app": "In-app",
   "forms": "Forms",
