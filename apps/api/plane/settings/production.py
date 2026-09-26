@@ -94,5 +94,24 @@ LOGGING = {
             "handlers": ["console"],
             "propagate": False,
         },
+        # Digest pipeline structured logs. RD-449 review found these
+        # namespaces were missing — without `propagate: True` AND a
+        # `root` logger configured, `dictConfig` defaults the root to
+        # WARNING and children inherit it, so every `digest.*` INFO log
+        # was silently dropped in production. The big one is
+        # `digest.leader_morning.skipped_no_membership`, which is the
+        # observability backstop for the PATCH-`project_lead`-drop-
+        # ProjectMember bug (RD-447). Don't remove these without
+        # checking that digests observability is wired elsewhere.
+        "plane.digests": {
+            "level": "DEBUG" if DEBUG else "INFO",
+            "handlers": ["console"],
+            "propagate": False,
+        },
+        "plane.bgtasks": {
+            "level": "DEBUG" if DEBUG else "INFO",
+            "handlers": ["console"],
+            "propagate": False,
+        },
     },
 }
