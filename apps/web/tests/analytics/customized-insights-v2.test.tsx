@@ -1,4 +1,8 @@
-import { describe, expect, test } from "vitest";
+/**
+ * @vitest-environment jsdom
+ */
+import { render, screen } from "@testing-library/react";
+import { describe, expect, test, vi } from "vitest";
 import { ChartXAxisProperty, ChartYAxisMetric } from "@plane/types";
 import type { TAnalyticsCell } from "@plane/types";
 import {
@@ -13,6 +17,30 @@ import {
   toMetricKey,
   toTimePreset,
 } from "@/components/analytics/v2";
+
+vi.mock("@plane/i18n", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock("@/hooks/store/use-analytics", () => ({
+  useAnalytics: () => ({
+    selectedDuration: "last_30_days",
+    selectedDateBasis: "created_at",
+    selectedProjects: [],
+    selectedCycle: null,
+    selectedModule: null,
+  }),
+}));
+
+vi.mock("@/components/analytics/select/analytics-params", () => ({
+  AnalyticsSelectParams: () => <div data-testid="analytics-select-params" />,
+}));
+
+vi.mock("@/components/analytics/work-items/insight-chart", () => ({
+  default: () => <div data-testid="insight-chart" />,
+}));
+
+import CustomizedInsights from "@/components/analytics/work-items/customized-insights";
 
 const base = {
   xAxis: ChartXAxisProperty.LABELS,
@@ -357,5 +385,20 @@ describe("display formatting (§17.4, §9.3)", () => {
     expect(formatDateBucket("2026-Q1", "quarter")).toBe("Q1 2026");
     expect(formatDateBucket("2026", "year")).toBe("2026");
     expect(formatDateBucket("nonsense", "month")).toBe("nonsense");
+  });
+});
+
+describe("Customized Insights V2 — the builder action is gone (§18.1, RD-483)", () => {
+  test("renders the chart and the query controls with no Save-to-dashboard control", () => {
+    render(<CustomizedInsights />);
+
+    expect(screen.getByTestId("insight-chart")).toBeTruthy();
+    expect(screen.getByTestId("analytics-select-params")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /save to dashboard/i })).toBeNull();
+  });
+
+  test("a peek-view render carries no builder affordance either", () => {
+    render(<CustomizedInsights peekView isEpic />);
+    expect(screen.queryByRole("button", { name: /save to dashboard/i })).toBeNull();
   });
 });

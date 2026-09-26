@@ -25,7 +25,7 @@ export function WidgetTruncationBanner({ warnings }: Props) {
       data-testid="widget-truncation-banner"
     >
       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-tertiary" />
-      <span>{warning.message || t("dashboard_shell.widget.truncated")}</span>
+      <span>{warning.message || t("dashboard_v3.card.truncated")}</span>
     </div>
   );
 }

@@ -11,8 +11,12 @@
  * dashboard row. The v3 dashboard is a workspace-level view with no ids, so
  * every legacy link — saved bookmarks, a stale Slack paste, an old
  * save-insight-to-dashboard deep link — lands on the single dashboard instead
- * of a 404. The route stays registered until RD-483 removes the builder
- * surface and its links for good.
+ * of a 404.
+ *
+ * RD-483 deleted the builder surface, but kept this redirect: the alternative
+ * is a 404 for every link anyone ever saved, which is strictly worse than a
+ * route that quietly lands on the one dashboard that now exists. The route
+ * goes when the bookmark tail is judged dead, which is a product call.
  */
 
 import { redirect } from "react-router";

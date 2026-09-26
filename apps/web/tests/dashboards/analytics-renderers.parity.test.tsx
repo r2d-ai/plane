@@ -15,10 +15,15 @@
  *  - `html` — the whole widget shell (header, truncation banner, body);
  *  - `body` — the renderer output only, so the extracted primitives can also be
  *    asserted one-by-one against the same bytes.
+ *
+ * RD-483 deleted the builder, so the shell itself is gone and the `html` slice
+ * can no longer be re-rendered. What survives is the half that matters: every
+ * extracted primitive still mounts standalone and emits the same bytes the
+ * builder emitted, so the v3 card calls into an unchanged renderer contract.
  */
 
-import { render } from "@testing-library/react";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { render, screen } from "@testing-library/react";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ReactNode } from "react";
@@ -88,8 +93,7 @@ vi.mock("@/components/analytics/v2/insight-drilldown", () => ({
 /* oxlint-enable eslint-plugin-unicorn/consistent-function-scoping */
 
 import { CHART_COLOR_PALETTES } from "@plane/constants";
-import { DashboardAnalyticsWidget } from "@/components/dashboards/widgets/analytics-widget";
-import { buildInsightChartData } from "@/components/analytics/v2/cells";
+import { buildInsightChartData, buildMatrixTableModel } from "@/components/analytics/v2/cells";
 import { METRIC_LABELS, metricUnit } from "@/components/analytics/v2/mapping";
 import {
   AggregateTableRenderer,
@@ -103,7 +107,6 @@ import {
   WidgetTruncationBanner,
   WorkItemTableRenderer,
 } from "@/components/analytics/v2/renderers";
-import { buildMatrixTableModel } from "@/components/dashboards/widgets/analytics-data";
 
 const BASELINE_PATH = join(dirname(fileURLToPath(import.meta.url)), "__fixtures__", "renderer-baseline.json");
 
@@ -164,69 +167,32 @@ const response: TAnalyticsQueryResponseV2 = {
 
 type Baseline = Record<string, { html: string; body: string }>;
 
-function widgetFor(entry: ParityCase): TWorkspaceDashboardWidget {
-  return {
-    id: "widget-parity",
-    title: "Parity widget",
-    widget_type: entry.widget_type,
-    query_config: { schema_version: 1, ...query },
-    style_config: entry.style,
-    inherit_time_scope: true,
-  };
-}
-
-function renderCase(entry: ParityCase): { html: string; body: string } {
-  const { container } = render(
-    <DashboardAnalyticsWidget
-      widget={widgetFor(entry)}
-      response={{ ...response, warnings: entry.warnings ?? [] }}
-      workspaceSlug="acme"
-      dashboardId="dash-parity"
-    />
-  );
-  const body = container.querySelector(".overflow-auto") as HTMLElement | null;
-  return { html: container.innerHTML, body: body?.innerHTML ?? "" };
-}
-
-const captured: Baseline = {};
-for (const entry of CASES) captured[entry.name] = renderCase(entry);
-
-if (process.env.CAPTURE_RENDER_BASELINE === "1") {
-  mkdirSync(dirname(BASELINE_PATH), { recursive: true });
-  writeFileSync(BASELINE_PATH, `${JSON.stringify(captured, null, 2)}\n`);
-  console.log(`wrote renderer baseline -> ${BASELINE_PATH}`);
-}
-
 const baseline: Baseline = existsSync(BASELINE_PATH)
   ? (JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as Baseline)
   : ({} as Baseline);
 
-describe("analytics renderers — pre/post extraction render equality (RD-479, §12.1)", () => {
+if (process.env.CAPTURE_RENDER_BASELINE === "1") {
+  // The fixture is frozen history captured from the pre-move builder. With the
+  // shell deleted there is nothing left to re-render, so it is not regenerable.
+  console.warn(`renderer baseline is frozen pre-move history; not regenerable after RD-483`);
+}
+
+describe("analytics renderers — the frozen baseline covers every renderer kind (RD-479, §12.1)", () => {
   test("baseline fixture covers every renderer kind", () => {
     expect(Object.keys(baseline).toSorted()).toEqual(CASES.map((entry) => entry.name).toSorted());
   });
 
-  test("every case exercises a renderer body", () => {
+  test("every baseline case recorded a non-empty renderer body", () => {
     for (const entry of CASES) {
-      expect(captured[entry.name].body.length, entry.name).toBeGreaterThan(0);
+      expect(baseline[entry.name]?.body.length ?? 0, entry.name).toBeGreaterThan(0);
     }
   });
-
-  for (const entry of CASES) {
-    test(`${entry.name}: widget shell output is byte-identical to the pre-move baseline`, () => {
-      expect(captured[entry.name].html).toBe(baseline[entry.name]?.html);
-    });
-
-    test(`${entry.name}: renderer body output is byte-identical to the pre-move baseline`, () => {
-      expect(captured[entry.name].body).toBe(baseline[entry.name]?.body);
-    });
-  }
 });
 
 /*
- * The widget shell is only one caller. Mounting each extracted primitive on its
- * own with the same fixture proves the v3 card shell can call them directly and
- * get the very same bytes the builder produced before the move.
+ * Mounting each extracted primitive on its own against the frozen baseline
+ * proves the v3 card can call them directly and get the very same bytes the
+ * builder produced before the move.
  */
 const METRIC_KEY = "work_item_count" as const;
 const UNIT = metricUnit(METRIC_KEY);
@@ -346,23 +312,41 @@ const DIRECT: { name: string; element: ReactNode; baseline: string }[] = [
     ),
     baseline: "table",
   },
-  {
-    name: "truncation-banner",
-    element: <WidgetTruncationBanner warnings={[{ code: "RESULT_TRUNCATED", message: "Partial aggregate" }]} />,
-    baseline: "__banner__",
-  },
 ];
 
 describe("analytics renderers — each primitive mounts standalone with unchanged output (RD-479)", () => {
   for (const entry of DIRECT) {
     test(`${entry.name} reproduces the pre-move bytes`, () => {
       const { container } = render(entry.element);
-      const expected =
-        entry.baseline === "__banner__"
-          ? // the banner lives in the shell, not the body — compare the shell slice
-            (baseline["bar-truncated"]?.html.match(/<div class="flex items-start gap-2[^]*?<\/span><\/div>/)?.[0] ?? "")
-          : baseline[entry.baseline]?.body;
-      expect(container.innerHTML).toBe(expected);
+      expect(container.innerHTML).toBe(baseline[entry.baseline]?.body);
     });
   }
+});
+
+/*
+ * The banner is the one primitive whose bytes legitimately changed in D.8: its
+ * default copy moved from the deleted `dashboard_shell.widget.truncated` to
+ * `dashboard_v3.card.truncated`. It still renders inside the same wrapper, and
+ * an explicit engine message still wins over the default.
+ */
+describe("truncation banner (RD-483 D.8)", () => {
+  test("falls back to the v3 copy when the engine sends no message", () => {
+    render(<WidgetTruncationBanner warnings={[{ code: "RESULT_TRUNCATED", message: "" }]} />);
+    expect(screen.getByTestId("widget-truncation-banner").textContent).toContain("dashboard_v3.card.truncated");
+  });
+
+  test("its wrapper markup is still byte-identical to the frozen baseline", () => {
+    const { container } = render(
+      <WidgetTruncationBanner warnings={[{ code: "RESULT_TRUNCATED", message: "Partial aggregate" }]} />
+    );
+    const recorded = baseline["bar-truncated"]?.html ?? "";
+    const wrapper = recorded.match(/<div class="flex items-start gap-2[^]*?<\/span><\/div>/)?.[0] ?? "";
+    expect(wrapper).not.toBe("");
+    expect(container.innerHTML).toBe(wrapper);
+  });
+
+  test("an explicit engine message still wins over the default copy", () => {
+    render(<WidgetTruncationBanner warnings={[{ code: "RESULT_TRUNCATED", message: "Partial aggregate" }]} />);
+    expect(screen.getByTestId("widget-truncation-banner").textContent).toContain("Partial aggregate");
+  });
 });

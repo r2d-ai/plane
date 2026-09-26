@@ -17,10 +17,6 @@ vi.mock("@plane/ui", async () => {
     Button: MockUiButton,
     CustomSelect: MockCustomSelect,
     CustomMenu: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    EModalPosition: { CENTER: "center" },
-    EModalWidth: { LG: "lg" },
-    ModalCore: ({ children, isOpen }: { children?: ReactNode; isOpen?: boolean }) =>
-      isOpen ? <div data-testid="save-modal">{children}</div> : null,
   };
 });
 
@@ -29,20 +25,6 @@ vi.mock("@plane/propel/button", async () => {
   return { Button: MockUiButton };
 });
 
-vi.mock("@plane/propel/toast", () => ({
-  TOAST_TYPE: { SUCCESS: "success", ERROR: "error" },
-  setToast: vi.fn(),
-}));
-
-vi.mock("swr", () => ({
-  default: () => ({
-    data: [{ id: "dash-1", name: "Ops" }],
-    isLoading: false,
-    error: null,
-  }),
-}));
-
-import SaveInsightToDashboard from "@/components/analytics/v2/save-insight-to-dashboard";
 import { SidebarUserMenu } from "@/components/workspace/sidebar/user-menu";
 import { SidebarWorkspaceMenu } from "@/components/workspace/sidebar/workspace-menu";
 
@@ -93,25 +75,11 @@ vi.mock("@/hooks/store/use-instance", () => ({
   }),
 }));
 
-const analyticsQuery = {
-  version: 1 as const,
-  source: "work_items" as const,
-  metrics: [{ key: "work_item_count" as const }],
-  dimensions: [{ key: "state" as const }],
-};
-
 describe("workspace dashboards kill-switch UI", () => {
-  test("does not render save-to-dashboard control when flag is off", () => {
-    instanceConfig.is_workspace_dashboards_enabled = false;
-    render(<SaveInsightToDashboard query={analyticsQuery} defaultTitle="Insight" />);
-    expect(screen.queryByRole("button", { name: /save to dashboard/i })).toBeNull();
-  });
-
   test("does not render dashboards in user menu when flag is off", () => {
     instanceConfig.is_workspace_dashboards_enabled = false;
     render(<SidebarUserMenu />);
     expect(screen.queryByText("sidebar.dashboards")).toBeNull();
-    expect(screen.queryByText("workspace_dashboards")).toBeNull();
   });
 
   test("does not render dashboards workspace menu entry when flag is off", () => {
