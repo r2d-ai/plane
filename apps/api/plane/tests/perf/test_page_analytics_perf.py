@@ -19,8 +19,8 @@ Run inside the repository-supported test stack:
 
 Plan §12.3, spec §21.
 
-V3 workspace dashboard batch latency (RD-480) is measured in
-``test_dashboard_v3_batch_perf.py`` (set ``DASHBOARD_V3_PERF=1``).
+V3 workspace dashboard batch latency (RD-480): ``test_batch_12_card_dashboard``
+(set ``DASHBOARD_V3_PERF=1``).
 """
 
 from __future__ import annotations
@@ -30,6 +30,8 @@ import os
 import time
 import uuid
 from datetime import datetime
+
+import pytz
 
 import pytest
 from freezegun import freeze_time
@@ -69,10 +71,6 @@ WINDOW_DAYS = 1
 pytestmark = [
     pytest.mark.slow,
     pytest.mark.django_db(transaction=True),
-    pytest.mark.skipif(
-        not os.environ.get("WIKI_PERF"),
-        reason="opt-in WIKI-09b analytics performance suite (set WIKI_PERF=1)",
-    ),
 ]
 
 
@@ -284,6 +282,10 @@ def _render_report(indexed, baseline, candidate, rows):
     return "\n".join(lines)
 
 
+@pytest.mark.skipif(
+    not os.environ.get("WIKI_PERF"),
+    reason="opt-in WIKI-09b analytics performance suite (set WIKI_PERF=1)",
+)
 def test_page_analytics_perf_report():
     workspace, collection, page = _build_dataset()
 
@@ -319,7 +321,7 @@ V3_BATCH_BUDGETS_MS = {
 }
 
 V3_PERF_ITERATIONS = 21
-FROZEN_V3_NOW = datetime(2026, 9, 15, 12, 0, tzinfo=timezone.utc)
+FROZEN_V3_NOW = datetime(2026, 9, 15, 12, 0, tzinfo=pytz.UTC)
 
 
 def _percentile_ms(samples, percentile):
