@@ -1,2359 +1,1564 @@
-# Workspace Dashboards CE + Analytics V2 — Product & Implementation Spec
+# Workspace Dashboard + Analytics V2 — Product & Implementation Spec
 
-Status: Proposed / ready for implementation  
-Target branch: master  
+Status: **Authoritative replacement spec / ready for implementation**  
+Target branch: `master`  
 Scope: Community Edition fork  
-Primary goal: Turn the existing Workspace Analytics / Customized Insights implementation into a reusable analytics engine and add workspace-scoped dashboards that can replace Plane Commercial Dashboards for the fork, while adding stronger workload-allocation and time-range analysis.
+Supersedes: the previous multi-dashboard / dashboard-builder design in this file  
+Decision date: 2026-09-26
+
+> **Important implementation rule:** this document intentionally resets the Dashboard product direction. Existing Analytics V2 query logic, ACL logic, drill-down, batch-query plumbing, reusable chart renderers, matrix/table renderers, CSV helpers, and related tests are valuable assets and MUST NOT be deleted merely because the dashboard-builder product surface is being removed.
 
 ---
 
-## 1. Problem
+## 1. Executive decision
 
-The current fork already has useful Workspace Analytics and Customized Insights primitives:
+The fork will NOT ship a general-purpose user-created dashboard builder in the current phase.
 
-- workspace-level Analytics routes;
-- project selection;
-- Work items Overview and Work items analytics;
-- Customized Insights with X-axis, metric, and optional group-by;
-- chart + table rendering;
-- CSV export;
-- date-range state already present in the analytics store.
+Instead:
 
-However, the current implementation is still an ad-hoc analytics page rather than a reusable dashboard system.
+- every workspace has exactly **one built-in Workspace Dashboard**;
+- the dashboard has a **product-defined layout and product-defined set of cards**;
+- users do not create, delete, duplicate, share, favorite, drag, resize, or manually compose dashboards;
+- users customize **how the built-in cards calculate and group data** through controlled UI parameters derived from Customized Insights / Analytics V2;
+- the dashboard always respects the current viewer's workspace/project ACL;
+- Analytics remains the ad-hoc exploration surface;
+- Dashboard becomes the operational overview surface;
+- all data still comes from the same Analytics V2 engine;
+- reusable query and rendering infrastructure remains intentionally extensible so richer dashboard composition can be introduced later without rebuilding the analytics stack.
 
-The main gaps are:
+The governing product rule is:
 
-1. Customized Insights cannot express workload share cleanly, for example:
-   - what percentage of Product A workload belongs to each assignee;
-   - what percentage of a person's workload is spent on each product/label/project;
-   - the same questions by work item count or estimate points.
-2. The current duration selector is not active in the Workspace Analytics header.
-3. Existing Analytics components carry selectedDuration but date_filter is commented out in current data requests.
-4. Estimate point count exists in the type system but is currently hidden from the Customized Insights metric selector.
-5. Customized Insights is effectively one bar-chart configuration, not a reusable saved query.
-6. There is no workspace Dashboard object, widget grid, sharing model, widget-level filtering, saved layout, or dashboard templates.
-7. Leaders cannot build reusable management views from analytics without repeatedly reconstructing filters.
-8. Aggregated numbers need explicit ACL guarantees so private project data cannot leak through totals, percentages, CSV, filters, or published dashboards.
+> **Dashboard composition is fixed. Query configuration is flexible.**
 
-This feature should solve both problems together.
+And the governing architecture rule is:
 
-Do not build a second analytics backend only for dashboards.
-
-The architecture must be:
-
-~~~text
-Work item / cycle / intake data
-            |
-            v
-      Viewer ACL scope
-            |
-            v
-      Analytics Engine V2
-       /              \
-      v                v
-Customized Insights   Dashboards
-(ad-hoc analysis)     (saved monitoring)
-~~~
-
-Customized Insights becomes the interactive query builder.
-
-Dashboards become persisted compositions of the same query definitions.
+> **Dashboard is a presentation of Analytics V2, not a separate analytics system and not a user-authored content resource.**
 
 ---
 
-## 2. Commercial reference and parity target
+## 2. Why the previous direction is being replaced
 
-Reference reviewed: 2026-09-26
+The previous spec drove implementation toward a mini-BI/dashboard-builder product with:
 
-Official references:
+- multiple dashboards per workspace;
+- dashboard list pages;
+- All / Mine / Shared / Favorites tabs;
+- dashboard ownership and visibility;
+- dashboard member sharing;
+- dashboard duplication;
+- dashboard favorites;
+- widget CRUD;
+- add-widget flows;
+- markdown widgets;
+- a 12-column editable layout;
+- drag/resize persistence;
+- view/edit modes;
+- source-project persistence per dashboard;
+- dashboard-level mutation APIs.
 
-- https://plane.so/dashboards
-- https://docs.plane.so/dashboards
+That model introduces significant complexity in:
 
-Plane Commercial currently documents:
+- permissions;
+- UX discoverability;
+- persistence;
+- sharing semantics;
+- ACL validation;
+- mobile layout;
+- migration compatibility;
+- testing surface;
+- support burden;
+- future upstream merge conflicts.
 
-- workspace-scoped dashboards;
-- one or more source projects per dashboard;
-- dashboard-level filters;
-- dashboard-level PQL;
-- widget-level filters;
-- responsive drag/drop/resize grid;
-- view mode and edit mode;
-- public/workspace dashboards;
-- private dashboards;
-- member sharing with View/Edit access;
-- published public URL;
-- PDF export;
-- favorites;
-- basic/stacked/grouped bar;
-- basic/multi-line line;
-- basic/stacked/comparison area;
-- donut basic/progress;
-- pie;
-- number;
-- work item statistics;
-- smart counter;
-- smart gauge;
-- two-dimensional table;
-- work items table;
-- Assigned to you;
-- work item type progress;
-- cycle progress;
-- Intake accepted vs declined;
-- average time to accept/decline;
-- Intake breakdown;
-- Intake ageing;
-- grouping by State, State group, Project, Priority, Assignee, Created by, Label, Cycle, Module, Work item type, and date fields;
-- metrics including Work item count, Estimate points, Pending, Completed, In-progress, Due today, Due this week, and Blocked.
+It also exceeds the actual product need.
 
-The CE implementation should cover the useful Commercial behavior and intentionally extend it with:
+The desired behavior is much simpler:
 
-- dashboard-wide time-range semantics;
-- per-widget time-range override;
-- percentage normalization;
-- workload allocation;
-- true two-dimension matrix tables;
-- drill-down from aggregate to raw work items;
-- previous-period comparisons as a reusable metric capability;
-- templates for common management dashboards;
-- an API schema suitable for plane-cli and external AI agents.
+1. A leader enters a workspace.
+2. Dashboard is already useful without setup.
+3. It contains a complete, opinionated set of management charts and indicators.
+4. The leader changes time range, project/member/label scope, metric, grouping, breakdown, normalization, allocation, or visualization when needed.
+5. The dashboard immediately recalculates using the same Analytics V2 engine.
+
+The user should never need to understand concepts such as dashboard ownership, widget placement, grid sizing, or dashboard sharing just to obtain a useful management view.
 
 ---
 
-## 3. Product principles
+## 3. Product boundaries
 
-### 3.1 One analytics engine
+### 3.1 In scope now
 
-Customized Insights, dashboard widgets, CSV export, API consumers, plane-cli, and future agent integrations MUST use the same analytics query semantics.
+- one Workspace Dashboard per workspace;
+- workspace sidebar entry;
+- fixed dashboard composition;
+- global filters;
+- global time range;
+- global date basis;
+- configurable card query parameters;
+- reusable chart rendering;
+- Analytics V2 batch execution;
+- percentage / normalization / allocation semantics;
+- drill-down to work items;
+- CSV export where already supported;
+- ACL-safe aggregation;
+- per-user dashboard preferences;
+- responsive fixed layout;
+- safe migration away from the dashboard-builder UI/API.
 
-Do not duplicate metric logic in React components or individual widget implementations.
+### 3.2 Explicitly out of scope now
 
-### 3.2 Dashboards are read-only lenses
+Do NOT implement or preserve as active user-facing behavior:
 
-A dashboard never mutates work items.
+- create dashboard;
+- delete dashboard;
+- rename dashboard;
+- duplicate dashboard;
+- dashboard owner;
+- private vs workspace dashboard visibility;
+- dashboard member sharing;
+- dashboard favorites;
+- dashboard list/tabs;
+- public dashboard publishing;
+- add widget;
+- delete widget;
+- arbitrary widget library;
+- markdown widgets;
+- drag layout;
+- resize layout;
+- manual layout persistence;
+- edit/view modes for layout;
+- dashboard templates as user-selectable compositions;
+- Save Customized Insight to arbitrary dashboard.
 
-It stores:
+### 3.3 Future expansion is allowed
 
-- source project scope;
-- filters;
-- time scope;
-- widget definitions;
-- layout;
-- sharing metadata.
+The architecture MUST leave clean extension seams for future features such as:
 
-All displayed data is computed from the current source data.
+- optional dashboard variants;
+- role/team presets;
+- admin-defined templates;
+- controlled card visibility;
+- custom additional cards;
+- multiple dashboards;
+- saved management views;
+- published dashboards.
 
-### 3.3 ACL before aggregation
+However, future extensibility is achieved by preserving **generic analytics/query/render capabilities**, not by keeping the current dashboard-builder product active.
 
-Permission filtering happens before:
-
-- counting;
-- grouping;
-- normalization;
-- comparison;
-- percentages;
-- table totals;
-- filter facets;
-- export;
-- drill-down.
-
-A hidden project must contribute exactly zero observable information to an unauthorized viewer.
-
-### 3.4 Explainable aggregates
-
-Every aggregate that represents work items should support drill-down to the matching work-item set when practical.
-
-A leader seeing "42%" must be able to determine which work items produced that value.
-
-### 3.5 Explicit metric semantics
-
-Do not call calendar duration "workload".
-
-Workload metrics are based on:
-
-- allocated work-item count;
-- estimate points;
-- actual logged time when Time Tracking data exists.
-
-Flow metrics are separate:
-
-- cycle time;
-- lead time;
-- throughput;
-- completion rate;
-- overdue rate.
-
-### 3.6 Backward compatibility
-
-Existing Analytics pages and existing advance-analytics endpoints must keep working while Analytics V2 is introduced.
-
-Do not require a flag-day rewrite.
-
-### 3.7 Fork-friendly implementation
-
-Keep the feature isolated enough that upstream Plane changes can still be merged/backported without rewriting unrelated project/work-item code.
+Do not keep incorrect product complexity merely because it might be useful someday.
 
 ---
 
-## 4. Current CE baseline
+## 4. User-facing information architecture
 
-Relevant current frontend files include:
-
-- apps/web/app/(all)/[workspaceSlug]/(projects)/analytics/[tabId]/page.tsx
-- apps/web/core/components/analytics/analytics-filter-actions.tsx
-- apps/web/core/components/analytics/work-items/customized-insights.tsx
-- apps/web/core/components/analytics/work-items/priority-chart.tsx
-- apps/web/core/components/analytics/work-items/workitems-insight-table.tsx
-- apps/web/core/components/analytics/work-items/created-vs-resolved.tsx
-- apps/web/core/components/analytics/select/analytics-params.tsx
-- apps/web/core/services/analytics.service.ts
-- apps/web/core/store/analytics.store.ts
-- packages/types/src/analytics.ts
-- packages/constants/src/analytics/common.ts
-
-Important observations from the current fork:
-
-1. BaseAnalyticsStore already has selectedDuration with default last_30_days.
-2. ANALYTICS_DURATION_FILTER_OPTIONS already defines Yesterday, Last 7 days, Last 30 days, and Last 3 months.
-3. AnalyticsFilterActions currently renders ProjectSelect but the DurationDropdown code is commented.
-4. CreatedVsResolved, WorkItemsInsightTable, and PriorityChart include selectedDuration in their SWR cache keys, but date_filter is commented out in the actual API parameters.
-5. ChartYAxisMetric already defines ESTIMATE_POINT_COUNT.
-6. AnalyticsSelectParams currently hides ESTIMATE_POINT_COUNT from Customized Insights.
-7. Customized Insights already supports:
-   - x_axis;
-   - y_axis;
-   - optional group_by.
-8. PriorityChart already renders:
-   - bar chart;
-   - stacked bars when group_by is set;
-   - a data table;
-   - CSV export.
-
-Analytics V2 should reuse these foundations where sensible rather than discarding them.
-
----
-
-## 5. User-facing information architecture
-
-Keep Analytics and Dashboards separate.
+Workspace navigation:
 
 ~~~text
 Workspace
 ├── Projects
+├── Cycles
+├── Modules
+├── Dashboard
 ├── Analytics
-│   ├── Overview
-│   └── Work items
-├── Dashboards        NEW
-├── Active cycles / Workspace cycles
 ├── Wiki
 └── ...
 ~~~
 
 Semantics:
 
-- Analytics = explore, investigate, ad-hoc.
-- Dashboards = save, monitor, share.
+- **Dashboard** = monitor and understand workspace health quickly.
+- **Analytics** = explore and investigate data interactively.
 
-Customized Insights remains under Analytics.
+### 4.1 Route
 
-A configured Customized Insight can be saved as a dashboard widget.
+Canonical route:
 
----
+~~~text
+/:workspaceSlug/dashboard
+~~~
 
-## 6. Dashboard list
-
-Route:
+If keeping the existing plural route reduces migration risk, this is acceptable temporarily:
 
 ~~~text
 /:workspaceSlug/dashboards
 ~~~
 
-Tabs:
+but it MUST directly render the single Workspace Dashboard and MUST NOT render a dashboard list.
 
-- All
-- Mine
-- Shared
-- Favorites
-
-Each dashboard row/card should show:
-
-- name;
-- optional description;
-- owner;
-- visibility;
-- source project count;
-- updated time;
-- favorite state;
-- shared indicator where applicable.
-
-Actions:
-
-- Open
-- Favorite / unfavorite
-- Duplicate
-- Rename
-- Share
-- Export
-- Delete, subject to permission
-
-Primary action:
-
-- Add dashboard
-
-Create flow:
-
-1. Name.
-2. Optional description.
-3. Select one or more projects.
-4. Optional dashboard filters.
-5. Default time range.
-6. Visibility.
-7. Template or Blank.
-8. Create.
-
----
-
-## 7. Dashboard page
-
-Route:
+Any legacy route of the form:
 
 ~~~text
 /:workspaceSlug/dashboards/:dashboardId
 ~~~
 
-Default mode is View.
+must be removed from navigation and eventually removed entirely.
 
-Header:
+### 4.2 No empty state requiring setup
 
-~~~text
-[Dashboard name] [Visibility]
-[Projects] [Filters] [Time range] [Compare]
-                                  [Edit] [Share] [...]
-~~~
+A workspace with accessible projects/work items should always render a meaningful dashboard immediately.
 
-Edit mode enables:
+There must be no first-run screen saying:
 
-- add widget;
-- configure widget;
-- drag;
-- resize;
-- delete widget;
-- edit dashboard filters;
-- edit source projects;
-- edit default time range.
+- Create dashboard;
+- Add widget;
+- Choose template;
+- Start from blank.
 
-View mode disables all layout mutation.
-
-All widgets use a responsive grid.
-
-Desktop positions are persisted.
-
-On narrow/mobile displays widgets stack while preserving a deterministic ordering.
+If there is no data, show a normal data-empty state, not a configuration-empty state.
 
 ---
 
-## 8. Dashboard templates
+## 5. Product model
 
-Provide built-in templates so adoption does not depend on users understanding the full query builder.
+The dashboard is a built-in system projection.
 
-### 8.1 Blank
+Conceptually:
 
-No widgets.
+~~~text
+Workspace
+   +
+Viewer ACL
+   +
+Built-in Dashboard Definition
+   +
+Global Dashboard State
+   +
+Per-user Preferences
+   =
+Rendered Workspace Dashboard
+~~~
 
-### 8.2 Team overview
+A workspace does not need a persisted `Dashboard` row in order for its dashboard to exist.
 
-Suggested widgets:
+The dashboard exists because the workspace exists.
 
-- Open work items;
-- Completed this period;
-- Overdue;
-- Blocked;
-- Workload by assignee;
-- Work by priority;
-- Created vs completed trend;
-- Due soon table.
+### 5.1 Built-in dashboard definition
 
-### 8.3 Product workload
+The built-in definition is code/configuration owned by the product and versioned in source control.
 
-Designed for mono-project teams that use labels as products.
+Each card definition contains stable metadata such as:
 
-Suggested widgets:
+~~~ts
+{
+  id: "workload_by_assignee",
+  section: "workload",
+  title: "Workload by assignee",
+  renderer: "bar",
+  allowedRenderers: ["bar", "matrix", "table"],
+  defaults: {
+    metric: "work_item_count",
+    dimension: "assignee",
+    breakdown: "project",
+    display: "value_and_percentage",
+    normalization: "grand_total",
+    allocation: "split_equal"
+  },
+  controls: [
+    "metric",
+    "dimension",
+    "breakdown",
+    "display",
+    "normalization",
+    "allocation",
+    "renderer"
+  ]
+}
+~~~
 
-- Workload by product label;
-- Assignee x Product matrix;
-- Completed by product;
-- Overdue by product;
-- Unassigned high-priority work.
+Stable card IDs are important because preferences should attach to logical cards rather than layout coordinates or database widget IDs.
 
-### 8.4 Delivery
+### 5.2 Fixed composition does not mean hard-coded data logic
 
-Suggested widgets:
+The card list/layout is fixed, but each card is still powered by a generic Analytics V2 query.
 
-- Throughput;
-- Completion rate;
-- Created vs completed;
-- Average cycle time;
-- Overdue;
-- Work item progress by project/module.
-
-### 8.5 Cycle health
-
-Suggested widgets:
-
-- Current cycle progress;
-- Scope change;
-- Blocked;
-- State distribution;
-- Remaining work;
-- Due/overdue table.
-
-Templates store query/layout defaults only.
-
-They do not create or modify work items.
+Do not implement card-specific SQL or client-side aggregation when Analytics V2 can express the same result.
 
 ---
 
-## 9. Global time range
+## 6. Dashboard layout
 
-Time filtering is mandatory for Analytics V2.
+The dashboard should be complete but scannable.
 
-Supported presets:
-
-- Today
-- Yesterday
-- This week
-- Last week
-- Last 7 days
-- Last 30 days
-- This month
-- Last month
-- This quarter
-- Last quarter
-- Last 90 days
-- This year
-- Custom range
-
-The workspace timezone is authoritative for calendar boundaries.
-
-Persist explicit timezone in resolved query metadata so exports and comparisons are reproducible.
-
-### 9.1 Time basis
-
-Supported basis:
-
-- created_at;
-- completed_at;
-- start_date;
-- target_date;
-- lifecycle_overlap.
-
-lifecycle_overlap means:
+Recommended desktop composition:
 
 ~~~text
-work_item.created_at <= range.end
-AND (
-    work_item.completed_at IS NULL
-    OR work_item.completed_at >= range.start
-)
+┌──────────────────────────────────────────────────────────────┐
+│ Global controls                                              │
+├───────────┬───────────┬───────────┬───────────┬──────────────┤
+│ Open      │ In prog.  │ Completed │ Overdue   │ Blocked      │
+├──────────────────────────────┬───────────────────────────────┤
+│ Created vs completed trend   │ Work state distribution       │
+├──────────────────────────────┼───────────────────────────────┤
+│ Workload by assignee         │ Priority distribution         │
+├──────────────────────────────┴───────────────────────────────┤
+│ Workload allocation matrix                                  │
+├──────────────────────────────┬───────────────────────────────┤
+│ Work by project              │ Attention required            │
+└──────────────────────────────┴───────────────────────────────┘
 ~~~
 
-This means the work item existed as unfinished work during at least part of the period.
+Exact visual proportions may change with responsive design, but users do not manually drag or resize cards.
 
-It does NOT mean a person actively worked on it for the entire interval.
+### 6.1 Mobile / narrow layout
 
-### 9.2 Widget inheritance
-
-Each dashboard has a default time scope.
-
-Each widget may choose:
-
-- Inherit dashboard time range;
-- Custom time range;
-- No time range, where the metric is a current-state snapshot.
-
-The widget configuration UI must make this visible.
-
-### 9.3 Date grouping
-
-For date dimensions support:
-
-- Day
-- Week
-- Month
-- Quarter
-- Year
-
-Quarter is an intentional CE extension.
+- stack cards deterministically;
+- KPI cards may wrap into 2 columns or horizontal scroll if consistent with Plane UI;
+- charts must remain readable;
+- controls may collapse into a filter drawer;
+- no drag/resize affordance;
+- no desktop layout coordinates need persistence.
 
 ---
 
-## 10. Comparison periods
+## 7. Default card set
 
-Reusable comparison options:
+P0 dashboard should ship with the following cards.
 
-- None
-- Previous equivalent period
-- Previous week
-- Previous month
-- Previous quarter
-- Previous year
+### 7.1 KPI cards
 
-Example:
+#### A. Open work items
+
+Purpose: current outstanding scope visible to the viewer.
+
+Default semantics:
+
+- source: `work_items`;
+- metric: pending/open work-item count;
+- current-state metric;
+- respects global project/member/label/module/cycle filters;
+- selected time range only affects the card if the chosen time basis/metric semantics require it; do not silently reinterpret current state as created-in-period.
+
+#### B. In progress
+
+- current-state in-progress work items.
+
+#### C. Completed
+
+Default:
+
+- completed work items in selected time range;
+- default date basis: completed date for this card unless a compatible global override is selected.
+
+#### D. Overdue
+
+- incomplete work items whose due/target date is before today in workspace timezone.
+
+#### E. Blocked
+
+- current blocked work items using the same blocked semantics defined by Analytics V2.
+
+### 7.2 Delivery section
+
+#### F. Created vs completed trend
+
+Default:
+
+- visualization: line or grouped bar;
+- time bucket derived from selected range;
+- series: created vs completed;
+- grouping auto-resolution:
+  - <= 31 days: day;
+  - <= 120 days: week;
+  - longer: month;
+- user may override grouping when supported.
+
+This card answers whether demand is arriving faster than the team is closing work.
+
+#### G. Work state distribution
+
+Default:
+
+- metric: work-item count;
+- dimension: state group or state;
+- visualization: donut/bar;
+- display: value + percentage.
+
+### 7.3 Workload section
+
+#### H. Workload by assignee
+
+Default:
+
+- metric: work-item count;
+- dimension: assignee;
+- breakdown: none or project depending on available horizontal space;
+- display: value + percentage;
+- allocation: `split_equal` for multi-assignee work items;
+- visualization: horizontal bar.
+
+Allowed metrics should include at minimum:
+
+- work-item count;
+- estimate points;
+- allocated work-item count;
+- allocated estimate points when supported;
+- logged time later when Time Tracking data is available.
+
+#### I. Workload allocation matrix
+
+This is a first-class management card and must cover both multi-project and mono-project teams.
+
+Default multi-project workspace configuration:
 
 ~~~text
-Current: Sep 1-30
-Previous equivalent period: Aug 2-31
+Metric:      Work item count
+Rows:        Assignee
+Columns:     Project
+Display:     Value + percentage
+Normalize:   Series/group/grand total selectable
+Allocation:  Split equally
+Renderer:    Matrix table
 ~~~
 
-For calendar presets prefer calendar-aligned comparison:
+Mono-project teams that use labels as products can change:
 
 ~~~text
-This month -> previous month
-This quarter -> previous quarter
-This year -> previous year
+Columns: Label
 ~~~
 
-Number widgets can show:
+Expected use cases:
 
-~~~text
-Completed
-87
-+14.5% vs previous period
-~~~
+1. **Share of each product/project by assignee**
+   - rows: Assignee
+   - columns: Project or Label
+   - normalize within Project/Label.
 
-Time-series widgets can render current and comparison series.
+2. **Share of each person's workload by product/project**
+   - rows: Assignee
+   - columns: Project or Label
+   - normalize within Assignee.
 
-Comparison must be a query capability, not a special case limited to one chart renderer.
+3. Same analysis using estimate points instead of count.
+
+This card is the primary replacement for manually created workload dashboards.
+
+### 7.4 Distribution section
+
+#### J. Priority distribution
+
+Default:
+
+- metric: work-item count;
+- dimension: priority;
+- display: value + percentage;
+- visualization: bar/donut.
+
+#### K. Work by project
+
+Default:
+
+- metric: work-item count;
+- dimension: project;
+- display: value + percentage;
+- visualization: bar.
+
+In a mono-project workspace this card may automatically use another useful dimension such as module or label, but automatic substitution must be explicit and testable. P0 may simply show the single project instead of inventing dynamic behavior.
+
+### 7.5 Attention section
+
+#### L. Attention required
+
+A work-item table, not an aggregate-only chart.
+
+Default categories should surface useful risk items such as:
+
+- overdue;
+- blocked;
+- urgent/high priority and unassigned;
+- due soon.
+
+Do not create undocumented "AI risk" scoring.
+
+P0 can use deterministic filters only.
 
 ---
 
-## 11. AnalyticsQuery V2
+## 8. Global dashboard controls
 
-Introduce one versioned canonical query model.
+Header/global control row:
 
-Conceptual schema:
+~~~text
+Dashboard
+[Time range] [Date basis] [Projects] [Members] [States] [Priority]
+[Labels] [Cycles] [Modules]                              [Reset]
+~~~
+
+Controls should follow Plane's existing filter UI patterns.
+
+### 8.1 Time range
+
+Support at minimum:
+
+- Today;
+- Yesterday;
+- This week;
+- Last week;
+- Last 7 days;
+- Last 30 days;
+- This month;
+- Last month;
+- This quarter;
+- Last quarter;
+- Last 90 days;
+- This year;
+- Custom range.
+
+Workspace timezone is authoritative for calendar boundaries.
+
+### 8.2 Date basis
+
+Supported bases should remain aligned with Analytics V2:
+
+- created;
+- completed;
+- start;
+- due/target;
+- lifecycle overlap where supported.
+
+A card may declare a stronger semantic default when the metric requires it, e.g. Completed naturally uses completed date.
+
+The UI must avoid producing nonsensical combinations. If a global date basis is incompatible with a card's metric semantics, the card uses its defined semantic basis and should expose that fact in metadata/tooltip rather than returning an incorrect number.
+
+### 8.3 Scope filters
+
+Global filters are viewer-scoped and may include:
+
+- projects;
+- members/assignees;
+- states/state groups;
+- priorities;
+- labels;
+- cycles;
+- modules;
+- work item types when available.
+
+All filter option lists MUST themselves respect ACL.
+
+### 8.4 Reset
+
+Reset returns global controls and all card preferences to product defaults for that user.
+
+If reset-all feels too destructive, the UI may expose:
+
+- Reset filters;
+- Reset this card;
+- Reset dashboard preferences.
+
+But the underlying preference semantics must support a full reset.
+
+---
+
+## 9. Per-card configuration
+
+Cards expose a controlled `Configure` menu/drawer.
+
+The dashboard is NOT a free-form query builder. Each card explicitly declares which parameters are configurable.
+
+Reusable controls should come from Customized Insights / Analytics V2 whenever possible.
+
+Candidate controls:
+
+- Metric / Calculate;
+- Dimension / Group by;
+- Breakdown;
+- Display;
+- Normalize;
+- Allocation;
+- Date grouping;
+- Visualization;
+- Sort / Top N where needed.
+
+### 9.1 Metric
+
+Examples:
+
+- work-item count;
+- estimate points;
+- pending;
+- completed;
+- in progress;
+- overdue;
+- blocked;
+- allocated count;
+- allocated estimate points.
+
+### 9.2 Dimension
+
+Examples:
+
+- project;
+- assignee;
+- state;
+- state group;
+- priority;
+- label;
+- cycle;
+- module;
+- created by;
+- work item type;
+- date dimensions.
+
+### 9.3 Breakdown
+
+A second dimension/series.
+
+P0 supports at most two dimensions in the generic UI.
+
+Do not expose arbitrary OLAP complexity.
+
+### 9.4 Display
+
+- Value;
+- Percentage;
+- Value + Percentage.
+
+### 9.5 Normalization
+
+Preserve Analytics V2 normalization semantics.
+
+At minimum:
+
+- none;
+- group/row total;
+- series/column total;
+- grand total.
+
+Names shown in UI should be understandable in the context of the current visualization.
+
+### 9.6 Allocation
+
+Preserve generic allocation semantics:
+
+- full credit;
+- split equally.
+
+This is essential for accurate workload analysis when a work item has multiple assignees/labels/etc.
+
+### 9.7 Visualization
+
+Only expose renderers compatible with the card/query shape.
+
+Potential renderers:
+
+- number;
+- statistics/counter;
+- gauge;
+- bar;
+- line;
+- pie;
+- donut;
+- matrix;
+- table/work-item table.
+
+Do not allow a renderer that cannot truthfully represent the selected dimensions/metrics.
+
+---
+
+## 10. Analytics V2 remains the canonical query engine
+
+This requirement is non-negotiable.
+
+Architecture:
+
+~~~text
+Plane data
+   |
+   v
+Viewer ACL scope
+   |
+   v
+Analytics Engine V2
+   |\
+   | \
+   |  +--> Workspace Dashboard
+   |
+   +-----> Customized Insights
+   |
+   +-----> CSV / drill-down / API / plane-cli / agents
+~~~
+
+### 10.1 Do not duplicate analytics logic in Dashboard
+
+Dashboard code may:
+
+- construct queries;
+- combine global and card-local query configuration;
+- batch requests;
+- choose renderers;
+- display results.
+
+Dashboard code must NOT independently implement:
+
+- metric calculations;
+- ACL filtering;
+- multi-membership allocation;
+- percentage normalization;
+- date bucketing;
+- project permission filtering;
+- aggregate totals.
+
+### 10.2 Canonical query schema
+
+Continue using a versioned Analytics V2 query shape such as:
 
 ~~~json
 {
   "version": 1,
   "source": "work_items",
   "project_ids": [],
-  "metrics": [
-    {
-      "key": "estimate_points",
-      "aggregation": "sum"
-    }
-  ],
+  "metrics": [{ "key": "work_item_count" }],
   "dimensions": [
-    {
-      "key": "labels"
-    },
-    {
-      "key": "assignees"
-    }
+    { "key": "assignee" },
+    { "key": "project" }
   ],
   "filters": {},
-  "pql": null,
   "time": {
     "preset": "this_quarter",
-    "basis": "lifecycle_overlap",
-    "timezone": "Asia/Ho_Chi_Minh"
+    "basis": "lifecycle_overlap"
   },
-  "comparison": {
-    "type": "none"
-  },
-  "normalization": "group_total",
-  "allocation": "split_equal",
-  "sort": [],
-  "limit": 50
+  "display": "value_and_percentage",
+  "normalization": "grand_total",
+  "allocation": "split_equal"
 }
 ~~~
 
-The persisted query stores presets/configuration.
-
-The response includes resolved absolute start/end timestamps.
-
-### 11.1 Sources
-
-P0:
-
-- work_items
-
-P1:
-
-- cycles
-- work_item_progress
-- time_tracking, only if data exists
-
-P2:
-
-- intake
-
-Do not force Intake-specific metrics into the generic work-item source.
+Persist/query configuration, never materialized result snapshots.
 
 ---
 
-## 12. Dimensions
+## 11. Generic batch query API
 
-Work-item source dimensions:
+The current dashboard batch-query implementation is useful and should be preserved conceptually, but it must be generalized out of dashboard-instance CRUD.
 
-- State
-- State group
-- Project
-- Priority
-- Assignee
-- Created by
-- Label
-- Cycle
-- Module
-- Work item type
-- Estimate point
-- Created date
-- Completed date
-- Start date
-- Due date
-- Epic, where available
-
-Date dimensions require date grouping.
-
-Two dimensions are sufficient for P0 generic charts and matrices:
-
-- primary dimension;
-- breakdown/series dimension.
-
-Future schema may support more dimensions but the UI must not expose arbitrary OLAP complexity in P0.
-
----
-
-## 13. Metrics
-
-### 13.1 Commercial-parity generic metrics
-
-P0:
-
-- Work item count
-- Estimate points
-- Pending work items
-- Completed work items
-- In-progress work items
-- Due today
-- Due this week
-- Blocked work items
-
-### 13.2 Additional management metrics
-
-P0/P1:
-
-- Backlog work items
-- Unstarted work items
-- Overdue work items
-- Unassigned work items
-- High/urgent unassigned work
-- Completion rate
-- Allocated work-item count
-- Allocated estimate points
-
-P1:
-
-- Created throughput
-- Completed throughput
-- Reopened work items
-- Average cycle time
-- Median cycle time
-- Average lead time
-- Median lead time
-- Logged time, only when Time Tracking is available
-- Overdue rate
-
-### 13.3 Metric categories
-
-The engine must distinguish:
-
-#### Current-state metrics
-
-Examples:
-
-- blocked;
-- overdue;
-- unassigned;
-- pending;
-- in progress.
-
-These describe the current record state after the selected cohort/source filters.
-
-#### Event metrics
-
-Examples:
-
-- created throughput;
-- completed throughput;
-- reopened.
-
-These are counted by event time.
-
-#### Interval metrics
-
-Examples:
-
-- cycle time;
-- lead time.
-
-These operate on items with the required start/end timestamps.
-
-Do not silently apply identical date semantics to all three categories.
-
-The API response must include metric_semantics metadata.
-
----
-
-## 14. Workload semantics
-
-### 14.1 Work-item count is not time
-
-A task open for ten days is still one work item.
-
-Do not infer ten days of effort.
-
-### 14.2 Estimate points are estimated weight
-
-Estimate points may be used as a better workload proxy than raw count when teams use estimates consistently.
-
-The UI should label this as Estimate points, not Hours.
-
-### 14.3 Logged time is actual effort only when available
-
-Only Time Tracking worklogs may be reported as actual logged time.
-
-Never derive actual hours from:
-
-- start date;
-- due date;
-- completion date;
-- calendar duration.
-
----
-
-## 15. Multi-assignee allocation
-
-Commercial-style grouping normally gives full membership credit to every assignee.
-
-That is useful for membership analytics but can double-count workload.
-
-Analytics V2 therefore defines explicit allocation modes.
-
-### 15.1 Full credit
-
-For a 10-point item with two assignees:
+Target endpoint:
 
 ~~~text
-Assignee A = 10
-Assignee B = 10
+POST /api/workspaces/{slug}/analytics/v2/batch/
 ~~~
 
-Use for backward-compatible distribution/count views.
-
-### 15.2 Split equally
-
-For the same item:
-
-~~~text
-Assignee A = 5
-Assignee B = 5
-~~~
-
-Use for workload allocation.
-
-### 15.3 Defaults
-
-Default rules:
-
-- ordinary Work item count / Estimate points charts: full_credit;
-- workload presets using Assignee as a dimension: split_equal;
-- user can see and change Allocation in advanced widget configuration.
-
-Never change an existing metric from full-credit to split silently.
-
-Allocated metrics must be identifiable in exports/API metadata.
-
----
-
-## 16. Multi-label and multi-membership semantics
-
-A work item may belong to:
-
-- multiple labels;
-- multiple modules;
-- multiple assignees.
-
-For regular grouping, one work item appears in every matching group.
-
-Therefore:
-
-- totals across labels may exceed unique work item count;
-- totals across assignees may exceed unique work item count in full-credit mode;
-- assignee allocation percentages across labels may exceed 100% if the same work item is tagged with multiple product labels.
-
-The UI must not imply otherwise.
-
-When normalization by a multi-valued dimension could exceed 100%, show an info tooltip:
-
-> Work items can belong to multiple values in this dimension. Shares across groups may exceed 100%.
-
-P1 may add split-across-dimension allocation for explicitly mutually-exclusive reporting taxonomies, but this is not required for P0.
-
----
-
-## 17. Percentage normalization
-
-Customized Insights and applicable dashboard widgets support:
-
-- None
-- Group total
-- Series/assignee total
-- Grand total
-
-### 17.1 Group total
-
-Question:
-
-> For Product A, who owns the workload?
-
-For Label x Assignee:
-
-~~~text
-cell / SUM(all assignees for the same label)
-~~~
-
-Each row/category total is 100% when memberships are mutually compatible.
-
-### 17.2 Series / assignee total
-
-Question:
-
-> Where is this person's workload allocated?
-
-For Label x Assignee:
-
-~~~text
-cell / SUM(all labels for the same assignee)
-~~~
-
-With multi-label memberships this may exceed 100%; show the multi-membership notice.
-
-### 17.3 Grand total
-
-Question:
-
-> What share of all selected workload does this cell/category represent?
-
-~~~text
-cell / total selected metric
-~~~
-
-### 17.4 Display mode
-
-- Value
-- Percentage
-- Value + percentage
-
-Example cell:
-
-~~~text
-18 pts · 42.9%
-~~~
-
-CSV exports must include raw value and percentage as separate columns when percentage is enabled.
-
----
-
-## 18. Customized Insights V2
-
-Keep Customized Insights inside Workspace Analytics.
-
-New control row:
-
-~~~text
-[Metric] [Dimension] [Breakdown] [Display] [Normalize] [Allocation]
-~~~
-
-Workspace Analytics header:
-
-~~~text
-[Projects] [Time range] [Date basis]
-~~~
-
-Optional advanced settings:
-
-- date grouping;
-- comparison;
-- sort;
-- Top N;
-- include/exclude empty groups.
-
-### 18.1 Required fixes to current implementation
-
-1. Re-enable DurationDropdown in AnalyticsFilterActions.
-2. Actually pass selected time filters to Analytics V2.
-3. Re-enable Estimate points in the metric selector.
-4. Add x-axis date grouping to the Customized Insights form.
-5. Add display/normalization/allocation settings.
-6. Keep CSV export.
-7. Keep the table beneath the chart.
-8. Add Save to dashboard.
-9. Add drill-down from chart/table cells.
-
-### 18.2 Save to dashboard
-
-Action:
-
-~~~text
-Save to dashboard
-  -> choose dashboard
-  -> widget title
-  -> choose visualization
-  -> save
-~~~
-
-The saved widget stores the AnalyticsQuery V2 configuration.
-
-It does not snapshot current results.
-
----
-
-## 19. Widget system
-
-A widget consists of:
-
-- type;
-- model;
-- title;
-- query;
-- style configuration;
-- layout;
-- time inheritance;
-- optional description.
-
-### 19.1 Generic chart widgets
-
-P0/P1:
-
-- Number
-- Bar
-  - Basic
-  - Stacked
-  - Grouped
-- Line
-  - Basic
-  - Multi-line
-- Area
-  - Basic
-  - Stacked
-  - Comparison
-- Pie
-- Donut
-  - Basic
-  - Progress
-
-### 19.2 Analytical widgets
-
-- Work item statistics
-- Smart counter
-- Smart gauge
-- Matrix table
-- Work items table
-- Assigned to current user
-- Progress by work item type
-- Cycle progress
-- Text / Markdown
-
-### 19.3 Intake widgets
-
-P2 parity:
-
-- Accepted vs declined
-- Average time to accept/decline
-- Intake breakdown
-- Intake ageing
-
-These should use Intake data semantics, not fake them through work-item state queries.
-
----
-
-## 20. Matrix table
-
-The CE Matrix Table intentionally goes beyond Commercial's documented simple "two dimensional table".
-
-It supports a true cross-tab.
-
-Example:
-
-~~~text
-                 Game A         Game B         Game C        Total
-Alex             12 · 31%       7 · 18%       20 · 51%      39
-Anna              5 · 42%       7 · 58%        -            12
-Nova             17 · 68%       3 · 12%        5 · 20%      25
-Total            34             17             25            76
-~~~
-
-Configuration:
-
-- Rows: one dimension
-- Columns: second dimension
-- Metric
-- Display
-- Normalize by row / column / grand total
-- Allocation
-- Show row totals
-- Show column totals
-- Heatmap
-- Sort
-- Max rows / max columns
-
-Use cases:
-
-- Assignee x Product label
-- Assignee x Project
-- Project x State
-- Module x Priority
-- Label x State
-
-Cells support drill-down.
-
----
-
-## 21. Work Items Table
-
-A flat list of matching work items.
-
-Always-visible columns:
-
-- Identifier
-- Name
-- Project
-
-Optional columns:
-
-- State
-- Priority
-- Assignees
-- Due date
-- Start date
-- Labels
-- Cycle
-- Modules
-- Work item type
-- Estimate points
-- Created by
-- Sub-work item count
-- Attachment count
-- Link count
-- Releases, if available
-
-P1/P2 may include:
-
-- customer requests;
-- customer;
-- logged time;
-- custom properties where practical.
-
-Configuration:
-
-- column chooser;
-- sort;
-- rows per page 1-100;
-- widget filters;
-- time scope.
-
-Click row opens the work item.
-
----
-
-## 22. Dynamic viewer filters
-
-Support dynamic filter tokens:
-
-- current_user as assignee;
-- current_user as creator;
-- current_user as subscriber, when supported.
-
-The "Assigned to you" widget is implemented as a Work Items Table preset:
-
-~~~text
-assignee = current_user
-~~~
-
-This lets one shared dashboard render personal work for every signed-in viewer.
-
-Dynamic viewer widgets return no user-specific rows to anonymous published viewers.
-
----
-
-## 23. Progress widgets
-
-### 23.1 Smart Gauge
-
-Group by:
-
-- Project
-- Assignee
-- Label
-- Module
-- Cycle
-- Work item type
-- State-compatible dimensions where meaningful
-
-Metric:
-
-- Work item count
-- Estimate points
-
-Progress:
-
-~~~text
-completed_metric / total_metric
-~~~
-
-Cancelled work treatment must be configurable:
-
-- Exclude cancelled, default
-- Count cancelled as completed
-
-### 23.2 Work item type progress
-
-Rows are work items of selected parent types, for example Epic.
-
-Progress derives from direct sub-items.
-
-Supports:
-
-- work item count;
-- estimate points;
-- linear bar;
-- state-group breakdown;
-- show percentage;
-- include/exclude empty parent items.
-
----
-
-## 24. Cycle progress
-
-Provide parity with Commercial Cycle Progress plus support for the fork's Workspace Cycles.
-
-Cycle target:
-
-- Specific project cycle
-- Current project cycle
-- Next project cycle
-- Specific workspace cycle
-- Current workspace cycle
-
-Display:
-
-- state-group distribution;
-- completed share;
-- total work items;
-- scope change where the necessary historical data exists;
-- blocked items;
-- time elapsed;
-- days left;
-- cycle status.
-
-Dynamic "Current cycle" is important so dashboards do not require manual edits every sprint/quarter.
-
-Workspace-cycle metrics MUST reuse Workspace Cycle ACL semantics.
-
----
-
-## 25. Drill-down
-
-Applicable chart segments/cells are clickable.
-
-Open a right-side drawer:
-
-~~~text
-Workload details
-Label: Game A
-Assignee: Alex
-Metric: Allocated estimate points
-Range: Q3 2026
-
-12 matching work items
-31 allocated estimate points
-
-DES-421  Landing page
-DES-432  Banner
-DES-449  Store artwork
-...
-~~~
-
-The drill-down query MUST be derived from the exact resolved aggregate query.
-
-Do not rebuild filter logic independently in the client.
-
-The drill-down response should include:
-
-- resolved query metadata;
-- total matching rows;
-- paginated work items;
-- raw metric contribution where meaningful.
-
----
-
-## 26. Dashboard filters and PQL
-
-Filter order:
-
-~~~text
-Viewer ACL
-  ∩ dashboard source projects
-  ∩ dashboard filters
-  ∩ dashboard PQL
-  ∩ dashboard time scope
-  ∩ widget filters
-  ∩ widget time override
-  ∩ dynamic viewer filter
-~~~
-
-A widget may only narrow the dashboard base dataset.
-
-It cannot use a project that is outside the dashboard's configured project set.
-
-### 26.1 Filters
-
-Use Plane's existing work-item filter model where possible.
-
-Avoid inventing a separate filter DSL.
-
-### 26.2 PQL
-
-If the existing PQL parser/evaluator is available in the CE code path, reuse it.
-
-PQL errors must:
-
-- fail the affected dashboard/widget cleanly;
-- display a useful validation message;
-- never fall back to an unfiltered query.
-
----
-
-## 27. Dashboard data model
-
-Use dedicated dashboard models.
-
-Do not encode dashboards into generic Pages or Views.
-
-Recommended models follow.
-
-### 27.1 Dashboard
-
-Fields:
-
-- id
-- workspace_id
-- name
-- description
-- owner_id
-- visibility: workspace | private
-- filters JSON
-- pql nullable text
-- default_time_scope JSON
-- comparison JSON
-- created_at
-- updated_at
-- deleted_at
-
-Project scope uses a join table rather than a JSON array.
-
-### 27.2 DashboardProject
-
-Fields:
-
-- dashboard_id
-- project_id
-
-Unique:
-
-~~~text
-(dashboard_id, project_id)
-~~~
-
-### 27.3 DashboardWidget
-
-Fields:
-
-- id
-- dashboard_id
-- title
-- description
-- widget_type
-- widget_model
-- query_config JSON
-- style_config JSON
-- layout_config JSON
-- inherit_time_scope boolean
-- custom_time_scope JSON nullable
-- sort_order
-- created_at
-- updated_at
-- deleted_at
-
-query_config MUST include a schema version.
-
-### 27.4 DashboardMemberAccess
-
-Fields:
-
-- dashboard_id
-- member_id
-- access: view | edit
-
-Unique:
-
-~~~text
-(dashboard_id, member_id)
-~~~
-
-### 27.5 DashboardFavorite
-
-Per-user relation:
-
-- dashboard_id
-- member_id
-
-### 27.6 DashboardPublishLink
-
-P2:
-
-- dashboard_id
-- token_hash
-- is_active
-- published_by
-- created_at
-- regenerated_at
-- optional expires_at, CE extension
-
-Do not store the plaintext share token after creation if avoidable.
-
----
-
-## 28. Permissions
-
-### 28.1 Workspace-visible dashboard
-
-Readable by active workspace members, subject to source-data ACL.
-
-Editable by:
-
-- dashboard owner;
-- workspace admin/owner.
-
-### 28.2 Private dashboard
-
-Readable by:
-
-- dashboard owner;
-- explicitly shared View/Edit members;
-- workspace admin/owner only if existing workspace governance semantics intentionally grant this. Do not assume bypass without checking current Plane permission patterns.
-
-Editable by:
-
-- owner;
-- shared Edit members.
-
-Only owner can:
-
-- delete;
-- change visibility;
-- manage sharing;
-- publish/unpublish.
-
-### 28.3 Data ACL is independent of dashboard access
-
-Being allowed to open a dashboard does NOT grant access to its projects.
-
-Example:
-
-~~~text
-Dashboard configured projects: A, B, C
-Viewer can access: A, C
-Resolved source projects: A, C
-~~~
-
-All totals, legends, facets, percentages, exports, and drill-downs use only A + C.
-
-Do not show "1 hidden project" because even that leaks metadata.
-
----
-
-## 29. Public publishing
-
-P2, default disabled for the fork.
-
-Workspace/instance setting:
-
-~~~text
-Allow anonymous dashboard publishing: OFF
-~~~
-
-When disabled, no Publish tab/action exists.
-
-When enabled:
-
-- only dashboard owner may publish;
-- workspace administrators can revoke published links;
-- public dashboard is read-only;
-- current_user widgets render empty/not-applicable;
-- the link can be regenerated;
-- old token becomes invalid immediately.
-
-Recommended CE safety extensions beyond Commercial:
-
-- optional expiry;
-- optional password in a later phase;
-- audit event for publish/unpublish/regenerate;
-- admin-level kill switch.
-
-Publishing private project data is an intentional disclosure action and must display a warning.
-
----
-
-## 30. Export
-
-### 30.1 Widget export
-
-P0:
-
-- CSV for table/statistical data;
-- copy data.
-
-P1:
-
-- PNG for chart widgets.
-
-### 30.2 Dashboard export
-
-P1:
-
-- PDF;
-- portrait / landscape;
-- charts rendered as images;
-- tables exported as structured content where practical;
-- preserve desktop widget order/layout.
-
-Exports MUST use the same viewer ACL and resolved query as the on-screen dashboard.
-
-No privileged server-side export scope.
-
----
-
-## 31. Favorites and duplication
-
-Favorites are per-user.
-
-Duplicate dashboard:
-
-- copies dashboard configuration;
-- copies project selections;
-- copies widget definitions/layout;
-- does not copy sharing;
-- does not copy publish token;
-- new owner is the duplicating user.
-
----
-
-## 32. Analytics API V2
-
-Recommended base:
-
-~~~text
-/api/workspaces/{workspace_slug}/analytics/v2/
-~~~
-
-### 32.1 Query
-
-~~~text
-POST /query
-~~~
-
-Request:
-
-- AnalyticsQuery V2
-
-Response:
+Conceptual request:
 
 ~~~json
 {
-  "query": {},
-  "resolved": {
-    "start": "...",
-    "end": "...",
-    "timezone": "...",
-    "visible_project_count": 5
-  },
-  "schema": {},
-  "data": [],
-  "totals": {},
-  "warnings": []
-}
-~~~
-
-Do not return inaccessible project identifiers in metadata.
-
-### 32.2 Drill-down
-
-~~~text
-POST /drilldown
-~~~
-
-Input:
-
-- original query;
-- selected dimension values;
-- pagination.
-
-### 32.3 Dashboard batch data
-
-Recommended:
-
-~~~text
-POST /dashboards/{dashboard_id}/data
-~~~
-
-The server resolves:
-
-1. dashboard access;
-2. viewer project ACL;
-3. dashboard filters once;
-4. widget queries.
-
-Response returns independent widget results:
-
-~~~json
-{
-  "dashboard_id": "...",
-  "resolved_time": {},
-  "widgets": {
-    "widget-id-1": {
-      "status": "ok",
-      "data": []
+  "queries": [
+    {
+      "id": "open_work_items",
+      "query": { "...": "AnalyticsQueryV2" }
     },
-    "widget-id-2": {
+    {
+      "id": "workload_by_assignee",
+      "query": { "...": "AnalyticsQueryV2" }
+    },
+    {
+      "id": "workload_matrix",
+      "query": { "...": "AnalyticsQueryV2" }
+    }
+  ]
+}
+~~~
+
+Conceptual response:
+
+~~~json
+{
+  "results": {
+    "open_work_items": {
+      "status": "ok",
+      "data": {}
+    },
+    "workload_by_assignee": {
+      "status": "ok",
+      "data": {}
+    },
+    "workload_matrix": {
       "status": "error",
       "error": {
-        "code": "INVALID_QUERY"
+        "code": "QUERY_LIMIT_EXCEEDED",
+        "message": "..."
       }
     }
   }
 }
 ~~~
 
-One broken widget must not blank the entire dashboard.
+Requirements:
+
+- one failing query must not fail all cards;
+- query/work budgets remain enforced;
+- ACL is applied separately and correctly to every query;
+- results are keyed by stable client-provided card/query ID;
+- response order is not semantically significant;
+- batching must not bypass existing query validation;
+- batch behavior should be reusable by future dashboard composition features.
+
+### 11.1 Migration from current dashboard data endpoint
+
+Do NOT delete existing batch/query composition code before the generic endpoint is working and covered by tests.
+
+Recommended sequence:
+
+1. Extract generic batch execution helper from dashboard-specific endpoint.
+2. Add `/analytics/v2/batch/` using the helper.
+3. Move Workspace Dashboard to the generic endpoint.
+4. Verify result parity.
+5. Remove the dashboard-ID-dependent data endpoint only after no active code depends on it.
 
 ---
 
-## 33. Dashboard CRUD API
+## 12. Renderer architecture
 
-Recommended routes:
+Existing renderer work is valuable and MUST be retained where generic.
 
-~~~text
-GET    /api/workspaces/{slug}/dashboards
-POST   /api/workspaces/{slug}/dashboards
-GET    /api/workspaces/{slug}/dashboards/{id}
-PATCH  /api/workspaces/{slug}/dashboards/{id}
-DELETE /api/workspaces/{slug}/dashboards/{id}
-
-POST   /api/workspaces/{slug}/dashboards/{id}/duplicate
-
-POST   /api/workspaces/{slug}/dashboards/{id}/widgets
-PATCH  /api/workspaces/{slug}/dashboards/{id}/widgets/{widget_id}
-DELETE /api/workspaces/{slug}/dashboards/{id}/widgets/{widget_id}
-
-POST   /api/workspaces/{slug}/dashboards/{id}/layout
-POST   /api/workspaces/{slug}/dashboards/{id}/favorite
-DELETE /api/workspaces/{slug}/dashboards/{id}/favorite
-
-GET    /api/workspaces/{slug}/dashboards/{id}/members
-POST   /api/workspaces/{slug}/dashboards/{id}/members
-PATCH  /api/workspaces/{slug}/dashboards/{id}/members/{member_id}
-DELETE /api/workspaces/{slug}/dashboards/{id}/members/{member_id}
-~~~
-
-P2:
+The target layering is:
 
 ~~~text
-POST   /api/workspaces/{slug}/dashboards/{id}/publish
-DELETE /api/workspaces/{slug}/dashboards/{id}/publish
-POST   /api/workspaces/{slug}/dashboards/{id}/publish/regenerate
+Analytics query result
+       |
+       v
+Generic analytics presentation model
+       |
+       +--> Number
+       +--> Gauge / statistics
+       +--> Bar
+       +--> Line
+       +--> Pie / donut
+       +--> Matrix
+       +--> Aggregate table
+       +--> Work-item table
 ~~~
+
+Dashboard cards call these generic renderers.
+
+Customized Insights may call the same renderers.
+
+Future saved/custom dashboards may call the same renderers.
+
+### 12.1 Namespace cleanup
+
+If reusable renderers currently live under dashboard-specific paths such as:
+
+~~~text
+components/dashboards/widgets/*
+~~~
+
+prefer moving or re-exporting them into a generic analytics presentation namespace rather than deleting them.
+
+For example:
+
+~~~text
+components/analytics/v2/renderers/*
+components/analytics/v2/matrix/*
+components/analytics/v2/export/*
+~~~
+
+Exact paths may follow repository conventions.
+
+### 12.2 Keep renderer capabilities
+
+Preserve, where already implemented and correct:
+
+- number/counter/statistics;
+- gauge;
+- bar;
+- line;
+- pie;
+- donut;
+- matrix table;
+- work-item table;
+- truncation warning display;
+- CSV serialization/export helpers;
+- dimension value resolution;
+- click/drill-down hooks;
+- value + percentage formatting.
 
 ---
 
-## 34. Frontend architecture
+## 13. Drill-down
 
-Recommended new feature area:
+Aggregates must remain explainable.
 
-~~~text
-apps/web/core/components/dashboards/
-apps/web/core/services/dashboard.service.ts
-apps/web/core/store/dashboard.store.ts
-~~~
+Where a chart/matrix cell corresponds to a deterministic work-item set, clicking it should open a work-item drill-down drawer.
 
-Add routes in:
+The drill-down request must use:
 
-~~~text
-apps/web/app/routes/core.ts
-~~~
+- the same source query;
+- the same global filters;
+- the same card-local filters;
+- the selected dimension value(s);
+- the same ACL-scoped backend path.
 
-Suggested component split:
+No client-side approximation of the underlying item set.
 
-~~~text
-dashboards/
-├── list/
-├── detail/
-├── grid/
-├── widgets/
-│   ├── number/
-│   ├── bar/
-│   ├── line/
-│   ├── area/
-│   ├── pie/
-│   ├── donut/
-│   ├── matrix-table/
-│   ├── work-items-table/
-│   ├── statistics/
-│   ├── counter/
-│   ├── gauge/
-│   ├── progress/
-│   ├── cycle-progress/
-│   └── markdown/
-├── config/
-├── filters/
-├── share/
-└── templates/
-~~~
-
-Generic chart renderers should reuse @plane/propel chart components where practical.
-
-Do not fork chart libraries unnecessarily.
+Known date-bucket drill-down limitations should remain tracked separately rather than blocking categorical drill-down.
 
 ---
 
-## 35. Analytics frontend refactor
+## 14. ACL and security contract
 
-Introduce shared Analytics V2 types in packages/types.
+ACL filtering happens BEFORE all observable aggregation.
 
-Suggested concepts:
+This applies to:
 
-- TAnalyticsQueryV2
-- TAnalyticsMetric
-- TAnalyticsDimension
-- TAnalyticsTimeScope
-- TAnalyticsComparison
-- TAnalyticsNormalization
-- TAnalyticsAllocation
-- TAnalyticsQueryResponse
-- TAnalyticsDrilldownRequest
-
-The existing Customized Insights form should be migrated to these types.
-
-Legacy ChartXAxisProperty and ChartYAxisMetric may remain as compatibility adapters until all existing Analytics components migrate.
-
----
-
-## 36. Backend query engine
-
-Create a centralized analytics-query service rather than per-widget ORM code.
-
-Conceptual modules:
-
-~~~text
-analytics/
-├── acl.py
-├── query.py
-├── metrics.py
-├── dimensions.py
-├── filters.py
-├── time_scope.py
-├── normalization.py
-├── allocation.py
-├── comparison.py
-├── serializer.py
-└── drilldown.py
-~~~
-
-Responsibilities:
-
-### acl.py
-
-Resolve visible project/work-item base scope.
-
-### dimensions.py
-
-Map stable dimension keys to ORM expressions/join strategies.
-
-### metrics.py
-
-Map metric keys to aggregation semantics.
-
-### filters.py
-
-Apply structured filters/PQL.
-
-### time_scope.py
-
-Resolve preset and custom time windows using workspace timezone.
-
-### allocation.py
-
-Handle full-credit vs split-equal contribution.
-
-### normalization.py
-
-Calculate percentages from already ACL-filtered aggregates.
-
-### comparison.py
-
-Resolve reference period and execute compatible comparison query.
-
-### drilldown.py
-
-Convert aggregate selection into matching raw item query.
-
-Do not accept arbitrary client-provided database field names.
-
-Every metric/dimension must come from a server-side registry.
-
----
-
-## 37. ACL safety requirements
-
-This section is mandatory.
-
-### 37.1 Resolve visible projects first
-
-Conceptually:
-
-~~~python
-visible_project_ids = get_accessible_project_ids(
-    principal=request.user_or_service_principal,
-    workspace=workspace,
-)
-
-base_issue_qs = Issue.objects.filter(
-    workspace=workspace,
-    project_id__in=visible_project_ids,
-)
-~~~
-
-Every analytics source starts from an equivalent authorized set.
-
-### 37.2 No side channels
-
-Do not leak hidden data through:
-
-- total counts;
-- chart stack totals;
+- counts;
+- sums;
 - percentages;
-- "Other";
-- labels;
-- assignee names;
-- filter options;
-- project count;
+- normalization denominators;
 - matrix totals;
-- pagination totals;
-- exports;
-- comparison deltas;
-- public links;
-- cache hits;
-- errors.
-
-### 37.3 Query validation
-
-If a query references a project outside dashboard scope or viewer ACL:
-
-- ignore/remove it from the effective source set;
-- do not reveal whether it exists.
-
-### 37.4 Service tokens
-
-When Analytics V2 is called by the fork's workspace/instance service tokens, use the centralized service-principal permission resolver.
-
-Do not special-case service tokens to bypass project/workspace boundaries.
-
----
-
-## 38. Query correctness and timezone
-
-All preset boundaries must be resolved in workspace timezone.
-
-Persist timestamps in UTC.
-
-API response includes resolved local timezone and UTC boundaries.
-
-Tests must cover:
-
-- DST timezone;
-- non-DST timezone;
-- month boundary;
-- quarter boundary;
-- year boundary;
-- exact start inclusive;
-- exact end exclusive.
-
-Recommended interval convention:
-
-~~~text
-[start, end)
-~~~
-
-This avoids double-counting adjacent periods.
-
----
-
-## 39. Created/completed trend
-
-Migrate the existing CreatedVsResolved chart to Analytics V2.
-
-Current behavior should remain recognizable, but time filtering becomes real.
-
-Query concept:
-
-- metric A: created events in bucket;
-- metric B: completed events in bucket;
-- dimension: date bucket;
-- dashboard/analytics time scope.
-
-A period with no events should render zero for count series where appropriate.
-
----
-
-## 40. Performance
-
-P0 must be safe on a normal PostgreSQL Plane deployment.
-
-Do not add ClickHouse or another analytical database.
-
-### 40.1 Query caps
-
-Defaults:
-
-- max groups: 20
-- configurable max rows: 100
-- max matrix rows: 50
-- max matrix columns: 30
-- work item table page size: max 100
-
-### 40.2 Batch dashboard loading
-
-Prefer one dashboard-data batch request rather than one network request per widget.
-
-The backend may still execute widget queries independently, but it should reuse:
-
-- resolved ACL project IDs;
-- dashboard base filters;
-- resolved time range.
-
-### 40.3 Database indexes
-
-Before implementation is merged, inspect actual query plans and add only justified indexes.
-
-Likely hot fields:
-
-- workspace_id;
-- project_id;
-- state_id;
-- created_at;
-- completed_at;
-- start_date;
-- target_date;
-- assignee join;
-- label join;
-- cycle join;
-- module join;
-- relation type for blocked.
-
-Do not add speculative duplicate indexes.
-
-### 40.4 Caching
-
-P0 recommendation:
-
-- no cross-user aggregate cache;
-- optional short-lived per-principal/query-hash cache only after correctness is established.
-
-Never cache dashboard data only by dashboard_id.
-
-Viewer ACL changes must not reuse another viewer's aggregate result.
-
----
-
-## 41. Failure behavior
-
-Dashboard load should be resilient.
-
-If one widget fails:
-
-- render that widget's error state;
-- keep other widgets usable;
-- expose Retry;
-- log structured query error.
-
-Invalid filter/PQL:
-
-- do not fall back to broader data;
-- show Invalid filter/query.
-
-Unavailable source feature:
-
-Example: Estimate points requested for projects without point estimates.
-
-Return:
-
-- zero contribution where this matches existing Plane semantics;
-- a warning in response metadata when useful.
-
----
-
-## 42. Empty states
-
-Dashboard list:
-
-- no dashboards -> explain purpose + Create dashboard.
-
-Dashboard detail:
-
-- no widgets -> Add widget / choose template.
-
-Widget:
-
-- valid query, zero results -> No matching data.
-- insufficient configuration -> Configure widget.
-- missing permission/source after ACL -> No accessible data, without revealing hidden objects.
-
----
-
-## 43. i18n
-
-All new user-visible strings use Plane i18n.
-
-Do not ship English-only control labels such as:
-
-- Normalize
-- Allocation
-- Compare
-- Previous quarter
-- Save to dashboard
-- Matrix
-- Drill down
-- Public link warning
-
-Reuse existing common strings where possible.
-
----
-
-## 44. Migration and rollout
-
-### 44.1 Database migration
-
-Add dashboard tables.
-
-No existing work-item data migration.
-
-No dashboard backfill required.
-
-### 44.2 Analytics compatibility
-
-Keep legacy endpoints active during migration.
-
-Introduce V2 alongside them.
-
-Suggested sequence:
-
-1. Analytics V2 query engine and tests.
-2. Customized Insights V2.
-3. Enable actual time-range filtering.
-4. Dashboard models/API.
-5. Dashboard UI.
-6. Specialized widgets.
-7. Export/sharing/publishing.
-8. Migrate legacy analytics charts opportunistically.
-
-### 44.3 Feature flag
-
-Recommended during development:
-
-~~~text
-WORKSPACE_DASHBOARDS
-~~~
-
-Default off until P0 acceptance criteria pass.
-
-Customized Insights time-range fixes may ship independently if backward compatible.
-
----
-
-## 45. P0 implementation scope
-
-P0 should already be useful enough to replace most day-to-day Commercial dashboard usage for internal teams.
-
-### Analytics Engine
-
-- canonical AnalyticsQuery V2;
-- viewer ACL;
-- multi-project scope;
-- structured filters;
-- time presets/custom range;
-- date basis;
-- date grouping incl. quarter;
-- Work item count;
-- Estimate points;
-- Pending;
-- Completed;
-- In progress;
-- Due today;
-- Due this week;
-- Blocked;
-- Overdue;
-- Unassigned;
-- normalization;
-- full-credit/split-equal allocation;
+- date series;
+- comparison values;
+- filter facets;
+- dimension labels;
 - drill-down;
-- batch dashboard data endpoint.
+- CSV export;
+- batch results;
+- card metadata derived from query results.
 
-### Customized Insights
+A hidden private project must contribute zero observable information to an unauthorized viewer.
 
-- activate time range;
-- re-enable Estimate points;
-- display Value / % / Value+%;
+### 14.1 Dashboard has no separate sharing ACL in P0
+
+Because the dashboard is a built-in workspace view, its visibility follows normal workspace access.
+
+Data visibility follows the viewer's existing Plane workspace/project ACL.
+
+There is no separate:
+
+- dashboard owner;
+- dashboard viewer;
+- dashboard editor;
+- dashboard member-sharing layer.
+
+This deliberately removes a large class of authorization problems from the P0 product.
+
+### 14.2 Preserve Analytics V2 security work
+
+Do not weaken existing protections such as:
+
+- ACL-scoped base issue queryset;
+- project scope intersection;
+- registry validation of metrics/dimensions;
+- allowlisted structured filters;
+- query/group/work budgets;
+- fail-closed behavior where applicable.
+
+---
+
+## 15. User preference persistence
+
+Users may customize how the built-in dashboard appears without mutating a shared workspace dashboard object.
+
+Preference identity:
+
+~~~text
+(workspace, user)
+~~~
+
+Conceptual preference payload:
+
+~~~json
+{
+  "schema_version": 1,
+  "global": {
+    "time": { "preset": "this_quarter" },
+    "date_basis": "lifecycle_overlap",
+    "project_ids": [],
+    "filters": {}
+  },
+  "cards": {
+    "workload_by_assignee": {
+      "metric": "estimate_points",
+      "dimension": "assignee",
+      "breakdown": "project",
+      "display": "value_and_percentage",
+      "normalization": "grand_total",
+      "allocation": "split_equal",
+      "renderer": "bar"
+    },
+    "workload_matrix": {
+      "dimension": "assignee",
+      "breakdown": "label",
+      "normalization": "series_total"
+    }
+  }
+}
+~~~
+
+### 15.1 P0 persistence choice
+
+Preferred:
+
+- reuse an existing Plane per-user/per-workspace preference mechanism if one exists and is appropriate.
+
+Acceptable temporary fallback:
+
+- localStorage, if server-side preference storage would materially delay the product reset.
+
+But the preference API/data shape should be designed so moving from localStorage to server persistence does not require changing card IDs or query semantics.
+
+### 15.2 No shared mutable dashboard state
+
+One user's changes to:
+
+- metric;
+- grouping;
+- visualization;
+- filters;
+- time range;
+
+must not unexpectedly reconfigure the dashboard for other users.
+
+### 15.3 Reset/versioning
+
+Preferences require:
+
+- `schema_version`;
+- safe ignore of unknown card IDs;
+- fallback to product defaults when a card definition changes;
+- reset-to-default support.
+
+---
+
+## 16. Current implementation audit — KEEP / EXTRACT / REMOVE
+
+This section is an implementation contract, not a suggestion.
+
+### 16.1 KEEP — backend analytics engine
+
+Preserve the current Analytics V2 capabilities and tests, including equivalent code responsible for:
+
+- canonical query validation;
+- metric registry;
+- dimension registry;
+- time scope resolution;
+- date grouping;
 - normalization;
 - allocation;
-- date grouping;
-- save to dashboard.
+- ACL project scoping;
+- structured filters;
+- PQL integration where already supported;
+- aggregate execution;
+- warning/truncation handling;
+- drill-down;
+- serializers/response metadata;
+- query budgets/work caps.
 
-### Dashboard
+These are foundational assets for Dashboard, Analytics, CLI, and future agents.
 
-- list/create/update/delete;
-- multi-project source;
-- dashboard filters;
-- private/workspace visibility;
-- grid;
-- drag/drop;
-- resize;
-- view/edit mode;
-- built-in templates;
-- favorite;
-- duplicate.
+### 16.2 KEEP — frontend analytics/query primitives
 
-### P0 widgets
+Preserve/reuse equivalent code for:
 
-- Number
-- Bar basic/stacked/grouped
-- Line basic/multi-line
-- Pie
-- Donut basic/progress
-- Work item statistics
-- Smart counter
-- Smart gauge
-- Matrix table
-- Work Items Table
-- Assigned to current user
-- Text/Markdown
+- Customized Insights V2 query building;
+- legacy-to-V2 mappings where still needed;
+- cells -> chart/table presentation mapping;
+- percentage/value formatting;
+- drill-down selection mapping;
+- UUID/dimension label resolution;
+- analytics controls for Metric/Dimension/Breakdown/Display/Normalize/Allocation/Date grouping.
 
-### Export
+### 16.3 KEEP or EXTRACT — chart/render infrastructure
 
-- CSV per applicable widget.
+Do not delete generic implementations merely because they were introduced under Dashboard.
 
----
+Keep or extract:
 
-## 46. P1 implementation scope
+- number/stat renderer;
+- gauge renderer;
+- bar renderer;
+- line renderer;
+- pie renderer;
+- donut renderer;
+- matrix model + renderer;
+- aggregate table renderer;
+- work-item table renderer;
+- CSV helpers;
+- truncation warning UI;
+- chart click hooks;
+- drill-down drawer integration;
+- analytics response parsing.
 
-- Area basic/stacked/comparison;
-- reusable previous-period comparison;
-- completion rate;
-- throughput;
-- average/median cycle time;
-- average/median lead time;
-- progress by work item type;
-- project cycle progress;
-- workspace cycle progress;
-- member sharing View/Edit;
-- chart PNG export;
-- dashboard PDF export;
-- logged-time metrics where Time Tracking is available;
-- additional dashboard templates.
+### 16.4 KEEP or EXTRACT — batch/query composition plumbing
 
----
+Preserve useful backend behavior such as:
 
-## 47. P2 implementation scope
+- composing a base/global query with a card-local query;
+- resolving dynamic viewer tokens if still required;
+- partial failure per query;
+- executing multiple analytics queries efficiently;
+- reusing the Analytics V2 engine rather than client-side aggregation.
 
-Commercial/Enterprise parity extras and optional extensions:
+Move these capabilities to a generic analytics layer where possible.
 
-- Intake accepted vs declined;
-- average time to accept/decline;
-- Intake breakdown;
-- Intake ageing;
-- anonymous publish link;
-- link regeneration;
-- optional link expiry;
-- publish audit events;
-- advanced style/color controls;
-- custom dashboard template management;
-- richer API for external agents;
-- agent-created dashboards;
-- custom-property dimensions after performance validation.
+### 16.5 REMOVE from product surface
 
----
+Remove UI/features for:
 
-## 48. Agent/API readiness
-
-Do not embed an LLM dependency in dashboard core.
-
-The dashboard API must be declarative enough that an external agent can create a dashboard by generating valid config.
-
-Example future flow:
-
-~~~text
-User:
-"Create a Design workload dashboard for this quarter,
-group products by label and split estimate points by assignee."
-
-GoClaw / agent
-    -> generate AnalyticsQuery/widget configs
-    -> POST dashboard
-    -> POST widgets
-~~~
-
-No OpenAI-specific provider dependency is needed inside Plane.
-
-Service tokens may use these endpoints subject to their scopes and ACL model.
-
----
-
-## 49. Testing requirements
-
-### 49.1 Unit tests
-
-- time preset resolution;
-- quarter boundaries;
-- normalization math;
-- split allocation;
-- full-credit allocation;
-- multi-assignee;
-- multi-label warning;
-- comparison period resolution;
-- metric registry validation;
-- dimension registry validation.
-
-### 49.2 API tests
-
-- dashboard CRUD;
-- widget CRUD;
-- favorite;
-- duplicate;
-- private/workspace visibility;
-- sharing;
-- ACL intersection;
-- batch partial failure;
-- drill-down parity with aggregate;
-- export ACL.
-
-### 49.3 ACL regression tests
-
-Construct:
-
-- public project A;
-- private project B;
-- private project C;
-- User X sees A+B;
-- User Y sees A+C.
-
-For the same dashboard:
-
-- X totals derive only from A+B;
-- Y totals derive only from A+C;
-- neither response reveals the hidden project in schema, totals, percentages, labels, facets, drill-down, CSV, or error metadata.
-
-### 49.4 Workload tests
-
-10-point issue assigned to A+B:
-
-Full credit:
-
-~~~text
-A = 10
-B = 10
-~~~
-
-Split equal:
-
-~~~text
-A = 5
-B = 5
-~~~
-
-The raw issue remains one issue in drill-down.
-
-### 49.5 Time tests
-
-An item:
-
-~~~text
-created_at   = Jul 10
-completed_at = Sep 12
-~~~
-
-For September:
-
-- created_at basis -> excluded;
-- completed_at basis -> included;
-- lifecycle_overlap -> included.
-
-### 49.6 Frontend tests
-
+- dashboard list;
+- Mine/Shared/Favorites tabs;
+- create dashboard;
+- dashboard card/list item;
+- dashboard rename;
+- dashboard duplicate;
+- dashboard favorite;
+- dashboard share/members;
+- owner/visibility UI;
 - edit/view mode;
-- drag/resize persistence;
-- time range inheritance;
-- widget override;
-- percentage display;
-- matrix row/column totals;
-- save insight to dashboard;
-- current-user dynamic filter;
-- mobile stacking;
-- empty/error states.
+- add widget;
+- markdown widget;
+- widget deletion;
+- widget library;
+- drag/resize;
+- 12-column editable grid;
+- layout persistence controls;
+- manual source-project persistence belonging to a dashboard instance.
+
+### 16.6 REMOVE or deprecate — builder-specific API surface
+
+After the fixed Workspace Dashboard no longer depends on them, remove/deprecate APIs equivalent to:
+
+~~~text
+GET/POST    /workspaces/{slug}/dashboards/
+GET/PATCH   /workspaces/{slug}/dashboards/{id}/
+DELETE      /workspaces/{slug}/dashboards/{id}/
+POST        /workspaces/{slug}/dashboards/{id}/duplicate/
+POST/DELETE /workspaces/{slug}/dashboards/{id}/favorite/
+GET/POST    /workspaces/{slug}/dashboards/{id}/members/
+GET/POST    /workspaces/{slug}/dashboards/{id}/widgets/
+PATCH/DELETE /workspaces/{slug}/dashboards/{id}/widgets/{widgetId}/
+PATCH       /workspaces/{slug}/dashboards/{id}/layout/
+~~~
+
+Do not remove the old batch/data endpoint until equivalent generic Analytics V2 batch execution has landed and the new Dashboard has migrated to it.
+
+### 16.7 Builder data models
+
+Models created solely for the previous builder design include concepts equivalent to:
+
+- `Dashboard`;
+- `DashboardProject`;
+- `DashboardWidget`;
+- `DashboardMemberAccess`;
+- `DashboardFavorite`.
+
+These models are NOT required by the target P0 product.
+
+However, schema removal should happen only after code migration is complete.
+
+Do not modify historical migrations in place on a branch already used by deployments.
+
+Use a forward migration when removal is safe.
 
 ---
 
-## 50. Acceptance criteria
+## 17. Safe implementation sequence
 
-P0 is complete when all of the following are true:
+The cleanup must be staged so reusable work is not lost and staging/production migrations remain sane.
 
-1. A workspace user can create a dashboard from one or more projects.
-2. The same dashboard renders only data the current viewer can access.
-3. A user can select This quarter or a custom time range and see all inheriting widgets update.
-4. Customized Insights can show Label x Assignee.
-5. Metric can be Work item count or Estimate points.
-6. Display can be Value, Percentage, or Value + Percentage.
-7. Normalization can answer both:
-   - "Who contributes to this product?"
-   - "Where is this assignee's workload allocated?"
-8. Split-equal allocation correctly handles multi-assignee work.
-9. A configured Customized Insight can be saved as a dashboard widget.
-10. Dashboard widgets can be dragged and resized.
-11. Dashboard supports Number, bar/stacked/grouped, line, pie/donut, matrix, statistics/counter/gauge, and work-item table.
-12. Aggregate cells/chart segments support drill-down to matching work items.
-13. Dashboard and widget filters compose by intersection.
-14. CSV export uses the exact same ACL-filtered values displayed on screen.
-15. Existing Workspace Analytics continues to function during migration.
-16. No tested ACL side channel exposes hidden project information.
+### Phase A — Freeze the old builder product
 
----
+1. Treat this spec as authoritative.
+2. Stop adding features to the old dashboard list/grid/sharing model.
+3. Keep current feature flag fail-closed until the fixed dashboard is ready.
+4. Add tests where necessary to pin reusable Analytics V2 behavior before refactoring.
 
-## 51. Recommended implementation order
+### Phase B — Extract reusable analytics presentation infrastructure
 
-### Phase A — Analytics correctness
+1. Identify dashboard-specific renderer files that are generic.
+2. Move/re-export them under Analytics V2/shared presentation namespace.
+3. Keep behavior and tests equivalent.
+4. Extract generic batch execution from dashboard-ID-specific APIs.
+5. Add `/analytics/v2/batch/`.
 
-1. Add Analytics V2 types.
-2. Implement ACL-safe base queryset.
-3. Implement time-scope resolver.
-4. Implement metric registry.
-5. Implement dimension registry.
-6. Implement aggregation.
-7. Implement allocation.
-8. Implement normalization.
-9. Implement drill-down.
-10. Add API tests.
+Acceptance gate:
 
-### Phase B — Customized Insights
+- Analytics V2 query tests pass;
+- renderer tests pass;
+- batch result parity verified;
+- drill-down/CSV behavior remains intact.
 
-1. Re-enable duration selector.
-2. Move Customized Insights to V2.
-3. Re-enable Estimate points.
-4. Add percentage/normalization.
-5. Add allocation selector.
-6. Add date grouping.
-7. Add drill-down.
-8. Add Save to dashboard.
+### Phase C — Build fixed Workspace Dashboard
 
-### Phase C — Dashboard core
+1. Add single workspace route.
+2. Implement product-defined card registry.
+3. Implement fixed responsive layout.
+4. Implement global filters.
+5. Implement card configuration controls.
+6. Build batched query requests from card definitions + preferences.
+7. Reuse generic renderers.
+8. Implement per-user preference persistence.
+9. Add reset behavior.
 
-1. Models/migrations.
-2. CRUD API.
-3. dashboard list route.
-4. dashboard detail route.
-5. responsive grid.
-6. edit/view mode.
-7. project/filter/time header.
-8. widget CRUD/layout persistence.
-9. batch data endpoint.
+### Phase D — Remove old builder UI
 
-### Phase D — Widgets
+Delete/deactivate:
 
-1. Number.
-2. Bar.
-3. Line.
-4. Pie/Donut.
-5. Matrix.
-6. Work Items Table.
-7. Statistics.
-8. Smart Counter.
-9. Smart Gauge.
-10. Assigned to current user.
-11. Markdown.
+- dashboard list;
+- create flow;
+- tabs/favorites;
+- edit mode;
+- grid drag/resize;
+- widget CRUD UI;
+- share/owner/visibility UI;
+- Save to dashboard from Customized Insights.
 
-### Phase E — Management features
+### Phase E — Remove old builder APIs/models
 
-1. Templates.
-2. Favorites.
-3. Duplicate.
-4. Comparison.
-5. Progress widgets.
-6. Cycle widgets.
-7. Sharing.
-8. PDF/PNG export.
+Only after no active UI/service depends on them:
 
-### Phase F — Commercial parity extras
+1. remove dashboard CRUD/sharing/favorite/layout/widget endpoints;
+2. remove obsolete services/types;
+3. create a forward migration dropping builder-only tables if confirmed unused;
+4. retain generic analytics batch/query/render code;
+5. retain migration compatibility for existing deployed databases.
 
-1. Intake widgets.
-2. Anonymous publishing.
-3. Advanced styling.
-4. Agent/API polish.
+### Phase F — cleanup documentation/tests
+
+1. remove stale builder-specific i18n;
+2. remove stale feature descriptions;
+3. update operator env docs;
+4. update tests to target fixed-dashboard behavior;
+5. keep regression coverage for Analytics V2.
 
 ---
 
-## 52. Explicit non-goals for P0
+## 18. Customized Insights relationship
 
-P0 does not require:
+Customized Insights remains the ad-hoc analysis tool.
 
-- a separate OLAP database;
-- ClickHouse;
-- Elasticsearch;
-- arbitrary SQL;
-- user-defined formulas;
-- custom dashboard JavaScript;
-- LLM-generated insights;
-- forecasting;
-- employee performance scoring;
-- inferred work hours;
-- historical snapshot reconstruction that Plane does not have source data to support.
+It should continue to expose the richer query controls and share query semantics/renderers with Dashboard.
 
-The design should leave room for these where appropriate without blocking P0.
+### 18.1 Remove Save to dashboard for P0
+
+The previous flow:
+
+~~~text
+Customized Insight
+  -> Save to dashboard
+  -> choose dashboard
+  -> choose widget title/type
+  -> create widget
+~~~
+
+belongs to the old dashboard-builder model and should be removed from the active UI.
+
+### 18.2 Possible future controlled integration
+
+A future feature may allow something like:
+
+~~~text
+Apply this configuration to:
+[Workload by assignee]
+~~~
+
+or:
+
+~~~text
+Save as personal analytics preset
+~~~
+
+but it must not be implemented until there is a clear product need.
 
 ---
 
-## 53. Key product decisions
+## 19. Query semantics that must remain explicit
 
-The implementation should treat these as resolved unless new source-code constraints require revision:
+### 19.1 Work-item count is not time spent
 
-1. Dashboards are a new workspace feature, not a renamed Analytics tab.
-2. Customized Insights is the ad-hoc builder and can save to dashboards.
-3. One Analytics V2 engine serves both.
-4. Time range is first-class.
-5. Workload and duration are separate concepts.
-6. Estimate points are supported.
-7. Multi-assignee workload can be split equally.
-8. Percentage normalization is first-class.
-9. Matrix/cross-tab is first-class.
-10. Drill-down is required for trust/explainability.
-11. ACL filtering happens before every aggregation.
-12. Public anonymous publishing is not enabled by default in the CE fork.
-13. AI is external/optional; dashboard core stays deterministic.
+Do not label task duration or age as workload.
+
+Workload can be represented by:
+
+- count;
+- allocated count;
+- estimate points;
+- allocated estimate points;
+- logged time when available.
+
+### 19.2 Multi-membership allocation
+
+If one work item belongs to multiple assignees/labels/etc., full-credit grouping can inflate totals.
+
+Keep explicit allocation behavior:
+
+- `full_credit`;
+- `split_equal`.
+
+Display warnings/metadata where totals may appear counter-intuitive.
+
+### 19.3 Percentages require an explicit denominator
+
+Percentage without denominator semantics is invalid.
+
+Normalization must explicitly define whether percentage is relative to:
+
+- row/group total;
+- column/series total;
+- grand total.
+
+### 19.4 Current-state vs event metrics
+
+Do not apply identical date semantics blindly to:
+
+- current-state metrics;
+- created/completed event metrics;
+- interval metrics.
+
+The backend remains authoritative for metric semantics.
+
+---
+
+## 20. Performance requirements
+
+Dashboard should not trigger one uncontrolled request per card when a batch request can serve the same purpose.
+
+Requirements:
+
+- use generic Analytics V2 batch endpoint for aggregate cards;
+- partial failure per card;
+- reasonable query/work budgets;
+- do not fetch inaccessible projects then filter client-side;
+- avoid duplicate identical queries within a single render;
+- stable cache keys based on query payload + workspace/viewer context;
+- changing one local card preference should ideally only invalidate the affected query/card when practical;
+- changing global scope invalidates affected cards consistently.
+
+P0 does not require materialized analytics cubes.
+
+Use current database query engine and optimize only with evidence from real workloads.
+
+---
+
+## 21. API consumers / plane-cli / agents
+
+Analytics V2 should remain usable without the Dashboard UI.
+
+The generic APIs should support future consumers such as:
+
+- `plane-cli`;
+- scheduled digest jobs;
+- management agents;
+- reporting/export tooling.
+
+Do not require consumers to create fake dashboard/widget database objects just to execute analytics queries.
+
+This is another reason the generic batch API belongs under Analytics rather than Dashboard CRUD.
+
+---
+
+## 22. Feature flag behavior
+
+Retain a workspace-dashboard feature flag while migration/refactor is in progress.
+
+Expected behavior:
+
+- flag off: Dashboard navigation and route unavailable/fail-closed;
+- flag on: fixed Workspace Dashboard shown;
+- no fallback to old dashboard builder once the new dashboard is active.
+
+The flag should gate the product surface, not the generic Analytics V2 engine if other features depend on that engine.
+
+---
+
+## 23. Migration / compatibility rules
+
+### 23.1 Do not rewrite historical migrations
+
+If dashboard models already shipped in migration `0134` or equivalent, do not edit that migration in place for deployed environments.
+
+### 23.2 Forward cleanup migration
+
+Only after all runtime references are removed, add a forward migration to drop builder-only tables if the team confirms they are not needed.
+
+### 23.3 Existing dashboard data
+
+The previous builder was not the desired production product. There is no requirement to preserve user-authored dashboard composition as first-class migrated content unless real production data is discovered.
+
+Before dropping tables:
+
+- verify whether any production instance contains meaningful dashboard rows;
+- if yes, export/backup them before removal;
+- do not attempt a complex automatic transformation into the fixed dashboard unless there is an actual business requirement.
+
+### 23.4 Preference migration
+
+Do not convert old dashboard widget layouts into user preferences.
+
+New preferences start from product defaults.
+
+---
+
+## 24. Testing requirements
+
+### 24.1 Analytics regression
+
+Must continue passing:
+
+- metric calculations;
+- dimension grouping;
+- percentage normalization;
+- split-equal allocation;
+- date grouping incl. quarter;
+- ACL scoping;
+- query work caps;
+- drill-down;
+- CSV serialization where applicable.
+
+### 24.2 Dashboard product tests
+
+Cover at minimum:
+
+1. Workspace has one dashboard route and no dashboard list.
+2. No create-dashboard UI.
+3. No add-widget UI.
+4. No drag/resize/edit-layout mode.
+5. Default cards render.
+6. Global time range updates relevant queries.
+7. Project filter updates all relevant card queries.
+8. Card Metric change updates only that card configuration.
+9. Card Group by / Breakdown changes generate valid Analytics V2 queries.
+10. Display percentage uses correct normalization.
+11. Split-equal allocation remains correct.
+12. Matrix supports Assignee x Project.
+13. Matrix supports Assignee x Label.
+14. Viewer cannot observe hidden-project contribution in any total/percentage.
+15. One failed batch query does not blank the entire dashboard.
+16. Drill-down rows match aggregate selection.
+17. User preferences are isolated per user.
+18. Reset restores product defaults.
+19. Unknown/stale preference card IDs do not break rendering.
+20. Narrow viewport stacks cards deterministically.
+
+### 24.3 Security tests
+
+At minimum:
+
+- non-workspace user denied;
+- Guest/member semantics follow normal Plane workspace/project ACL for reading analytics;
+- hidden private project contributes no aggregates;
+- hidden project names/IDs do not appear in facets/metadata;
+- batch endpoint cannot bypass ACL;
+- drill-down cannot widen scope;
+- CSV cannot widen scope;
+- invalid metrics/dimensions rejected;
+- expensive/bad queries remain bounded.
+
+---
+
+## 25. Acceptance criteria — product
+
+P0 is accepted only when all of the following are true:
+
+- [ ] Each workspace exposes one built-in Dashboard.
+- [ ] User does not need to create or configure a dashboard before seeing useful data.
+- [ ] Dashboard contains the complete default card set or an explicitly approved equivalent.
+- [ ] There is no dashboard list / Mine / Shared / Favorites UX.
+- [ ] There is no user-facing create/duplicate/share/favorite dashboard flow.
+- [ ] There is no drag/resize/edit-grid UI.
+- [ ] There is no arbitrary add/delete widget UX.
+- [ ] Global time range works.
+- [ ] Global project/filter scope works.
+- [ ] Cards expose controlled query configuration.
+- [ ] Workload by assignee works by count and estimate points.
+- [ ] Assignee x Project matrix works.
+- [ ] Assignee x Label matrix works for mono-project/product-label teams.
+- [ ] Value / percentage / value+percentage display works.
+- [ ] Normalization semantics are correct and explicit.
+- [ ] Split-equal allocation works.
+- [ ] Drill-down works for supported categorical aggregates.
+- [ ] ACL is applied before aggregation.
+- [ ] One user's preferences do not mutate another user's dashboard.
+- [ ] Dashboard uses Analytics V2, not a parallel aggregation engine.
+
+---
+
+## 26. Acceptance criteria — implementation cleanup
+
+- [ ] Existing Analytics V2 backend engine is preserved.
+- [ ] Generic chart/render code introduced by the previous Dashboard phase is preserved/extracted, not discarded.
+- [ ] Matrix/CSV/truncation/drill-down helpers remain reusable.
+- [ ] Generic batch execution exists under Analytics V2 before dashboard-specific data endpoint is removed.
+- [ ] Builder UI is removed from active routes.
+- [ ] Builder-specific CRUD/sharing/favorite/layout APIs are removed only after all consumers migrate.
+- [ ] Historical migrations are not edited destructively.
+- [ ] Builder-only tables are dropped only through a safe forward migration and only after confirming no required production data.
+- [ ] Stale old-spec tests are replaced with tests matching this spec.
+- [ ] Documentation no longer instructs developers to implement a general dashboard builder for P0.
+
+---
+
+## 27. Future extension contract
+
+Future dashboard expansion should build on these preserved layers:
+
+~~~text
+Analytics Engine V2
+        |
+        +-- Query schema / metrics / dimensions / ACL
+        |
+        +-- Batch execution
+        |
+        +-- Drill-down / export
+        |
+        +-- Generic renderer library
+        |
+        +-- Dashboard card definition schema
+                 |
+                 +-- Built-in fixed Workspace Dashboard (P0)
+                 +-- Admin presets (future)
+                 +-- Optional custom cards (future)
+                 +-- Multiple dashboards (future, only if justified)
+~~~
+
+If multiple dashboards are reintroduced later, they should compose these stable abstractions rather than reimplementing query/render logic.
+
+Do not pre-build ownership/sharing/layout complexity until the corresponding product requirement exists.
+
+---
+
+## 28. Implementation guidance for agents
+
+Agents implementing this spec MUST classify every touched dashboard-related file as one of:
+
+- **KEEP** — generic analytics capability;
+- **EXTRACT** — useful capability currently trapped in dashboard-specific namespace;
+- **REPLACE** — old builder UI replaced by fixed Workspace Dashboard;
+- **REMOVE** — builder-only surface with no reusable analytics value;
+- **DEFER** — safe schema/API cleanup that must wait for migration dependencies.
+
+Before deleting any dashboard file, answer:
+
+1. Does it execute/query Analytics V2 data?
+2. Does it transform analytics responses generically?
+3. Does it render a reusable chart/table/matrix?
+4. Does it support CSV, drill-down, truncation, value resolution, or generic batching?
+
+If **yes** to any of these, default to **KEEP/EXTRACT**, not delete.
+
+Files whose only purpose is dashboard-builder CRUD, sharing, favorites, arbitrary layout, or arbitrary widget composition should default to **REMOVE/DEFER**.
+
+Implementation PRs should include a short migration table:
+
+| Previous capability/file | Action | New location/replacement | Reason |
+|---|---|---|---|
+| Analytics V2 engine | KEEP | unchanged | canonical data engine |
+| Dashboard analytics renderer | EXTRACT | analytics renderer namespace | reusable |
+| Dashboard grid drag/resize | REMOVE | fixed responsive layout | no builder |
+| Dashboard member sharing | REMOVE | workspace/project ACL | no separate dashboard ACL |
+| Dashboard data batching | EXTRACT | analytics/v2/batch | reusable |
+
+This classification is mandatory to prevent another broad rewrite based on ambiguous product assumptions.
+
+---
+
+## 29. Final product statement
+
+The Workspace Dashboard is an opinionated, immediately useful management view powered by Analytics V2.
+
+Users should think:
+
+> "I can change what this dashboard measures and how it groups the data."
+
+They should NOT need to think:
+
+> "I need to design and maintain a dashboard system."
+
+That distinction is the core requirement of this phase.
