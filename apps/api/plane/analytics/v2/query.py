@@ -17,6 +17,7 @@ from the client, and resolves ACL first (§37.1).
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -165,6 +166,16 @@ class AnalyticsResponseV2:
     warnings: List[Dict[str, Any]]
 
 
+class AnalyticsRequestScope:
+    """Per-request memoisation shared across batch ``execute`` calls."""
+
+    __slots__ = ("_visible_project_count", "_lock")
+
+    def __init__(self) -> None:
+        self._visible_project_count: Optional[int] = None
+        self._lock = threading.Lock()
+
+
 class AnalyticsEngineV2:
     """The single entry point.
 
@@ -173,9 +184,10 @@ class AnalyticsEngineV2:
     that request; do not reuse across requests or background jobs.
     """
 
-    def __init__(self, *, workspace, principal):
+    def __init__(self, *, workspace, principal, request_scope: Optional[AnalyticsRequestScope] = None):
         self.workspace = workspace
         self.principal = principal
+        self._request_scope = request_scope or AnalyticsRequestScope()
         self._default_allocation = ""
         self._scope_cache: Dict[tuple, ResolvedTimeScope] = {}
         self._base_qs_cache: Dict[tuple, QuerySet] = {}
@@ -212,11 +224,7 @@ class AnalyticsEngineV2:
                 "end": scope.end.isoformat() if scope.end else None,
                 "timezone": scope.timezone,
                 "preset": scope.preset,
-                "visible_project_count": len(
-                    self._get_base_qs(
-                        AnalyticsQueryV2(metrics=[{"key": "work_item_count"}], project_ids=[])
-                    ).values_list("project_id", flat=True).distinct()
-                ),
+                "visible_project_count": self._visible_project_count(),
                 # §37.2: never reveal the count of *hidden* projects, only the
                 # number of accessible ones.
             },
@@ -340,6 +348,21 @@ class AnalyticsEngineV2:
             )
             self._base_qs_cache[key] = cached
         return cached
+
+    def _visible_project_count(self) -> int:
+        scope = self._request_scope
+        if scope._visible_project_count is not None:
+            return scope._visible_project_count
+        with scope._lock:
+            if scope._visible_project_count is None:
+                scope._visible_project_count = len(
+                    self._get_base_qs(
+                        AnalyticsQueryV2(metrics=[{"key": "work_item_count"}], project_ids=[])
+                    )
+                    .values_list("project_id", flat=True)
+                    .distinct()
+                )
+            return scope._visible_project_count
 
     def _metric_uses_split_equal(self, spec, mode: str) -> bool:
         return (

@@ -95,6 +95,12 @@ SECTION_7_CARD_QUERIES: Dict[str, Dict[str, Any]] = {
 
 V3_CARD_IDS: Sequence[str] = tuple(SECTION_7_CARD_QUERIES.keys())
 
+
+def warm_app_urlconf_for_freezegun() -> None:
+    """Load URLConf before freezegun (OpenAI import uses pydantic v1 ``date``)."""
+    import plane.app.urls  # noqa: F401
+
+
 # Default global scope (§8): project/member/label filters merged into each card
 # query. Global time range is applied per card by the composer (§8.2); defaults
 # here only carry filter dimensions for the batch contract.
@@ -145,7 +151,7 @@ def build_v3_dashboard_batch_payload(
     scope = dict(global_scope or V3_DEFAULT_GLOBAL_SCOPE)
     if project_ids:
         filters = dict(scope.get("filters") or {})
-        filters["project"] = [str(pid) for pid in project_ids]
+        filters["project_id"] = [str(pid) for pid in project_ids]
         scope["filters"] = filters
     queries = [build_v3_card_query(card_id, global_scope=scope) for card_id in card_ids]
     return {"queries": queries}

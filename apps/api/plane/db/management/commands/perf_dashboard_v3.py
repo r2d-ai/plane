@@ -16,6 +16,36 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 
+from plane.tests.perf.test_page_analytics_perf import V3_BATCH_BUDGETS_MS
+
+
+def _git_head(api_root: Path) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(api_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _dataset_label(profile: str) -> str:
+    labels = {
+        "small": "5 projects x 200 issues (1k work items)",
+        "medium": "25 projects x 2000 issues (50k work items)",
+        "large": "100 projects x 5000 issues (500k work items)",
+    }
+    return labels[profile]
+
+
+def _within_budget(measured: dict[str, Any], budgets: dict[str, float]) -> dict[str, bool]:
+    return {
+        "p50": measured["p50_ms"] <= budgets["p50"],
+        "p95": measured["p95_ms"] <= budgets["p95"],
+        "p99": measured["p99_ms"] <= budgets["p99"],
+    }
+
 
 class Command(BaseCommand):
     help = (
@@ -47,12 +77,23 @@ class Command(BaseCommand):
         )
 
         profiles = ["small", "medium", "large"] if profile == "all" else [profile]
-        combined: dict[str, Any] = {"profiles": {}}
+        harness_commit = _git_head(api_root)
+        fixture = "plane.tests.fixtures.v3_dashboard_batch.build_v3_dashboard_batch_payload"
+        combined: dict[str, Any] = {
+            "endpoint": "/api/workspaces/{slug}/analytics/v2/batch/",
+            "query_count": 12,
+            "note": "Global scope merged into each card query per v3_dashboard_batch fixture (not a 13th row).",
+            "fixture": fixture,
+            "harness_commit": harness_commit,
+            "environment": "docker-compose-test.yml api-tests (DASHBOARD_V3_PERF=1)",
+            "profiles": [],
+        }
 
         for name in profiles:
             env = os.environ.copy()
             env["DASHBOARD_V3_PERF"] = "1"
             env["DASHBOARD_V3_PERF_BASELINE"] = f"{output_path}.{name}.partial"
+            env["DASHBOARD_V3_PERF_HARNESS_COMMIT"] = harness_commit
             cmd = [
                 sys.executable,
                 "-m",
@@ -65,7 +106,22 @@ class Command(BaseCommand):
             self.stdout.write(f"Running v3 batch perf profile={name} …")
             subprocess.run(cmd, cwd=str(api_root), env=env, check=True)
             partial_path = Path(f"{output_path}.{name}.partial")
-            combined["profiles"][name] = json.loads(partial_path.read_text(encoding="utf-8"))
+            measured = json.loads(partial_path.read_text(encoding="utf-8"))
+            budgets = V3_BATCH_BUDGETS_MS[name]
+            combined["profiles"].append(
+                {
+                    "profile": name,
+                    "dataset": _dataset_label(name),
+                    "fixture": fixture,
+                    "harness_commit": harness_commit,
+                    "iterations": measured["measured"]["iterations"],
+                    "p50_ms": measured["measured"]["p50_ms"],
+                    "p95_ms": measured["measured"]["p95_ms"],
+                    "p99_ms": measured["measured"]["p99_ms"],
+                    "budget_ms": budgets,
+                    "within_budget": _within_budget(measured["measured"], budgets),
+                }
+            )
             partial_path.unlink(missing_ok=True)
 
         Path(output_path).write_text(json.dumps(combined, indent=2), encoding="utf-8")

@@ -41,7 +41,7 @@ from django.db import connection
 from django.utils import timezone
 
 from plane.db.models import Page, PageCollection, PageCollectionPage, PageView, User, Workspace, WorkspaceMember
-from plane.tests.fixtures.v3_dashboard_batch import build_v3_dashboard_batch_payload
+from plane.tests.fixtures.v3_dashboard_batch import build_v3_dashboard_batch_payload, warm_app_urlconf_for_freezegun
 from plane.tests.perf.dashboard_v3_fixtures import build_v3_perf_workspace
 
 SHIPPED_INDEXES = [
@@ -343,7 +343,8 @@ def _measure_v3_batch(client, slug, iterations=V3_PERF_ITERATIONS):
     payload = build_v3_dashboard_batch_payload()
     url = _batch_url(slug)
     timings = []
-    with freeze_time(FROZEN_V3_NOW):
+    warm_app_urlconf_for_freezegun()
+    with freeze_time(FROZEN_V3_NOW, tick=True):
         for _ in range(2):
             client.post(url, payload, format="json")
         for _ in range(iterations):
@@ -379,6 +380,8 @@ def test_batch_12_card_dashboard(profile):
         "workspace_slug": workspace.slug,
         "projects": meta["spec"]["projects"],
         "issues_per_project": meta["spec"]["issues_per_project"],
+        "fixture": "plane.tests.fixtures.v3_dashboard_batch.build_v3_dashboard_batch_payload",
+        "harness_commit": os.environ.get("DASHBOARD_V3_PERF_HARNESS_COMMIT", ""),
         "budgets_ms": budgets,
         "measured": measured,
         "within_budget": {
