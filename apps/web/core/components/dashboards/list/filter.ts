@@ -4,6 +4,13 @@
  * See the LICENSE file for details.
  */
 
+/**
+ * FROZEN -- legacy dashboard-builder surface, scheduled for deletion in Phase D of RD-475.
+ * Product spec: docs/workspace-dashboards-analytics-v2-spec.md
+ * Do not add features, extend behaviour, or wire up new consumers here. The fixed
+ * Workspace Dashboard replaces this surface; see RD-475 for the migration table.
+ */
+
 import type { TDashboardListTab, TWorkspaceDashboard } from "@plane/types";
 
 export function filterDashboardsByTab(
