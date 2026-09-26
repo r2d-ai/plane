@@ -23,4 +23,3 @@ from .page import ProjectPagePermission
 from .workspace_page import WorkspacePagePermission
 from .page_collection import PageCollectionPermission
 from .page_template import PageTemplatePermission
-from .dashboard import DashboardPermission, WorkspaceDashboardsEnabled
