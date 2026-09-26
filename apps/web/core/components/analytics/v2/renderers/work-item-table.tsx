@@ -16,6 +16,12 @@ type Props = {
   chartData: InsightChartData | null;
   canDrilldown: boolean;
   onDrilldown: (group: string | null, series: string | null) => void;
+  /**
+   * Surfaces without a dashboard instance (the fixed Workspace Dashboard) pass
+   * this to open the generic Analytics V2 drill-down drawer instead of the
+   * dashboard-scoped one. Omitted → unchanged dashboard behaviour.
+   */
+  onOpenWorkItems?: () => void;
 };
 
 /**
@@ -29,6 +35,7 @@ export function WorkItemTableRenderer({
   chartData,
   canDrilldown,
   onDrilldown,
+  onOpenWorkItems,
 }: Props) {
   const [open, setOpen] = useState(false);
   if (chartData && chartData.rows.length > 0) {
@@ -68,10 +75,10 @@ export function WorkItemTableRenderer({
 
   return (
     <div className="flex flex-col gap-2">
-      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="secondary" size="sm" onClick={() => (onOpenWorkItems ? onOpenWorkItems() : setOpen(true))}>
         View work items
       </Button>
-      {open ? (
+      {onOpenWorkItems ? null : open ? (
         <WidgetDrilldownDrawer
           workspaceSlug={workspaceSlug}
           dashboardId={dashboardId}

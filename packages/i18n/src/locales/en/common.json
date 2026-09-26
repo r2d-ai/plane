@@ -912,6 +912,85 @@
       "truncated": "Results were truncated because the query hit the work budget. Exported values may be partial."
     }
   },
+  "dashboard_v3": {
+    "empty": {
+      "title": "No workspace data yet"
+    },
+    "section": {
+      "kpi": "Overview",
+      "delivery": "Delivery",
+      "workload": "Workload",
+      "distribution": "Distribution",
+      "attention": "Needs attention"
+    },
+    "card": {
+      "open_work_items": "Open work items",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "overdue": "Overdue",
+      "blocked": "Blocked",
+      "created_vs_completed_trend": "Created vs completed",
+      "work_state_distribution": "Work state distribution",
+      "workload_by_assignee": "Workload by assignee",
+      "workload_allocation_matrix": "Workload allocation matrix",
+      "priority_distribution": "Priority distribution",
+      "work_by_project": "Work by project",
+      "attention_required": "Attention required",
+      "configure": "Configure",
+      "loading": "Loading…",
+      "no_data": "No data for the current filters.",
+      "error": "This card could not be loaded.",
+      "basis_override": "Counted by {{basis}}, regardless of the global date basis"
+    },
+    "control": {
+      "time_range": "Time range",
+      "date_basis": "Date basis",
+      "projects": "Projects",
+      "priority": "Priority",
+      "states": "States",
+      "reset": "Reset",
+      "reset_card": "Reset this card",
+      "metric": "Calculate",
+      "dimension": "Group by",
+      "breakdown": "Breakdown",
+      "display": "Display",
+      "normalization": "Normalize",
+      "allocation": "Allocation",
+      "date_grouping": "Date grouping",
+      "visualization": "Visualization"
+    },
+    "time": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "this_week": "This week",
+      "last_week": "Last week",
+      "last_7_days": "Last 7 days",
+      "last_30_days": "Last 30 days",
+      "this_month": "This month",
+      "last_month": "Last month",
+      "this_quarter": "This quarter",
+      "last_quarter": "Last quarter",
+      "last_90_days": "Last 90 days",
+      "this_year": "This year",
+      "last_year": "Last year",
+      "none": "All time",
+      "custom": "Custom range"
+    },
+    "priority": {
+      "urgent": "Urgent",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "none": "None"
+    },
+    "state_group": {
+      "backlog": "Backlog",
+      "unstarted": "Not started",
+      "started": "Started",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    }
+  },
   "pi_chat": "Plane AI",
   "in_app": "In-app",
   "forms": "Forms",
