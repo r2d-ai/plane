@@ -124,6 +124,21 @@ def render_leader_morning_email(
     mis-labelling. The caller is `deliver_leader_morning`, which uses
     `LEADER_MORNING_BUCKETS` + `LEADER_MORNING_SECTION_LABELS`.
 
+    The mismatch guard is **data-dependent**: `labels[bucket]` is read
+    only for buckets that have items (the empty-bucket short-circuit is
+    `if not items: continue`). So a call with a mismatched label map
+    KeyErrors as soon as a leader-only bucket (`unassigned_high_urgent`,
+    `due_today_not_started`) has items — it does NOT KeyError on an
+    empty snapshot. The two realistic misuses the guard catches are:
+      * leader renderer called with a personal snapshot that
+        incidentally has items in `unassigned_high_urgent` /
+        `due_today_not_started`,
+      * personal renderer called with a leader snapshot that
+        incidentally has items in `due_today` / `due_soon` (the
+        `due_soon` bucket is personal-only; see `render_personal_daily_email`).
+    Both directions fail loudly with a 500 / failed delivery row, which
+    is what we want — the bug is at the call site.
+
     `buckets` is iterated in the order provided so the section order in
     the email matches the order the buckets were declared.
     """

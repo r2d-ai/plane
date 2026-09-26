@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 from datetime import datetime, timedelta
+from datetime import timezone as datetime_timezone
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -203,7 +204,7 @@ class TestLeaderProjectGate:
     def test_lead_and_accessible_returns_project(self, create_user, leader_project):
         assert leader_project.id in get_leader_project_ids(create_user.id)
 
-    def test_not_lead_returns_empty(self, create_user, leader_workspace, db):
+    def test_not_lead_returns_empty(self, create_user, leader_workspace, leader_project, db):
         other = User.objects.create(
             email="other-leader-gate@plane.so",
             username="other_leader_gate",
@@ -213,7 +214,9 @@ class TestLeaderProjectGate:
         ProjectMember.objects.create(project=leader_project, member=other, role=20, is_active=True)
         assert get_leader_project_ids(other.id) == set()
 
-    def test_lead_without_active_project_membership_returns_empty(self, create_user, leader_workspace, db):
+    def test_lead_without_active_project_membership_returns_empty(
+        self, create_user, leader_workspace, leader_project, db
+    ):
         # `project_lead_id` says the user leads, but the ProjectMember
         # row was never created (or was deactivated). Gate must exclude
         # this project so no items leak.
@@ -626,7 +629,7 @@ class TestLeaderMorningSnapshot:
             sections,
             "2026-09-26",
             projects_scanned_count=3,
-            generated_at=datetime(2026, 9, 26, 8, 15, tzinfo=timezone.utc),
+            generated_at=datetime(2026, 9, 26, 8, 15, tzinfo=datetime_timezone.utc),
         )
 
         assert snapshot["schema_version"] == 1
@@ -721,9 +724,30 @@ class TestLeaderMorningRenderer:
 
     def test_renderer_keyerrors_on_mismatched_label_keys(self, create_user):
         # If the caller passes the personal-daily labels, the leader-only
-        # buckets KeyError immediately. This is the contract the
-        # (buckets, labels) parameterization enforces.
+        # buckets (`unassigned_high_urgent`, `due_today_not_started`)
+        # KeyError as soon as a bucket with items is reached. The guard
+        # is data-dependent — an item MUST exist in one of the leader-only
+        # buckets to trigger the KeyError. This is the contract the
+        # (buckets, labels) parameterization enforces for the
+        # "realistically-misused" direction (calling leader renderer with
+        # a personal snapshot whose `unassigned_high_urgent` /
+        # `due_today_not_started` happened to be non-empty).
         snapshot = self._snapshot_with_overdue(create_user, count=1)
+        snapshot["sections"]["unassigned_high_urgent"] = [
+            {
+                "id": "issue-2",
+                "identifier": "LDR-2",
+                "name": "Unassigned high",
+                "workspace": {"id": "ws", "name": "WS Name", "slug": "ws-slug"},
+                "project": {"id": "p", "name": "Project", "identifier": "LDR"},
+                "state": {"name": "In Progress", "group": "started"},
+                "priority": "high",
+                "target_date": "",
+                "assignees": [],
+                "url": "https://plane.example/x",
+            }
+        ]
+        snapshot["counts"]["unassigned_high_urgent"] = 1
         personal_labels = {
             "overdue": "Overdue",
             "due_today": "Due today",
@@ -865,6 +889,16 @@ class TestGenerateLeaderMorning:
         INFO level. Implemented as a context manager so each test stays
         one expression. We don't cap the count because the dispatcher
         itself emits digest.dispatch.run too.
+
+        We MUST set the logger level to INFO on the target logger in
+        `__enter__`. Why: under `DJANGO_SETTINGS_MODULE=plane.settings.
+        production`, the `plane.digests.queries` namespace was missing
+        from `LOGGING["loggers"]` until RD-449 fix 1; root default is
+        WARNING, so without an explicit `setLevel(INFO)` here the INFO
+        record is dropped at the logger level — not just at the
+        (already-INFO) handler. That's exactly the bug that hid
+        `digest.leader_morning.skipped_no_membership` in production.
+        Don't simplify this back to "just addHandler".
         """
         import logging
 
@@ -881,12 +915,15 @@ class TestGenerateLeaderMorning:
         class _Ctx:
             def __enter__(self_inner):
                 logger = logging.getLogger("plane.digests.queries")
+                self_inner._previous_level = logger.level
+                logger.setLevel(logging.INFO)
                 logger.addHandler(capture)
                 return capture
 
             def __exit__(self_inner, exc_type, exc, tb):
                 logger = logging.getLogger("plane.digests.queries")
                 logger.removeHandler(capture)
+                logger.setLevel(self_inner._previous_level)
                 names = [r.__dict__.get("name") or r.name for r in capture.records]
                 msg = f"expected log record '{log_record_name}', got: {names}"
                 ok = any(
