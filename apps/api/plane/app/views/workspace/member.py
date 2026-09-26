@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 # Django imports
+from django.db import transaction
 from django.db.models import Count, Q, OuterRef, Subquery, IntegerField
 from django.db.models.functions import Coalesce
 
@@ -25,6 +26,51 @@ from plane.db.models import Project, ProjectMember, WorkspaceMember, DraftIssue
 from plane.utils.cache import invalidate_cache
 
 from .. import BaseViewSet
+
+
+def assert_can_revoke_workspace_member(requesting, target, slug):
+    """Shared authz for admin-driven workspace revoke (destroy + PATCH deactivate).
+
+    Contains the historical ``destroy`` guards: role hierarchy and sole-project-
+    admin. Self-leave / sole-workspace-admin logic stays on ``leave`` and is
+    intentionally NOT applied here.
+
+    Returns a ``Response`` on denial, or ``None`` if the revoke is allowed.
+
+    Note: the sole-project-admin check keys off ``target.member_id`` (the User
+    FK). Pre-extraction ``destroy`` incorrectly filtered on
+    ``workspace_member.id`` (the WorkspaceMember PK), so the guard never
+    matched real ProjectMember rows; using ``member_id`` restores the intended
+    check for both destroy and PATCH.
+    """
+    if requesting.role < target.role:
+        return Response(
+            {"error": "You cannot remove a user having role higher than you"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if (
+        Project.objects.annotate(
+            total_members=Count("project_projectmember"),
+            member_with_role=Count(
+                "project_projectmember",
+                filter=Q(
+                    project_projectmember__member_id=target.member_id,
+                    project_projectmember__role=20,
+                ),
+            ),
+        )
+        .filter(total_members=1, member_with_role=1, workspace__slug=slug)
+        .exists()
+    ):
+        return Response(
+            {
+                "error": "User is a part of some projects where they are the only admin, they should either leave that project or promote another user to admin."  # noqa: E501
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return None
 
 
 class WorkSpaceMemberViewSet(BaseViewSet):
@@ -104,9 +150,27 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         serializer = WorkSpaceMemberSerializer(workspace_member, data=request.data, partial=True)
 
         if serializer.is_valid():
-            serializer.save()
-            if was_active and not workspace_member.is_active:
-                revoke_workspace_member(workspace_member)
+            # Soft-deactivate must pass the same destroy authz (role hierarchy
+            # + sole project admin). Check against validated_data so string
+            # payloads like ``"false"`` are already coerced to bool.
+            will_deactivate = was_active and serializer.validated_data.get("is_active") is False
+            if will_deactivate:
+                requesting_workspace_member = WorkspaceMember.objects.get(
+                    workspace__slug=slug, member=request.user, is_active=True
+                )
+                denial = assert_can_revoke_workspace_member(
+                    requesting_workspace_member, workspace_member, slug
+                )
+                if denial is not None:
+                    return denial
+
+            # Atomic: serializer.save() (WS is_active=False) + PM cascade must
+            # commit together -- same pattern as project PATCH +
+            # ensure_project_lead_membership from RD-447 / #56.
+            with transaction.atomic():
+                serializer.save()
+                if was_active and not workspace_member.is_active:
+                    revoke_workspace_member(workspace_member)
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -128,32 +192,11 @@ class WorkSpaceMemberViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if requesting_workspace_member.role < workspace_member.role:
-            return Response(
-                {"error": "You cannot remove a user having role higher than you"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if (
-            Project.objects.annotate(
-                total_members=Count("project_projectmember"),
-                member_with_role=Count(
-                    "project_projectmember",
-                    filter=Q(
-                        project_projectmember__member_id=workspace_member.id,
-                        project_projectmember__role=20,
-                    ),
-                ),
-            )
-            .filter(total_members=1, member_with_role=1, workspace__slug=slug)
-            .exists()
-        ):
-            return Response(
-                {
-                    "error": "User is a part of some projects where they are the only admin, they should either leave that project or promote another user to admin."  # noqa: E501
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        denial = assert_can_revoke_workspace_member(
+            requesting_workspace_member, workspace_member, slug
+        )
+        if denial is not None:
+            return denial
 
         # Deactivate the users from the projects where the user is part of
         # (RD-447: shared with PATCH is_active=False and leave -- see

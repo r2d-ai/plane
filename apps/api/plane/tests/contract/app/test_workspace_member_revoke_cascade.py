@@ -540,3 +540,129 @@ class TestWorkspaceMemberRevokeCascadeRBAC:
         assert ProjectMember.objects.filter(
             member=victim, workspace=workspace, is_active=True
         ).count() == 2
+
+@pytest.mark.contract
+@pytest.mark.django_db
+class TestWorkspaceMemberPatchDeactivateAuthzParity:
+    """Follow-up after #56 / how+secaudit residual: PATCH is_active:false
+    must apply the same destroy guards (role hierarchy + sole project
+    admin). Pre-fix, soft-deactivate only had @allow_permission(ADMIN)
+    + self-role block, so it bypassed destroy's hard checks.
+    """
+
+    HIGHER_ROLE_ERROR = "You cannot remove a user having role higher than you"
+    SOLE_ADMIN_ERROR = (
+        "User is a part of some projects where they are the only admin, "
+        "they should either leave that project or promote another user to admin."
+    )
+
+    def test_patch_rejects_higher_role_same_as_destroy(self, workspace, create_user):
+        """Target with role > requester must be rejected on both PATCH
+        deactivate and DELETE with the same 400 + error shape.
+
+        ROLE.ADMIN is 20; we plant an out-of-band higher role (25) so the
+        hierarchy guard is exercisable under @allow_permission(ADMIN).
+        """
+        higher = _make_user("higher-role@plane.so")
+        ws_member = _add_workspace_member(workspace, higher, role=25)
+
+        client = APIClient()
+        client.force_authenticate(user=create_user)
+
+        patch_resp = client.patch(
+            _member_detail_url(workspace.slug, ws_member.pk),
+            {"is_active": False},
+            format="json",
+        )
+        assert patch_resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert patch_resp.json()["error"] == self.HIGHER_ROLE_ERROR
+
+        ws_member.refresh_from_db()
+        assert ws_member.is_active is True
+
+        delete_resp = client.delete(_member_detail_url(workspace.slug, ws_member.pk))
+        assert delete_resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert delete_resp.json()["error"] == self.HIGHER_ROLE_ERROR
+        assert delete_resp.json() == patch_resp.json()
+
+        ws_member.refresh_from_db()
+        assert ws_member.is_active is True
+
+    def test_patch_rejects_sole_project_admin_same_as_destroy(
+        self, workspace, create_user
+    ):
+        """Target who is the only ProjectMember (role=20) on a project must
+        be rejected on both PATCH deactivate and DELETE with the same
+        400 + error shape. Requester is intentionally NOT on that project
+        so total_members=1.
+        """
+        victim = _make_user("sole-admin@plane.so")
+        ws_member = _add_workspace_member(workspace, victim, role=15)
+
+        sole_project = Project.objects.create(
+            name="Sole Admin Project",
+            identifier="SAP",
+            workspace=workspace,
+            created_by=victim,
+            project_lead=victim,
+        )
+        ProjectMember.objects.create(
+            workspace=workspace,
+            project=sole_project,
+            member=victim,
+            role=20,
+            is_active=True,
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=create_user)
+
+        patch_resp = client.patch(
+            _member_detail_url(workspace.slug, ws_member.pk),
+            {"is_active": False},
+            format="json",
+        )
+        assert patch_resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert patch_resp.json()["error"] == self.SOLE_ADMIN_ERROR
+
+        ws_member.refresh_from_db()
+        assert ws_member.is_active is True
+        assert ProjectMember.objects.filter(
+            member=victim, project=sole_project, is_active=True
+        ).count() == 1
+
+        delete_resp = client.delete(_member_detail_url(workspace.slug, ws_member.pk))
+        assert delete_resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert delete_resp.json()["error"] == self.SOLE_ADMIN_ERROR
+        assert delete_resp.json() == patch_resp.json()
+
+        ws_member.refresh_from_db()
+        assert ws_member.is_active is True
+        assert ProjectMember.objects.filter(
+            member=victim, project=sole_project, is_active=True
+        ).count() == 1
+
+    def test_patch_deactivate_still_cascades_when_guards_pass(
+        self, workspace, create_user, project_for_revoke
+    ):
+        """Happy path regression: when neither guard fires, PATCH
+        is_active:false still revokes the ProjectMember cascade (the
+        #56 contract must stay green under the new authz + atomic wrap).
+        """
+        victim, _ = project_for_revoke
+        ws_member = WorkspaceMember.objects.get(workspace=workspace, member=victim)
+
+        client = APIClient()
+        client.force_authenticate(user=create_user)
+        response = client.patch(
+            _member_detail_url(workspace.slug, ws_member.pk),
+            {"is_active": False},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        ws_member.refresh_from_db()
+        assert ws_member.is_active is False
+        assert ProjectMember.objects.filter(
+            member=victim, workspace=workspace, is_active=True
+        ).count() == 0
