@@ -58,8 +58,9 @@ MAX_GROUPS = 20
 MAX_ROWS = 100
 MAX_MATRIX_ROWS = 50
 MAX_MATRIX_COLS = 30
-MAX_MATRIX_CELLS = MAX_MATRIX_ROWS * MAX_MATRIX_COLS
-MAX_BATCH_QUERIES = MAX_GROUPS
+# Hard ceiling on metric aggregate calls per query (1D and 2D share this budget).
+AGGREGATE_WORK_BUDGET = MAX_ROWS
+MAX_BATCH_QUERIES = 20
 MAX_SPLIT_EQUAL_ISSUES = MAX_ROWS
 
 WARNING_RESULT_TRUNCATED = "RESULT_TRUNCATED"
@@ -162,8 +163,12 @@ class AnalyticsResponseV2:
 
 
 class AnalyticsEngineV2:
-    """The single entry point. Build one per request — it has no shared
-    mutable state."""
+    """The single entry point.
+
+    Construct one instance per HTTP request (or batch request). Instances memoize
+    ACL querysets and resolved time scopes for repeated ``execute`` calls within
+    that request; do not reuse across requests or background jobs.
+    """
 
     def __init__(self, *, workspace, principal):
         self.workspace = workspace
@@ -204,10 +209,11 @@ class AnalyticsEngineV2:
                 "end": scope.end.isoformat() if scope.end else None,
                 "timezone": scope.timezone,
                 "preset": scope.preset,
-                "visible_project_count": len(base_issue_queryset(
-                    workspace=self.workspace,
-                    principal=self.principal,
-                ).values_list("project_id", flat=True).distinct()),
+                "visible_project_count": len(
+                    self._get_base_qs(
+                        AnalyticsQueryV2(metrics=[{"key": "work_item_count"}], project_ids=[])
+                    ).values_list("project_id", flat=True).distinct()
+                ),
                 # §37.2: never reveal the count of *hidden* projects, only the
                 # number of accessible ones.
             },
@@ -332,12 +338,9 @@ class AnalyticsEngineV2:
             self._base_qs_cache[key] = cached
         return cached
 
-    def _bucket_work_cap(self, query: AnalyticsQueryV2, num_dimensions: int) -> int:
-        if num_dimensions == 0:
-            return 1
-        if num_dimensions == 1:
-            return min(query.limit, MAX_ROWS)
-        return MAX_MATRIX_CELLS
+    def _bucket_work_cap(self, metric_count: int) -> int:
+        """Maximum dimension buckets to aggregate before sort/limit."""
+        return max(1, AGGREGATE_WORK_BUDGET // max(1, metric_count))
 
     def _note_truncation(self) -> None:
         warning = {
@@ -369,7 +372,7 @@ class AnalyticsEngineV2:
         # ``Issue`` queryset already carries joins from the IssueManager
         # (state, project), and ``F("project_id")`` can resolve to a joined
         # table — that produces duplicate rows when filtering.
-        work_cap = self._bucket_work_cap(query, len(dimensions))
+        work_cap = self._bucket_work_cap(len(metrics))
         if len(dimensions) == 0:
             rows = list(self._no_dimension_rows(qs, metrics))
         elif len(dimensions) == 1:
@@ -397,7 +400,13 @@ class AnalyticsEngineV2:
         # dimension values when the queryset carries joins; dedupe while capping.
         groups: List[object] = []
         seen: set[object] = set()
-        for dim_value in qs.values_list(group_field, flat=True).distinct().iterator():
+        distinct_values = (
+            qs.order_by(group_field)
+            .values_list(group_field, flat=True)
+            .distinct()
+            .iterator()
+        )
+        for dim_value in distinct_values:
             if dim_value in seen:
                 continue
             seen.add(dim_value)
@@ -415,7 +424,12 @@ class AnalyticsEngineV2:
     def _two_dimension_rows(self, qs: QuerySet, spec_dim_a, spec_dim_b, metrics, *, work_cap: int):
         group_field_a = spec_dim_a.group_field_resolved
         group_field_b = spec_dim_b.group_field_resolved
-        pair_rows = qs.values(group_field_a, group_field_b).distinct().iterator()
+        pair_rows = (
+            qs.order_by(group_field_a, group_field_b)
+            .values(group_field_a, group_field_b)
+            .distinct()
+            .iterator()
+        )
         out = []
         for index, row in enumerate(pair_rows):
             if index >= work_cap:
@@ -433,7 +447,7 @@ class AnalyticsEngineV2:
             spec.key in {"work_item_count", "estimate_points"}
             and mode == allocation_module.ALLOCATION_SPLIT_EQUAL
         ):
-            return _split_equal_total(qs, spec)
+            return _split_equal_total(qs, spec, on_truncated=self._note_truncation)
         # Count metrics must use DISTINCT because the Issue queryset can carry
         # joins that duplicate rows; drill-down already does this (§37).
         use_distinct = spec.predicate is not None or spec.aggregation == "count"
@@ -558,14 +572,14 @@ class AnalyticsEngineV2:
             spec.key in {"work_item_count", "estimate_points"}
             and mode == allocation_module.ALLOCATION_SPLIT_EQUAL
         ):
-            return _split_equal_total(qs, spec)
+            return _split_equal_total(qs, spec, on_truncated=self._note_truncation)
         return float(metrics_module.aggregate(qs, spec, distinct=True))
 
 
 # ----- helpers ------------------------------------------------------------
 
 
-def _split_equal_total(qs: QuerySet, spec) -> float:
+def _split_equal_total(qs: QuerySet, spec, *, on_truncated=None) -> float:
     """Return the sum of split-equal contributions for the queryset.
 
     Issue-level iteration is capped (§40.1) so bucket loops cannot amplify N+1
@@ -574,7 +588,15 @@ def _split_equal_total(qs: QuerySet, spec) -> float:
     from plane.db.models import IssueAssignee
 
     total = 0.0
-    issue_ids = list(qs.distinct().values_list("id", flat=True)[:MAX_SPLIT_EQUAL_ISSUES])
+    issue_ids = list(
+        qs.distinct()
+        .order_by("id")
+        .values_list("id", flat=True)[: MAX_SPLIT_EQUAL_ISSUES + 1]
+    )
+    if len(issue_ids) > MAX_SPLIT_EQUAL_ISSUES:
+        if on_truncated is not None:
+            on_truncated()
+        issue_ids = issue_ids[:MAX_SPLIT_EQUAL_ISSUES]
     for issue_id in issue_ids:
         active_assignees = IssueAssignee.objects.filter(
             issue_id=issue_id, deleted_at__isnull=True
