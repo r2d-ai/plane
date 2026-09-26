@@ -12,6 +12,9 @@ import { DraftIcon, HomeIcon, PiChatLogo, YourWorkIcon, DashboardIcon } from "@p
 import { EUserWorkspaceRoles } from "@plane/types";
 // hooks
 import { useUserPermissions, useUser } from "@/hooks/store/user";
+import { useInstance } from "@/hooks/store/use-instance";
+// helpers
+import { isWorkspaceDashboardsEnabled } from "@/helpers/workspace-dashboards-access";
 // local imports
 import { SidebarUserMenuItem } from "./user-menu-item";
 
@@ -21,6 +24,8 @@ export const SidebarUserMenu = observer(function SidebarUserMenu() {
   // store hooks
   const { workspaceUserInfo } = useUserPermissions();
   const { data: currentUser } = useUser();
+  const { config } = useInstance();
+  const workspaceDashboardsEnabled = isWorkspaceDashboardsEnabled(config);
 
   const SIDEBAR_USER_MENU_ITEMS = [
     {
@@ -58,7 +63,7 @@ export const SidebarUserMenu = observer(function SidebarUserMenu() {
       access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER, EUserWorkspaceRoles.GUEST],
       Icon: PiChatLogo,
     },
-  ];
+  ].filter((item) => item.key !== "dashboards" || workspaceDashboardsEnabled);
 
   const draftIssueCount = workspaceUserInfo[workspaceSlug.toString()]?.draft_issue_count;
 

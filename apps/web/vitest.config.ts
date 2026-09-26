@@ -6,6 +6,7 @@ export default defineConfig({
     alias: {
       "@": fileURLToPath(new URL("./core", import.meta.url)),
       "next/navigation": fileURLToPath(new URL("./tests/mocks/next-navigation.ts", import.meta.url)),
+      "next/link": fileURLToPath(new URL("./tests/mocks/next-link.tsx", import.meta.url)),
     },
   },
   test: {

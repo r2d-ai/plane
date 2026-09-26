@@ -6,6 +6,7 @@
 
 import { index, layout, route } from "@react-router/dev/routes";
 import type { RouteConfig, RouteConfigEntry } from "@react-router/dev/routes";
+import { workspaceDashboardRoutes } from "./workspace-dashboards";
 
 export const coreRoutes: RouteConfigEntry[] = [
   // ========================================================================
@@ -72,14 +73,7 @@ export const coreRoutes: RouteConfigEntry[] = [
           route(":workspaceSlug/analytics/:tabId", "./(all)/[workspaceSlug]/(projects)/analytics/[tabId]/page.tsx"),
         ]),
 
-        // Workspace dashboards (§6, §7)
-        layout("./(all)/[workspaceSlug]/(projects)/dashboards/layout.tsx", [
-          route(":workspaceSlug/dashboards", "./(all)/[workspaceSlug]/(projects)/dashboards/page.tsx"),
-          route(
-            ":workspaceSlug/dashboards/:dashboardId",
-            "./(all)/[workspaceSlug]/(projects)/dashboards/[dashboardId]/page.tsx"
-          ),
-        ]),
+        ...workspaceDashboardRoutes,
 
         // Browse
         layout("./(all)/[workspaceSlug]/(projects)/browse/[workItem]/layout.tsx", [
