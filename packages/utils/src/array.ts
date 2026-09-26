@@ -153,20 +153,40 @@ export const orderGroupedDataByField = <T>(groupedData: GroupedItems<T>, orderBy
 
 /**
  * @description Builds a tree structure from an array of labels
+ * Performance Optimization: Converted O(N^2) recursive searching to an O(N) single-pass map lookup algorithm.
+ * For large sets of labels, this reduces execution time from quadratic O(N^2) to linear O(N).
  * @param {IIssueLabel[]} array Array of labels
- * @param {any} parent Parent ID
+ * @param {any} parent Parent ID (defaults to null)
  * @returns {IIssueLabelTree[]} Tree structure
  */
-export const buildTree = (array: IIssueLabel[], parent = null) => {
+export const buildTree = (array: IIssueLabel[], parent: any = null): IIssueLabelTree[] => {
+  if (!array || array.length === 0) return [];
+
+  const map = new Map<string, IIssueLabelTree>();
   const tree: IIssueLabelTree[] = [];
 
-  array.forEach((item: any) => {
-    if (item.parent === parent) {
-      const children = buildTree(array, item.id);
-      item.children = children;
-      tree.push(item);
+  // First pass: map nodes with empty children array
+  for (const item of array) {
+    if (item && item.id) {
+      map.set(item.id, { ...item, children: [] });
     }
-  });
+  }
+
+  const targetParent = parent ?? null;
+
+  // Second pass: attach children to parents or push to root tree
+  for (const item of array) {
+    if (!item || !item.id) continue;
+    const node = map.get(item.id);
+    if (!node) continue;
+
+    const itemParent = item.parent ?? null;
+    if (itemParent === targetParent) {
+      tree.push(node);
+    } else if (item.parent && map.has(item.parent)) {
+      map.get(item.parent)!.children!.push(node);
+    }
+  }
 
   return tree;
 };
