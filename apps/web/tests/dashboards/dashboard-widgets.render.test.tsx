@@ -85,7 +85,7 @@ vi.mock("@/components/analytics/v2/insight-drilldown", () => ({
   default: () => <div data-testid="insight-drilldown-drawer" />,
 }));
 
-vi.mock("@/components/dashboards/widgets/widget-drilldown-drawer", () => ({
+vi.mock("@/components/analytics/v2/renderers/widget-drilldown-drawer", () => ({
   WidgetDrilldownDrawer: () => <div data-testid="dashboard-drilldown-drawer" />,
 }));
 

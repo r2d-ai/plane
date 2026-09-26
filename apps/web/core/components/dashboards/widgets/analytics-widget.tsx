@@ -9,9 +9,6 @@ import { useTheme } from "next-themes";
 import { Download } from "lucide-react";
 import { CHART_COLOR_PALETTES } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
-import { BarChart } from "@plane/propel/charts/bar-chart";
-import { LineChart } from "@plane/propel/charts/line-chart";
-import { PieChart } from "@plane/propel/charts/pie-chart";
 import { Button } from "@plane/propel/button";
 import { EmptyStateCompact } from "@plane/propel/empty-state";
 import type {
@@ -21,12 +18,24 @@ import type {
   TDashboardWidgetType,
   TWorkspaceDashboardWidget,
 } from "@plane/types";
-import { generateExtendedColors } from "@/components/chart/utils";
-import { buildInsightChartData, formatValue, type InsightChartRow } from "@/components/analytics/v2/cells";
+import { buildInsightChartData } from "@/components/analytics/v2/cells";
 import { buildDrilldownRequest } from "@/components/analytics/v2/drilldown";
-import { isDateDimension, METRIC_LABELS, metricUnit } from "@/components/analytics/v2/mapping";
-import { useInsightValueResolver } from "@/components/analytics/v2/use-insight-value-resolver";
 import InsightDrilldownDrawer from "@/components/analytics/v2/insight-drilldown";
+import { isDateDimension, METRIC_LABELS, metricUnit } from "@/components/analytics/v2/mapping";
+import {
+  AggregateTableRenderer,
+  BarRenderer,
+  DonutRenderer,
+  GaugeRenderer,
+  LineRenderer,
+  MatrixRenderer,
+  NumberRenderer,
+  PieRenderer,
+  WidgetTruncationBanner,
+  WorkItemTableRenderer,
+} from "@/components/analytics/v2/renderers";
+import { useInsightValueResolver } from "@/components/analytics/v2/use-insight-value-resolver";
+import { WidgetDrilldownDrawer } from "@/components/analytics/v2/renderers/widget-drilldown-drawer";
 import {
   aggregateCellsToCsvRows,
   buildMatrixTableModel,
@@ -34,8 +43,6 @@ import {
   matrixToCsvRows,
   parseWidgetQuery,
 } from "./analytics-data";
-import { WidgetTruncationBanner } from "./truncation-banner";
-import { WidgetDrilldownDrawer } from "./widget-drilldown-drawer";
 
 type Props = {
   widget: TWorkspaceDashboardWidget;
@@ -182,14 +189,14 @@ export function DashboardAnalyticsWidget({ widget, response, workspaceSlug, dash
     switch (widget.widget_type) {
       case "number":
       case "counter":
-        return <ScalarValue value={response.totals?.[metricKey] ?? response.data?.[0]?.value ?? 0} unit={unit} />;
+        return <NumberRenderer value={response.totals?.[metricKey] ?? response.data?.[0]?.value ?? 0} unit={unit} />;
       case "statistics":
-        return <StatisticsGrid totals={response.totals ?? {}} />;
+        return <AggregateTableRenderer totals={response.totals ?? {}} />;
       case "gauge":
-        return <GaugeView response={response} metricKey={metricKey} style={widget.style_config} unit={unit} />;
+        return <GaugeRenderer response={response} metricKey={metricKey} style={widget.style_config} unit={unit} />;
       case "bar":
         return chartData ? (
-          <BarChartView
+          <BarRenderer
             chartData={chartData}
             barMode={barMode}
             baseColors={baseColors}
@@ -199,7 +206,7 @@ export function DashboardAnalyticsWidget({ widget, response, workspaceSlug, dash
         ) : null;
       case "line":
         return chartData ? (
-          <LineChartView
+          <LineRenderer
             chartData={chartData}
             baseColors={baseColors}
             hasBreakdown={hasBreakdown}
@@ -208,11 +215,18 @@ export function DashboardAnalyticsWidget({ widget, response, workspaceSlug, dash
           />
         ) : null;
       case "pie":
+        return chartData ? (
+          <PieRenderer
+            chartData={chartData}
+            baseColors={baseColors}
+            canDrilldown={canDrilldown}
+            onSliceClick={(group) => openDrilldown(group, null)}
+          />
+        ) : null;
       case "donut":
         return chartData ? (
-          <PieChartView
+          <DonutRenderer
             chartData={chartData}
-            donut={widget.widget_type === "donut"}
             progress={widget.style_config?.donut_variant === "progress"}
             baseColors={baseColors}
             canDrilldown={canDrilldown}
@@ -221,7 +235,7 @@ export function DashboardAnalyticsWidget({ widget, response, workspaceSlug, dash
         ) : null;
       case "matrix":
         return matrixModel ? (
-          <MatrixTable
+          <MatrixRenderer
             model={matrixModel}
             resolveRow={(key) => resolve(primaryDim, key || null)}
             resolveCol={(key) => resolve(seriesDim, key || null)}
@@ -231,7 +245,7 @@ export function DashboardAnalyticsWidget({ widget, response, workspaceSlug, dash
         ) : null;
       case "table":
         return (
-          <WorkItemsTablePreview
+          <WorkItemTableRenderer
             workspaceSlug={workspaceSlug}
             dashboardId={dashboardId}
             widgetId={widget.id}
@@ -254,319 +268,6 @@ function WidgetHeader({ title, onExport }: { title: string; onExport: () => void
       <Button variant="secondary" size="sm" prependIcon={<Download className="h-3.5 w-3.5" />} onClick={onExport}>
         {t("exporter.csv.short_description")}
       </Button>
-    </div>
-  );
-}
-
-function ScalarValue({ value, unit }: { value: number; unit: string }) {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <span className="text-32 font-semibold text-primary">{formatValue(value, unit)}</span>
-    </div>
-  );
-}
-
-function StatisticsGrid({ totals }: { totals: Record<string, number> }) {
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {Object.entries(totals).map(([key, value]) => (
-        <div key={key} className="rounded-md border border-subtle px-3 py-2">
-          <div className="text-11 text-tertiary">{METRIC_LABELS[key as TAnalyticsMetricKey] ?? key}</div>
-          <div className="text-16 font-medium text-primary">{formatValue(value)}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function GaugeView({
-  response,
-  metricKey,
-  style,
-  unit,
-}: {
-  response: TAnalyticsQueryResponseV2;
-  metricKey: TAnalyticsMetricKey;
-  style?: Record<string, unknown>;
-  unit: string;
-}) {
-  const numeratorKey = (style?.numerator_metric as TAnalyticsMetricKey | undefined) ?? "completed_work_items";
-  const denominatorKey = (style?.denominator_metric as TAnalyticsMetricKey | undefined) ?? metricKey;
-  const numerator = response.totals?.[numeratorKey] ?? 0;
-  const denominator = response.totals?.[denominatorKey] ?? response.totals?.[metricKey] ?? 0;
-  const pct = denominator > 0 ? Math.min(100, (numerator / denominator) * 100) : 0;
-
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-4">
-      <div className="text-28 font-semibold text-primary">{pct.toFixed(1)}%</div>
-      <div className="text-12 text-tertiary">
-        {formatValue(numerator, unit)} / {formatValue(denominator, unit)}
-      </div>
-      <div className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-layer-2">
-        <div className="bg-custom-primary-100 h-full" style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function BarChartView({
-  chartData,
-  barMode,
-  baseColors,
-  onBarClick,
-  canDrilldown,
-}: {
-  chartData: ReturnType<typeof buildInsightChartData>;
-  barMode: string;
-  baseColors: string[];
-  onBarClick: (group: string | null, series: string | null) => void;
-  canDrilldown: boolean;
-}) {
-  const extended = generateExtendedColors(baseColors, chartData.seriesKeys.length);
-  const bars = chartData.seriesKeys.map((key, index) => ({
-    key,
-    label: chartData.schema[key] ?? key,
-    stackId: barMode === "grouped" ? key : "stack",
-    fill: extended[index] ?? baseColors[0] ?? "#6172E8",
-    textClassName: "",
-    showPercentage: false,
-    showTopBorderRadius: () => true,
-    showBottomBorderRadius: () => true,
-  }));
-
-  return (
-    <BarChart
-      className="h-[220px] w-full"
-      data={chartData.rows as unknown as Record<string, unknown>[]}
-      bars={bars}
-      xAxis={{ key: "name", label: "", dy: 20 }}
-      yAxis={{ key: "count", label: "", offset: -40, dx: -10 }}
-      onBarClick={
-        canDrilldown ? ({ datum, barKey }) => onBarClick((datum?.__group as string | null) ?? null, barKey) : undefined
-      }
-    />
-  );
-}
-
-function LineChartView({
-  chartData,
-  baseColors,
-  hasBreakdown,
-  canDrilldown,
-  onPointClick,
-}: {
-  chartData: ReturnType<typeof buildInsightChartData>;
-  baseColors: string[];
-  hasBreakdown: boolean;
-  canDrilldown: boolean;
-  onPointClick: (group: string | null, series: string | null) => void;
-}) {
-  const extended = generateExtendedColors(baseColors, chartData.seriesKeys.length);
-  const lines = chartData.seriesKeys.map((key, index) => ({
-    key,
-    label: chartData.schema[key] ?? key,
-    stroke: extended[index] ?? baseColors[0] ?? "#6172E8",
-    fill: extended[index] ?? baseColors[0] ?? "#6172E8",
-    dashedLine: false,
-    showDot: true,
-    smoothCurves: false,
-  }));
-  const dataKey = hasBreakdown ? (chartData.seriesKeys[0] ?? "count") : "count";
-
-  return (
-    <LineChart
-      className="h-[220px] w-full"
-      data={chartData.rows as unknown as Record<string, unknown>[]}
-      lines={lines}
-      xAxis={{ key: "name", label: "", dy: 20 }}
-      yAxis={{ key: dataKey, label: "", offset: -40, dx: -10 }}
-      onLineClick={
-        canDrilldown
-          ? ({ datum, lineKey }) =>
-              onPointClick((datum?.__group as string | null) ?? null, hasBreakdown ? lineKey : null)
-          : undefined
-      }
-    />
-  );
-}
-
-function PieChartView({
-  chartData,
-  donut,
-  progress,
-  baseColors,
-  canDrilldown,
-  onSliceClick,
-}: {
-  chartData: ReturnType<typeof buildInsightChartData>;
-  donut: boolean;
-  progress: boolean;
-  baseColors: string[];
-  canDrilldown: boolean;
-  onSliceClick: (group: string | null) => void;
-}) {
-  const extended = generateExtendedColors(baseColors, chartData.rows.length);
-  const pieData = chartData.rows.map((row, index) => ({
-    name: row.name,
-    value: row.count,
-    __group: row.__group,
-    fill: extended[index] ?? baseColors[0],
-  }));
-  const total = pieData.reduce((sum, row) => sum + (row.value as number), 0);
-  const progressPct = progress && total > 0 ? ((pieData[0]?.value as number) / total) * 100 : undefined;
-
-  return (
-    <PieChart
-      className="h-[220px] w-full"
-      data={pieData}
-      dataKey="value"
-      innerRadius={donut ? "55%" : 0}
-      outerRadius="80%"
-      showLabel={false}
-      cells={pieData.map((row) => ({
-        key: String(row.name),
-        fill: row.fill as string,
-      }))}
-      centerLabel={
-        progressPct !== undefined
-          ? { text: `${progressPct.toFixed(0)}%`, fill: "var(--text-color-primary)" }
-          : undefined
-      }
-      onPieClick={canDrilldown ? ({ datum }) => onSliceClick((datum?.__group as string | null) ?? null) : undefined}
-    />
-  );
-}
-
-function MatrixTable({
-  model,
-  resolveRow,
-  resolveCol,
-  onCellClick,
-  canDrilldown,
-}: {
-  model: ReturnType<typeof buildMatrixTableModel>;
-  resolveRow: (key: string) => string;
-  resolveCol: (key: string) => string;
-  onCellClick: (row: string, col: string) => void;
-  canDrilldown: boolean;
-}) {
-  return (
-    <table className="w-full border-collapse text-12">
-      <thead>
-        <tr className="border-b border-subtle text-tertiary">
-          <th className="px-2 py-1 text-left" />
-          {model.colKeys.map((col) => (
-            <th key={col} className="px-2 py-1 text-right">
-              {resolveCol(col)}
-            </th>
-          ))}
-          <th className="px-2 py-1 text-right font-medium">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {model.rowKeys.map((row) => (
-          <tr key={row} className="border-b border-subtle">
-            <td className="px-2 py-1 text-left font-medium">{resolveRow(row)}</td>
-            {model.colKeys.map((col) => {
-              const cell = model.cells[row]?.[col];
-              return (
-                <td key={col} className="px-2 py-1 text-right">
-                  {canDrilldown ? (
-                    <button
-                      type="button"
-                      className="w-full rounded-sm hover:bg-layer-1"
-                      onClick={() => onCellClick(row, col)}
-                    >
-                      {cell?.display ?? "—"}
-                    </button>
-                  ) : (
-                    (cell?.display ?? "—")
-                  )}
-                </td>
-              );
-            })}
-            <td className="px-2 py-1 text-right font-medium">{formatValue(model.rowTotals[row] ?? 0)}</td>
-          </tr>
-        ))}
-        <tr className="font-medium">
-          <td className="px-2 py-1 text-left">Total</td>
-          {model.colKeys.map((col) => (
-            <td key={col} className="px-2 py-1 text-right">
-              {formatValue(model.colTotals[col] ?? 0)}
-            </td>
-          ))}
-          <td className="px-2 py-1 text-right">{formatValue(model.grandTotal)}</td>
-        </tr>
-      </tbody>
-    </table>
-  );
-}
-
-function WorkItemsTablePreview({
-  workspaceSlug,
-  dashboardId,
-  widgetId,
-  chartData,
-  canDrilldown,
-  onDrilldown,
-}: {
-  workspaceSlug: string;
-  dashboardId: string;
-  widgetId: string;
-  chartData: ReturnType<typeof buildInsightChartData> | null;
-  canDrilldown: boolean;
-  onDrilldown: (group: string | null, series: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  if (chartData && chartData.rows.length > 0) {
-    return (
-      <table className="w-full text-12">
-        <thead>
-          <tr className="border-b border-subtle text-tertiary">
-            <th className="px-2 py-1 text-left">Group</th>
-            {chartData.seriesKeys.map((key) => (
-              <th key={key} className="px-2 py-1 text-right">
-                {chartData.schema[key]}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {chartData.rows.map((row: InsightChartRow) => (
-            <tr key={String(row.__group)} className="border-b border-subtle">
-              <td className="px-2 py-1">{row.name}</td>
-              {chartData.seriesKeys.map((key) => (
-                <td key={key} className="px-2 py-1 text-right">
-                  {canDrilldown ? (
-                    <button type="button" className="hover:bg-layer-1" onClick={() => onDrilldown(row.__group, key)}>
-                      {row.__display[key] ?? "—"}
-                    </button>
-                  ) : (
-                    (row.__display[key] ?? "—")
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
-        View work items
-      </Button>
-      {open ? (
-        <WidgetDrilldownDrawer
-          workspaceSlug={workspaceSlug}
-          dashboardId={dashboardId}
-          widgetId={widgetId}
-          selection={{}}
-          onClose={() => setOpen(false)}
-        />
-      ) : null}
     </div>
   );
 }
