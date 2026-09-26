@@ -51,6 +51,7 @@ from plane.api.serializers import (
     ProjectUpdateSerializer,
 )
 from plane.app.permissions import ProjectBasePermission, WorkSpaceAdminPermission
+from plane.app.services.membership_lifecycle import ensure_project_lead_membership
 from plane.utils.openapi import (
     project_docs,
     PROJECT_ID_PARAMETER,
@@ -572,6 +573,17 @@ class ProjectDetailAPIEndpoint(BaseAPIView):
             project = Project.objects.get(pk=pk)
             current_instance = json.dumps(ProjectSerializer(project).data, cls=DjangoJSONEncoder)
 
+            # RD-447: PATCH project_lead=X used to update
+            # ``project.project_lead_id`` without creating a matching
+            # ``ProjectMember`` row, so the new lead had ``project_lead ==
+            # self`` but every membership gate (Leader Morning Pulse digest,
+            # project archive, ...) stripped them. We must read the *current*
+            # lead before the serializer save so we can detect a real change
+            # and only then call the membership_lifecycle service -- a no-op
+            # PATCH that re-submits the same lead must not bump updated_at on
+            # the existing ProjectMember.
+            previous_lead_id = project.project_lead_id
+
             intake_view = request.data.get("intake_view", project.intake_view)
 
             if project.archived_at:
@@ -588,7 +600,24 @@ class ProjectDetailAPIEndpoint(BaseAPIView):
             )
 
             if serializer.is_valid():
-                serializer.save()
+                # Atomic block: serializer.save() (writes project.project_lead_id)
+                # and ensure_project_lead_membership (creates / activates the
+                # lead's ProjectMember) must succeed together -- otherwise we'd
+                # leave a project with a lead that has no membership, the very
+                # bug RD-449 found. Intake creation and model_activity dispatch
+                # stay outside the block: the intake creation is idempotent on
+                # the (project, is_default=True) predicate and model_activity
+                # already runs on a successful commit.
+                with transaction.atomic():
+                    serializer.save()
+                    new_lead_id = serializer.instance.project_lead_id
+                    if new_lead_id and new_lead_id != previous_lead_id:
+                        ensure_project_lead_membership(
+                            project_id=serializer.instance.id,
+                            new_lead_id=new_lead_id,
+                            workspace_id=workspace.id,
+                        )
+
                 if serializer.data["intake_view"]:
                     intake = Intake.objects.filter(project=project, is_default=True).first()
                     if not intake:

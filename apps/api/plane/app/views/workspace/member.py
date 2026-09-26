@@ -4,7 +4,6 @@
 
 # Django imports
 from django.db.models import Count, Q, OuterRef, Subquery, IntegerField
-from django.utils import timezone
 from django.db.models.functions import Coalesce
 
 # Third party modules
@@ -20,6 +19,7 @@ from plane.app.serializers import (
     WorkspaceMemberMeSerializer,
     WorkSpaceMemberSerializer,
 )
+from plane.app.services.membership_lifecycle import revoke_workspace_member
 from plane.app.views.base import BaseAPIView
 from plane.db.models import Project, ProjectMember, WorkspaceMember, DraftIssue
 from plane.utils.cache import invalidate_cache
@@ -88,10 +88,31 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         if "role" in request.data and int(request.data.get("role")) == 5:
             ProjectMember.objects.filter(workspace__slug=slug, member_id=workspace_member.member_id).update(role=5)
 
+        # RD-447: PATCH {"is_active": false} must cascade to ProjectMember just
+        # like destroy/leave -- otherwise a revoked user keeps project access
+        # (and any membership-gated feature, e.g. digest emails). Detect the
+        # True -> False transition BEFORE the serializer save so a no-op PATCH
+        # (same value) doesn't accidentally deactivate project rows. The
+        # membership_lifecycle service runs the cascade inside one
+        # transaction; we still call serializer.save() so non-is_active
+        # fields (role, view_props, ...) get written in the same request.
+        raw_is_active = request.data.get("is_active", None)
+        deactivating = (
+            raw_is_active is not None
+            and not raw_is_active
+            and workspace_member.is_active
+        )
+
         serializer = WorkSpaceMemberSerializer(workspace_member, data=request.data, partial=True)
 
         if serializer.is_valid():
             serializer.save()
+            if deactivating:
+                # Refresh so the service sees the row's current state after
+                # the serializer's save -- update_fields may not include
+                # is_active if the field was set to the same value via DRF.
+                workspace_member.refresh_from_db()
+                revoke_workspace_member(workspace_member)
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -141,12 +162,9 @@ class WorkSpaceMemberViewSet(BaseViewSet):
             )
 
         # Deactivate the users from the projects where the user is part of
-        _ = ProjectMember.objects.filter(
-            workspace__slug=slug, member_id=workspace_member.member_id, is_active=True
-        ).update(is_active=False, updated_at=timezone.now())
-
-        workspace_member.is_active = False
-        workspace_member.save()
+        # (RD-447: shared with PATCH is_active=False and leave -- see
+        # plane.app.services.membership_lifecycle.revoke_workspace_member).
+        revoke_workspace_member(workspace_member)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @invalidate_cache(
@@ -195,13 +213,9 @@ class WorkSpaceMemberViewSet(BaseViewSet):
             )
 
         # # Deactivate the users from the projects where the user is part of
-        _ = ProjectMember.objects.filter(
-            workspace__slug=slug, member_id=workspace_member.member_id, is_active=True
-        ).update(is_active=False, updated_at=timezone.now())
-
-        # # Deactivate the user
-        workspace_member.is_active = False
-        workspace_member.save()
+        # (RD-447: shared with destroy and PATCH is_active=False --
+        # plane.app.services.membership_lifecycle.revoke_workspace_member).
+        revoke_workspace_member(workspace_member)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
