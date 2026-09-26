@@ -301,17 +301,52 @@ export function isValidNextPath(url: string): boolean {
   // Block backslashes which can be used for path traversal or Windows-style paths
   if (trimmedUrl.includes("\\")) return false;
 
+  // Decode URL to detect encoded bypasses like %2f or %5c
+  let decodedUrl = trimmedUrl;
+  try {
+    decodedUrl = decodeURIComponent(trimmedUrl);
+  } catch (_error) {
+    return false;
+  }
+
+  // Check again after decoding
+  if (!decodedUrl.startsWith("/")) return false;
+  if (decodedUrl.startsWith("//")) return false;
+  if (decodedUrl.includes("\\")) return false;
+
+  // Block control characters and ASCII whitespace (e.g., \t, \n, \r, null bytes)
+  if (/[\x00-\x1F\x7F]/.test(decodedUrl)) return false;
+
   try {
     // Use URL constructor with a dummy base to normalize and validate the path
     const normalizedUrl = new URL(trimmedUrl, "http://localhost");
 
     // Ensure the path is still relative (no host change from our dummy base)
-    if (normalizedUrl.hostname !== "localhost" || normalizedUrl.protocol !== "http:") {
+    if (normalizedUrl.hostname !== "localhost" || normalizedUrl.protocol !== "http:" || normalizedUrl.port !== "") {
       return false;
     }
 
-    // Use the normalized pathname for additional security checks
-    const pathname = normalizedUrl.pathname;
+    const decodedNormalizedUrl = new URL(decodedUrl, "http://localhost");
+    if (
+      decodedNormalizedUrl.hostname !== "localhost" ||
+      decodedNormalizedUrl.protocol !== "http:" ||
+      decodedNormalizedUrl.port !== ""
+    ) {
+      return false;
+    }
+
+    let searchDecoded = "";
+    let hashDecoded = "";
+    try {
+      searchDecoded = decodeURIComponent(normalizedUrl.search);
+      hashDecoded = decodeURIComponent(normalizedUrl.hash);
+    } catch (_error) {
+      return false;
+    }
+
+    // Use the normalized pathname, search, and hash for additional security checks
+    const fullPath = normalizedUrl.pathname + normalizedUrl.search + normalizedUrl.hash;
+    const decodedFullPath = decodedNormalizedUrl.pathname + searchDecoded + hashDecoded;
 
     // Additional security checks for malicious patterns in the normalized path
     const maliciousPatterns = [
@@ -322,7 +357,7 @@ export function isValidNextPath(url: string): boolean {
       /on\w+=/i, // Event handlers like onclick=, onload=
     ];
 
-    return !maliciousPatterns.some((pattern) => pattern.test(pathname));
+    return !maliciousPatterns.some((pattern) => pattern.test(fullPath) || pattern.test(decodedFullPath));
   } catch (_error) {
     // If URL constructor fails, it's an invalid path
     return false;
