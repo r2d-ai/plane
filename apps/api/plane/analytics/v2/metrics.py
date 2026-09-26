@@ -248,8 +248,10 @@ def aggregate(queryset, spec: MetricSpec, distinct: bool = False):
         qs = queryset
 
     if spec.aggregation == "count":
+        from django.db.models import Count
+
         if distinct:
-            return qs.distinct().count()
+            return qs.aggregate(total=Count("id", distinct=True))["total"] or 0
         return qs.count()
     if spec.aggregation == "estimate_sum":
         from django.db.models import FloatField

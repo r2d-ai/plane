@@ -1,0 +1,483 @@
+# Copyright (c) 2023-present Plane Software, Inc. and contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+# See the LICENSE file for details.
+
+"""Dashboard CRUD API contract tests (spec §49.2)."""
+
+from __future__ import annotations
+
+import pytest
+from rest_framework.test import APIClient
+
+from plane.db.models import (
+    Dashboard,
+    DashboardFavorite,
+    DashboardMemberAccess,
+    DashboardProject,
+    DashboardWidget,
+    Issue,
+    Project,
+    ProjectMember,
+    ProjectNetwork,
+    State,
+    User,
+    Workspace,
+    WorkspaceMember,
+)
+
+pytestmark = [pytest.mark.contract, pytest.mark.django_db]
+
+
+@pytest.fixture(autouse=True)
+def enable_workspace_dashboards(settings):
+    settings.WORKSPACE_DASHBOARDS = True
+
+
+def _dashboards_url(slug):
+    return f"/api/workspaces/{slug}/dashboards/"
+
+
+def _dashboard_url(slug, dashboard_id):
+    return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/"
+
+
+def _duplicate_url(slug, dashboard_id):
+    return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/duplicate/"
+
+
+def _widgets_url(slug, dashboard_id):
+    return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/widgets/"
+
+
+def _widget_url(slug, dashboard_id, widget_id):
+    return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/widgets/{widget_id}/"
+
+
+def _data_url(slug, dashboard_id):
+    return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/data/"
+
+
+def _favorite_url(slug, dashboard_id):
+    return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/favorite/"
+
+
+def _export_url(slug, dashboard_id, widget_id):
+    return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/widgets/{widget_id}/export/"
+
+
+def _drilldown_url(slug, dashboard_id, widget_id):
+    return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/widgets/{widget_id}/drilldown/"
+
+
+def _members_url(slug, dashboard_id):
+    return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/members/"
+
+
+def _make_user(email: str) -> User:
+    user = User.objects.create(email=email, username=email.split("@")[0])
+    user.set_password("pw")
+    user.save()
+    return user
+
+
+def _client_for(user: User) -> APIClient:
+    client = APIClient()
+    client.force_authenticate(user=user)
+    return client
+
+
+def _state(project: Project) -> State:
+    return State.objects.create(project=project, name="Backlog", color="#000", group="started")
+
+
+@pytest.fixture
+def acme():
+    owner = _make_user("owner@plane.so")
+    workspace = Workspace.objects.create(name="ACME", slug="acme-dash", owner=owner, timezone="UTC")
+    proj_a = Project.objects.create(
+        workspace=workspace,
+        name="Public",
+        identifier="PUB",
+        created_by=owner,
+        updated_by=owner,
+        network=ProjectNetwork.PUBLIC.value,
+    )
+    proj_b = Project.objects.create(
+        workspace=workspace,
+        name="Secret",
+        identifier="SEC",
+        created_by=owner,
+        updated_by=owner,
+        network=ProjectNetwork.SECRET.value,
+    )
+    st = {p.id: _state(p) for p in (proj_a, proj_b)}
+
+    x = _make_user("x@plane.so")
+    y = _make_user("y@plane.so")
+    WorkspaceMember.objects.create(workspace=workspace, member=owner, role=20, is_active=True)
+    WorkspaceMember.objects.create(workspace=workspace, member=x, role=15, is_active=True)
+    WorkspaceMember.objects.create(workspace=workspace, member=y, role=15, is_active=True)
+    ProjectMember.objects.create(project=proj_a, member=x, role=20, is_active=True)
+    ProjectMember.objects.create(project=proj_b, member=x, role=20, is_active=True)
+    ProjectMember.objects.create(project=proj_a, member=y, role=20, is_active=True)
+
+    for proj in (proj_a, proj_b):
+        for i in range(2):
+            Issue.objects.create(
+                project=proj,
+                workspace=workspace,
+                name=f"{proj.identifier}-{i}",
+                state=st[proj.id],
+                priority="medium",
+                created_by=x,
+            )
+
+    return {
+        "workspace": workspace,
+        "owner": owner,
+        "proj_a": proj_a,
+        "proj_b": proj_b,
+        "x": x,
+        "y": y,
+    }
+
+
+class TestDashboardFeatureFlag:
+    def test_flag_off_returns_404(self, acme, settings):
+        settings.WORKSPACE_DASHBOARDS = False
+        client = _client_for(acme["owner"])
+        response = client.get(_dashboards_url(acme["workspace"].slug))
+        assert response.status_code == 404
+
+
+class TestDashboardCrud:
+    def test_create_list_get_patch_delete(self, acme):
+        client = _client_for(acme["owner"])
+        slug = acme["workspace"].slug
+
+        created = client.post(
+            _dashboards_url(slug),
+            {
+                "name": "Sprint health",
+                "visibility": Dashboard.VISIBILITY_WORKSPACE,
+                "project_ids": [str(acme["proj_a"].id), str(acme["proj_b"].id)],
+            },
+            format="json",
+        )
+        assert created.status_code == 201
+        dashboard_id = created.data["id"]
+
+        listed = client.get(_dashboards_url(slug))
+        assert listed.status_code == 200
+        assert any(row["id"] == dashboard_id for row in listed.data)
+
+        detail = client.get(_dashboard_url(slug, dashboard_id))
+        assert detail.status_code == 200
+        assert detail.data["name"] == "Sprint health"
+
+        patched = client.patch(
+            _dashboard_url(slug, dashboard_id),
+            {"name": "Renamed"},
+            format="json",
+        )
+        assert patched.status_code == 200
+        assert patched.data["name"] == "Renamed"
+
+        deleted = client.delete(_dashboard_url(slug, dashboard_id))
+        assert deleted.status_code == 204
+        assert not Dashboard.objects.filter(id=dashboard_id, deleted_at__isnull=True).exists()
+
+    def test_private_dashboard_hidden_from_other_member(self, acme):
+        owner_client = _client_for(acme["owner"])
+        other_client = _client_for(acme["y"])
+        slug = acme["workspace"].slug
+
+        created = owner_client.post(
+            _dashboards_url(slug),
+            {"name": "Private board", "visibility": Dashboard.VISIBILITY_PRIVATE},
+            format="json",
+        )
+        dashboard_id = created.data["id"]
+
+        assert other_client.get(_dashboard_url(slug, dashboard_id)).status_code == 404
+
+    def test_workspace_visible_dashboard_readable(self, acme):
+        owner_client = _client_for(acme["owner"])
+        other_client = _client_for(acme["y"])
+        slug = acme["workspace"].slug
+
+        created = owner_client.post(
+            _dashboards_url(slug),
+            {"name": "Team board", "visibility": Dashboard.VISIBILITY_WORKSPACE},
+            format="json",
+        )
+        assert other_client.get(_dashboard_url(slug, created.data["id"])).status_code == 200
+
+
+class TestDashboardWidgetsAndData:
+    def _dashboard_with_widget(self, acme, client, filters=None):
+        slug = acme["workspace"].slug
+        dash = client.post(
+            _dashboards_url(slug),
+            {
+                "name": "Data board",
+                "visibility": Dashboard.VISIBILITY_WORKSPACE,
+                "project_ids": [str(acme["proj_a"].id), str(acme["proj_b"].id)],
+                "filters": filters or {},
+                "default_time_scope": {"preset": "none"},
+            },
+            format="json",
+        )
+        dashboard_id = dash.data["id"]
+        widget = client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "Counts",
+                "widget_type": "number",
+                "query_config": {
+                    "schema_version": 1,
+                    "version": 1,
+                    "metrics": [{"key": "work_item_count"}],
+                    "dimensions": [{"key": "project"}],
+                    "time": {"preset": "none"},
+                },
+            },
+            format="json",
+        )
+        return slug, dashboard_id, widget.data["id"]
+
+    def test_widget_crud(self, acme):
+        client = _client_for(acme["x"])
+        slug, dashboard_id, widget_id = self._dashboard_with_widget(acme, client)
+
+        patched = client.patch(
+            _widget_url(slug, dashboard_id, widget_id),
+            {"title": "Updated"},
+            format="json",
+        )
+        assert patched.status_code == 200
+        assert patched.data["title"] == "Updated"
+
+        deleted = client.delete(_widget_url(slug, dashboard_id, widget_id))
+        assert deleted.status_code == 204
+
+    def test_batch_data_partial_failure(self, acme):
+        client = _client_for(acme["x"])
+        slug = acme["workspace"].slug
+        dash = client.post(
+            _dashboards_url(slug),
+            {
+                "name": "Batch",
+                "visibility": Dashboard.VISIBILITY_WORKSPACE,
+                "project_ids": [str(acme["proj_a"].id)],
+                "default_time_scope": {"preset": "none"},
+            },
+            format="json",
+        )
+        dashboard_id = dash.data["id"]
+        client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "OK",
+                "widget_type": "number",
+                "query_config": {
+                    "schema_version": 1,
+                    "version": 1,
+                    "metrics": [{"key": "work_item_count"}],
+                    "time": {"preset": "none"},
+                },
+            },
+            format="json",
+        )
+        client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "Bad",
+                "widget_type": "number",
+                "query_config": {
+                    "schema_version": 1,
+                    "version": 1,
+                    "metrics": [{"key": "not_a_metric"}],
+                    "time": {"preset": "none"},
+                },
+            },
+            format="json",
+        )
+
+        response = client.post(_data_url(slug, dashboard_id), {}, format="json")
+        assert response.status_code == 200
+        widgets = response.data["widgets"]
+        statuses = {entry["status"] for entry in widgets.values()}
+        assert "ok" in statuses
+        assert "error" in statuses
+
+    def test_acl_intersection_per_viewer(self, acme):
+        x_client = _client_for(acme["x"])
+        y_client = _client_for(acme["y"])
+        slug, dashboard_id, _widget_id = self._dashboard_with_widget(acme, x_client)
+
+        x_data = x_client.post(_data_url(slug, dashboard_id), {}, format="json")
+        y_data = y_client.post(_data_url(slug, dashboard_id), {}, format="json")
+
+        x_total = next(
+            w["data"]["totals"]["work_item_count"]
+            for w in x_data.data["widgets"].values()
+            if w["status"] == "ok"
+        )
+        y_total = next(
+            w["data"]["totals"]["work_item_count"]
+            for w in y_data.data["widgets"].values()
+            if w["status"] == "ok"
+        )
+        assert x_total == 4.0
+        assert y_total == 2.0
+        assert str(acme["proj_b"].id) not in str(y_data.data)
+
+    def test_filter_intersection_narrows_widget(self, acme):
+        client = _client_for(acme["x"])
+        slug, dashboard_id, widget_id = self._dashboard_with_widget(
+            acme,
+            client,
+            filters={"project_id": [str(acme["proj_a"].id)]},
+        )
+        response = client.post(_data_url(slug, dashboard_id), {}, format="json")
+        widget_payload = response.data["widgets"][str(widget_id)]
+        assert widget_payload["status"] == "ok"
+        assert widget_payload["data"]["totals"]["work_item_count"] == 2.0
+
+
+class TestDashboardFavoriteDuplicateSharing:
+    def test_favorite_and_duplicate(self, acme):
+        client = _client_for(acme["owner"])
+        slug = acme["workspace"].slug
+        created = client.post(
+            _dashboards_url(slug),
+            {
+                "name": "Original",
+                "visibility": Dashboard.VISIBILITY_PRIVATE,
+                "project_ids": [str(acme["proj_a"].id)],
+            },
+            format="json",
+        )
+        dashboard_id = created.data["id"]
+        client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "W1",
+                "widget_type": "number",
+                "query_config": {"schema_version": 1, "version": 1, "metrics": [{"key": "work_item_count"}]},
+            },
+            format="json",
+        )
+
+        assert client.post(_favorite_url(slug, dashboard_id)).status_code == 204
+        detail = client.get(_dashboard_url(slug, dashboard_id))
+        assert detail.data["is_favorited"] is True
+
+        dup = client.post(_duplicate_url(slug, dashboard_id))
+        assert dup.status_code == 201
+        assert str(dup.data["owner"]) == str(acme["owner"].id)
+        assert dup.data["visibility"] == Dashboard.VISIBILITY_PRIVATE
+        assert DashboardWidget.objects.filter(dashboard_id=dup.data["id"]).count() == 1
+        assert not DashboardMemberAccess.objects.filter(dashboard_id=dup.data["id"]).exists()
+
+    def test_sharing_row_grants_view(self, acme):
+        owner_client = _client_for(acme["owner"])
+        guest_client = _client_for(acme["y"])
+        slug = acme["workspace"].slug
+        created = owner_client.post(
+            _dashboards_url(slug),
+            {"name": "Shared", "visibility": Dashboard.VISIBILITY_PRIVATE},
+            format="json",
+        )
+        dashboard_id = created.data["id"]
+        assert guest_client.get(_dashboard_url(slug, dashboard_id)).status_code == 404
+
+        owner_client.post(
+            _members_url(slug, dashboard_id),
+            {"member": str(acme["y"].id), "access": DashboardMemberAccess.ACCESS_VIEW},
+            format="json",
+        )
+        assert guest_client.get(_dashboard_url(slug, dashboard_id)).status_code == 200
+
+
+class TestDashboardExportAndDrilldown:
+    def test_export_csv_matches_acl(self, acme):
+        client = _client_for(acme["y"])
+        slug = acme["workspace"].slug
+        dash = client.post(
+            _dashboards_url(slug),
+            {
+                "name": "Export",
+                "visibility": Dashboard.VISIBILITY_WORKSPACE,
+                "project_ids": [str(acme["proj_a"].id), str(acme["proj_b"].id)],
+                "default_time_scope": {"preset": "none"},
+            },
+            format="json",
+        )
+        dashboard_id = dash.data["id"]
+        widget = client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "CSV",
+                "widget_type": "table",
+                "query_config": {
+                    "schema_version": 1,
+                    "version": 1,
+                    "metrics": [{"key": "work_item_count"}],
+                    "dimensions": [{"key": "project"}],
+                    "time": {"preset": "none"},
+                },
+            },
+            format="json",
+        )
+        export = client.get(_export_url(slug, dashboard_id, widget.data["id"]))
+        assert export.status_code == 200
+        assert "text/csv" in export["Content-Type"]
+        body = export.content.decode()
+        assert str(acme["proj_b"].id) not in body
+
+    def test_drilldown_parity_with_aggregate(self, acme):
+        client = _client_for(acme["x"])
+        slug = acme["workspace"].slug
+        dash = client.post(
+            _dashboards_url(slug),
+            {
+                "name": "Drill",
+                "visibility": Dashboard.VISIBILITY_WORKSPACE,
+                "project_ids": [str(acme["proj_a"].id)],
+                "default_time_scope": {"preset": "none"},
+            },
+            format="json",
+        )
+        dashboard_id = dash.data["id"]
+        widget = client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "D",
+                "widget_type": "bar",
+                "query_config": {
+                    "schema_version": 1,
+                    "version": 1,
+                    "metrics": [{"key": "work_item_count"}],
+                    "dimensions": [{"key": "project"}],
+                    "time": {"preset": "none"},
+                },
+            },
+            format="json",
+        )
+        widget_id = widget.data["id"]
+
+        data = client.post(_data_url(slug, dashboard_id), {}, format="json")
+        aggregate_total = data.data["widgets"][str(widget_id)]["data"]["totals"]["work_item_count"]
+
+        drill = client.post(
+            _drilldown_url(slug, dashboard_id, widget_id),
+            {
+                "selection": {"project": [str(acme["proj_a"].id)]},
+                "page_size": 50,
+            },
+            format="json",
+        )
+        assert drill.status_code == 200
+        assert drill.data["contributions"]["work_item_count"] == aggregate_total
