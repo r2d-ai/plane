@@ -1,6 +1,7 @@
 # Workspace Dashboard + Analytics V2 — Product & Implementation Spec
 
 Status: **Authoritative replacement spec / ready for implementation**  
+Implementation status: **v3 migration complete (RD-475 Phases A–F shipped; old dashboard builder retired in RD-483 / RD-484). All references below describe the v3 fixed Workspace Dashboard as it now exists in `master`.**  
 Target branch: `master`  
 Scope: Community Edition fork  
 Supersedes: the previous multi-dashboard / dashboard-builder design in this file  
