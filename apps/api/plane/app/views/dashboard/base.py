@@ -21,6 +21,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from plane.analytics.v2 import AnalyticsEngineV2, AnalyticsQueryV2
+from plane.analytics.v2.query import MAX_BATCH_QUERIES
 from plane.analytics.v2.drilldown import DrilldownSelection
 from plane.analytics.v2.serializer import serialise_response
 from plane.app.permissions.dashboard import DashboardPermission
@@ -543,6 +544,15 @@ class DashboardDataEndpoint(DashboardMixin, BaseAPIView):
         dashboard = _get_dashboard(workspace, dashboard_id, request.user)
         if dashboard is None:
             return self._not_found()
+
+        widget_count = DashboardWidget.objects.filter(
+            dashboard=dashboard, deleted_at__isnull=True
+        ).count()
+        if widget_count > MAX_BATCH_QUERIES:
+            return Response(
+                {"error": "Invalid query", "code": "INVALID_QUERY"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         engine = AnalyticsEngineV2(workspace=workspace, principal=request.user)
         widgets = DashboardWidget.objects.filter(
