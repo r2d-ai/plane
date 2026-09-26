@@ -16,6 +16,34 @@ from plane.analytics.v2.query import AnalyticsQueryV2, AnalyticsResponseV2
 from plane.analytics.v2.serializer import serialise_response
 from plane.db.models import Dashboard, DashboardProject, DashboardWidget
 
+VIEWER_FILTER_TOKENS = frozenset({"current_user", "@current_user"})
+
+
+def _principal_id(principal) -> str:
+    return str(getattr(principal, "id", principal))
+
+
+def resolve_viewer_filter_placeholders(
+    filters: Optional[Dict[str, Any]], principal
+) -> Dict[str, Any]:
+    """Replace dynamic viewer tokens in widget filters (spec §22)."""
+    if not filters:
+        return {}
+    pid = _principal_id(principal)
+    out: Dict[str, Any] = {}
+    for key, raw in filters.items():
+        if raw is None:
+            continue
+        if isinstance(raw, (list, tuple)):
+            out[key] = [
+                pid if token in VIEWER_FILTER_TOKENS else token for token in raw
+            ]
+        elif raw in VIEWER_FILTER_TOKENS:
+            out[key] = pid
+        else:
+            out[key] = raw
+    return out
+
 
 def intersect_structured_filters(
     left: Optional[Dict[str, Any]],
@@ -99,6 +127,7 @@ def compose_widget_query_payload(
         widget_filters = intersect_structured_filters(
             widget_filters, widget.query_config.get("filters")
         )
+    widget_filters = resolve_viewer_filter_placeholders(widget_filters, principal)
 
     payload["filters"] = intersect_structured_filters(dashboard.filters, widget_filters)
 

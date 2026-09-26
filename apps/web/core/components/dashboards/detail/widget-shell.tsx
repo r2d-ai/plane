@@ -9,16 +9,20 @@ import { useTranslation } from "@plane/i18n";
 import type { TDashboardBatchWidgetResult, TWorkspaceDashboardWidget } from "@plane/types";
 import { Button } from "@plane/ui";
 import { isStaticWidgetType } from "../time-scope";
-import { MarkdownPlaceholderWidget } from "./markdown-placeholder";
+import { asAnalyticsResponse } from "../widgets/analytics-data";
+import { DashboardAnalyticsWidget } from "../widgets/analytics-widget";
+import { MarkdownPlaceholderWidget } from "../widgets/markdown-placeholder";
 
 type Props = {
   widget: TWorkspaceDashboardWidget;
   batch?: TDashboardBatchWidgetResult;
   loading: boolean;
+  workspaceSlug: string;
+  dashboardId: string;
   onRetry?: () => void;
 };
 
-export function DashboardWidgetShell({ widget, batch, loading, onRetry }: Props) {
+export function DashboardWidgetShell({ widget, batch, loading, workspaceSlug, dashboardId, onRetry }: Props) {
   const { t } = useTranslation();
 
   if (isStaticWidgetType(widget.widget_type)) {
@@ -48,10 +52,26 @@ export function DashboardWidgetShell({ widget, batch, loading, onRetry }: Props)
     );
   }
 
+  const response = asAnalyticsResponse(batch?.data);
+  if (!response) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
+        <p className="text-13 text-tertiary">{t("dashboard_shell.widget.error")}</p>
+        {onRetry ? (
+          <Button variant="neutral-primary" size="sm" onClick={onRetry}>
+            {t("dashboard_shell.widget.retry")}
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-full flex-col gap-2 p-3">
-      <h3 className="text-13 font-medium text-primary">{widget.title}</h3>
-      <p className="text-12 text-tertiary">{t("dashboard_shell.widget.renderer_pending")}</p>
-    </div>
+    <DashboardAnalyticsWidget
+      widget={widget}
+      response={response}
+      workspaceSlug={workspaceSlug}
+      dashboardId={dashboardId}
+    />
   );
 }

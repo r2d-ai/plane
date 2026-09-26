@@ -158,6 +158,8 @@ export function WorkspaceDashboardDetailRoot({ workspaceSlug, dashboardId }: Pro
             batch={batch}
             batchLoading={batchLoading}
             editMode={mode === "edit" && canEdit}
+            workspaceSlug={workspaceSlug}
+            dashboardId={dashboardId}
             onLayoutPersist={handleLayoutPersist}
             onRefreshData={refreshData}
           />
