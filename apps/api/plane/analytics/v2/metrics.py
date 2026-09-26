@@ -77,7 +77,7 @@ def _q_in_progress() -> Q:
 def _q_blocked() -> Q:
     # An issue is blocked if some IssueBlocker row has it as ``blocked_by`` and
     # the blocker still exists.
-    return Q(issue_blocked_issues__isnull=False, issue_blocked_issues__deleted_at__isnull=True)
+    return Q(blocker_issues__isnull=False, blocker_issues__deleted_at__isnull=True)
 
 
 def _q_overdue() -> Q:

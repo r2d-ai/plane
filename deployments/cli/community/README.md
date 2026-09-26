@@ -152,6 +152,8 @@ Below are the most import keys you must refer to. _<span style="color: #fcba03">
 
 There are many other settings you can play with, but we suggest you configure `EMAIL SETTINGS` as it will enable you to invite your teammates onto the platform.
 
+> `WORKSPACE_DASHBOARDS` — in `plane.env` / API environment (see `apps/api/.env.example`). Master flag for workspace dashboards (RD-452 / spec §44.3). Only the literal value `1` enables the feature; default `0` (fail-closed).
+
 ---
 
 ### Continue with setup - Start Server (Docker Compose)
