@@ -51,6 +51,7 @@ from plane.api.serializers import (
     ProjectUpdateSerializer,
 )
 from plane.app.permissions import ProjectBasePermission, WorkSpaceAdminPermission
+from plane.app.services.membership_lifecycle import ensure_project_lead_membership
 from plane.utils.openapi import (
     project_docs,
     PROJECT_ID_PARAMETER,
@@ -588,7 +589,32 @@ class ProjectDetailAPIEndpoint(BaseAPIView):
             )
 
             if serializer.is_valid():
-                serializer.save()
+                # Atomic block: serializer.save() (writes project.project_lead_id)
+                # and ensure_project_lead_membership (creates / activates the
+                # lead's ProjectMember) must succeed together -- otherwise we'd
+                # leave a project with a lead that has no membership, the very
+                # bug RD-449 found. Intake creation and model_activity dispatch
+                # stay outside the block: the intake creation is idempotent on
+                # the (project, is_default=True) predicate and model_activity
+                # already runs on a successful commit.
+                #
+                # RD-447 follow-up: call ensure_project_lead_membership on
+                # *every* PATCH, not only when project_lead transitions to a
+                # new user. Pre-existing broken projects (lead set without a
+                # matching ProjectMember) only heal via a later PATCH that
+                # doesn't touch project_lead -- and the service is idempotent:
+                # when the lead already has active role=20 membership, no row
+                # is written and ``updated_at`` is left alone (see
+                # ``test_noop_when_already_correct`` in
+                # tests/unit/services/test_membership_lifecycle.py).
+                with transaction.atomic():
+                    serializer.save()
+                    ensure_project_lead_membership(
+                        project_id=serializer.instance.id,
+                        new_lead_id=serializer.instance.project_lead_id,
+                        workspace_id=workspace.id,
+                    )
+
                 if serializer.data["intake_view"]:
                     intake = Intake.objects.filter(project=project, is_default=True).first()
                     if not intake:
