@@ -14,9 +14,9 @@ import { cn } from "@plane/utils";
 import { metricUnit } from "@/components/analytics/v2/mapping";
 import { formatValue } from "@/components/analytics/v2/cells";
 import { useInsightValueResolver } from "@/components/analytics/v2/use-insight-value-resolver";
-import { DashboardService } from "@/services/dashboard.service";
+import { AnalyticsService } from "@/services/analytics.service";
 
-const dashboardService = new DashboardService();
+const analyticsService = new AnalyticsService();
 
 type Props = {
   workspaceSlug: string;
@@ -36,7 +36,7 @@ export function WidgetDrilldownDrawer(props: Props) {
   const { data, isLoading, error } = useSWR(
     `dashboard-drilldown-${workspaceSlug}-${dashboardId}-${widgetId}-${page}-${JSON.stringify(selection)}`,
     () =>
-      dashboardService.postDashboardWidgetDrilldown(workspaceSlug, dashboardId, widgetId, {
+      analyticsService.postDashboardWidgetDrilldown(workspaceSlug, dashboardId, widgetId, {
         selection,
         page,
         page_size: pageSize,

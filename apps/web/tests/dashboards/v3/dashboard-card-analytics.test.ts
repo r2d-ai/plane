@@ -1,20 +1,36 @@
+/**
+ * Copyright (c) 2023-present Plane Software, Inc. and contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * See the LICENSE file for details.
+ */
+
+/**
+ * The analytics contract the v3 cards render with (§49.6).
+ *
+ * Replaces the builder's `dashboard-widgets.test.ts`, which reached these same
+ * functions through `dashboards/widgets/analytics-data` — a shim that only
+ * re-exported the analytics namespace. The v3 card imports them from
+ * `analytics/v2` directly, so the contract is asserted where it now lives.
+ * `formatDisplayForCell` is gone with the shim: the card formats through
+ * `buildInsightChartData` and the engine's own `display` column.
+ */
+
 import { describe, expect, test } from "vitest";
 import type { TAnalyticsCell, TAnalyticsQueryResponseV2 } from "@plane/types";
+import { buildMatrixTableModel, formatPercentage, formatValue } from "@/components/analytics/v2/cells";
+import { aggregateCellsToCsvRows } from "@/components/analytics/v2/csv";
+import { resolveViewerFilterPlaceholders } from "@/components/analytics/v2/viewer-filters";
 import {
-  aggregateCellsToCsvRows,
-  buildMatrixTableModel,
-  findTruncationWarning,
-  formatDisplayForCell,
-  hasTruncatedResult,
-  resolveViewerFilterPlaceholders,
   WARNING_RESULT_TRUNCATED,
-} from "@/components/dashboards/widgets/analytics-data";
+  findTruncationWarning,
+  hasTruncatedResult,
+} from "@/components/analytics/v2/warnings";
 
-describe("dashboard widget analytics (§49.6)", () => {
-  test("percentage display uses cell percentage", () => {
+describe("v3 card analytics contract (§49.6)", () => {
+  test("the card plots the engine's display column, and formats a percentage itself", () => {
     const cell: TAnalyticsCell = { group: "a", series: null, value: 4, percentage: 0.25, display: "4 · 25.0%" };
-    expect(formatDisplayForCell(cell, "percentage")).toBe("25.0%");
-    expect(formatDisplayForCell(cell, "value_and_percentage")).toBe("4 · 25.0%");
+    expect(formatValue(4)).toBe("4");
+    expect(formatPercentage(cell.percentage)).toBe("25.0%");
   });
 
   test("matrix row and column totals", () => {

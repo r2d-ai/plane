@@ -124,6 +124,29 @@ export class AnalyticsService extends APIService {
   }
 
   /**
+   * The last dashboard-scoped analytics call, inherited from the builder
+   * service that RD-483 deleted. Only `WidgetDrilldownDrawer` still calls it,
+   * and the fixed Workspace Dashboard never reaches that drawer (it opens
+   * `postAnalyticsV2Drilldown` through `onOpenWorkItems` instead). It goes away
+   * with the drill-down route in E.1.
+   */
+  async postDashboardWidgetDrilldown(
+    workspaceSlug: string,
+    dashboardId: string,
+    widgetId: string,
+    payload: { selection: Record<string, string | string[] | null>; page?: number; page_size?: number }
+  ): Promise<TAnalyticsDrilldownResponseV2> {
+    return this.post(
+      `/api/workspaces/${workspaceSlug}/dashboards/${dashboardId}/widgets/${widgetId}/drilldown/`,
+      payload
+    )
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
+  /**
    * Analytics Engine V2 (RD-451) — `POST /analytics/v2/batch` (§32.3, §40.2).
    *
    * `{"queries": [{key, ...query}]}` — each entry is executed independently, so

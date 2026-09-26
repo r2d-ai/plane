@@ -9,7 +9,6 @@ import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 // plane package imports
-import { ANALYTICS_X_AXIS_VALUES } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import type { IAnalyticsParams } from "@plane/types";
 import { ChartXAxisProperty, ChartYAxisMetric } from "@plane/types";
@@ -19,8 +18,7 @@ import AnalyticsSectionWrapper from "../analytics-section-wrapper";
 import { AnalyticsSelectParams } from "../select/analytics-params";
 import { useAnalytics } from "@/hooks/store/use-analytics";
 import InsightChart from "./insight-chart";
-import SaveInsightToDashboard from "../v2/save-insight-to-dashboard";
-import { METRIC_LABELS, buildInsightQuery, toMetricKey } from "../v2";
+import { buildInsightQuery } from "../v2";
 
 const CustomizedInsights = observer(function CustomizedInsights({
   peekView,
@@ -86,32 +84,20 @@ const CustomizedInsights = observer(function CustomizedInsights({
     ]
   );
 
-  const defaultTitle = useMemo(() => {
-    const metric = METRIC_LABELS[toMetricKey(params.y_axis)] ?? params.y_axis;
-    const dimension = ANALYTICS_X_AXIS_VALUES.find((option) => option.value === params.x_axis)?.label ?? params.x_axis;
-    const breakdown = ANALYTICS_X_AXIS_VALUES.find((option) => option.value === params.group_by)?.label;
-    return breakdown ? `${metric} by ${dimension} · ${breakdown}` : `${metric} by ${dimension}`;
-  }, [params.group_by, params.x_axis, params.y_axis]);
-
   return (
     <AnalyticsSectionWrapper
       title={t("workspace_analytics.customized_insights")}
       className="col-span-1"
       headerClassName={cn(peekView ? "flex-col items-start" : "")}
       actions={
-        <div className="flex w-full items-center gap-3">
-          <AnalyticsSelectParams
-            control={control}
-            setValue={setValue}
-            params={params}
-            workspaceSlug={workspaceSlug.toString()}
-            isEpic={isEpic}
-            classNames="flex-1"
-          />
-          <div className="flex-shrink-0">
-            <SaveInsightToDashboard query={query} defaultTitle={defaultTitle} />
-          </div>
-        </div>
+        <AnalyticsSelectParams
+          control={control}
+          setValue={setValue}
+          params={params}
+          workspaceSlug={workspaceSlug.toString()}
+          isEpic={isEpic}
+          classNames="w-full"
+        />
       }
     >
       <InsightChart
