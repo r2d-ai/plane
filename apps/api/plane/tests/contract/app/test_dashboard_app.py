@@ -672,6 +672,81 @@ class TestDashboardACLRegression493:
         assert str(acl_abc["proj_c"].id) not in err_blob
         assert "not_a_real_metric" not in err_blob
 
+    def test_nested_query_config_acl_list_and_detail(self, acl_abc):
+        """Nested query_config.query must not leak hidden project UUIDs (RD-457 / §28.3)."""
+        owner_client = _client_for(acl_abc["owner"])
+        y_client = _client_for(acl_abc["y"])
+        hidden = acl_abc["proj_b"]
+        slug = acl_abc["workspace"].slug
+
+        created = owner_client.post(
+            _dashboards_url(slug),
+            {
+                "name": "Nested ACL",
+                "visibility": Dashboard.VISIBILITY_WORKSPACE,
+                "project_ids": [
+                    str(acl_abc["proj_a"].id),
+                    str(acl_abc["proj_b"].id),
+                    str(acl_abc["proj_c"].id),
+                ],
+                "default_time_scope": {"preset": "none"},
+            },
+            format="json",
+        )
+        assert created.status_code == 201
+        dashboard_id = created.data["id"]
+        widget = owner_client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "Nested query body",
+                "widget_type": "number",
+                "query_config": {
+                    "schema_version": 1,
+                    "query": {
+                        "version": 1,
+                        "metrics": [{"key": "work_item_count"}],
+                        "project_ids": [
+                            str(acl_abc["proj_a"].id),
+                            str(acl_abc["proj_b"].id),
+                            str(acl_abc["proj_c"].id),
+                        ],
+                        "filters": {
+                            "project_id": [
+                                str(acl_abc["proj_a"].id),
+                                str(acl_abc["proj_b"].id),
+                                str(acl_abc["proj_c"].id),
+                            ]
+                        },
+                        "pql": f"project_id = '{hidden.id}'",
+                        "time": {"preset": "none"},
+                    },
+                },
+            },
+            format="json",
+        )
+        assert widget.status_code == 201
+
+        listed = y_client.get(_dashboards_url(slug))
+        assert listed.status_code == 200
+        row = next(item for item in listed.data if item["id"] == dashboard_id)
+        _assert_no_project_leak(row, hidden)
+        list_widget = row["widgets"][0]
+        nested = list_widget["query_config"]["query"]
+        assert str(hidden.id) not in str(list_widget["query_config"])
+        assert str(hidden.id) not in nested.get("project_ids", [])
+        assert str(hidden.id) not in str(nested.get("filters", {}))
+        assert nested.get("pql") is None
+
+        detail = y_client.get(_dashboard_url(slug, dashboard_id))
+        assert detail.status_code == 200
+        _assert_no_project_leak(detail.data, hidden)
+        detail_widget = detail.data["widgets"][0]
+        nested_detail = detail_widget["query_config"]["query"]
+        assert str(hidden.id) not in str(detail_widget["query_config"])
+        assert str(hidden.id) not in nested_detail.get("project_ids", [])
+        assert str(hidden.id) not in str(nested_detail.get("filters", {}))
+        assert nested_detail.get("pql") is None
+
 
 class TestDashboardDataWidgetCap:
     def test_oversized_widget_batch_rejected(self, acme):
