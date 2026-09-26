@@ -315,7 +315,8 @@ class DashboardWidgetListCreateEndpoint(DashboardMixin, BaseAPIView):
             dashboard=dashboard, **serializer.validated_data
         )
         return Response(
-            DashboardWidgetSerializer(widget).data, status=status.HTTP_201_CREATED
+            DashboardWidgetSerializer(widget, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
         )
 
 
@@ -346,7 +347,10 @@ class DashboardWidgetDetailEndpoint(DashboardMixin, BaseAPIView):
         for field, value in serializer.validated_data.items():
             setattr(widget, field, value)
         widget.save()
-        return Response(DashboardWidgetSerializer(widget).data, status=status.HTTP_200_OK)
+        return Response(
+            DashboardWidgetSerializer(widget, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
 
     def delete(self, request: Request, slug: str, dashboard_id, widget_id) -> Response:
         self.action = "widget_destroy"
@@ -405,7 +409,9 @@ class DashboardLayoutEndpoint(DashboardMixin, BaseAPIView):
             dashboard=dashboard, deleted_at__isnull=True
         ).order_by("sort_order")
         return Response(
-            DashboardWidgetSerializer(widgets, many=True).data,
+            DashboardWidgetSerializer(
+                widgets, many=True, context={"request": request}
+            ).data,
             status=status.HTTP_200_OK,
         )
 

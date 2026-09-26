@@ -74,6 +74,10 @@ def _members_url(slug, dashboard_id):
     return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/members/"
 
 
+def _layout_url(slug, dashboard_id):
+    return f"/api/workspaces/{slug}/dashboards/{dashboard_id}/layout/"
+
+
 def _make_user(email: str) -> User:
     user = User.objects.create(email=email, username=email.split("@")[0])
     user.set_password("pw")
@@ -746,6 +750,91 @@ class TestDashboardACLRegression493:
         assert str(hidden.id) not in nested_detail.get("project_ids", [])
         assert str(hidden.id) not in str(nested_detail.get("filters", {}))
         assert nested_detail.get("pql") is None
+
+
+class TestDashboardEditorPathAclRedaction:
+    """Editor responses must redact query_config (RD-473 / §28.3)."""
+
+    def _private_dashboard_with_secret_widget(self, acme, owner_client):
+        hidden = acme["proj_b"]
+        slug = acme["workspace"].slug
+        created = owner_client.post(
+            _dashboards_url(slug),
+            {
+                "name": "Private editor ACL",
+                "visibility": Dashboard.VISIBILITY_PRIVATE,
+                "project_ids": [str(acme["proj_a"].id), str(hidden.id)],
+            },
+            format="json",
+        )
+        assert created.status_code == 201
+        dashboard_id = created.data["id"]
+        widget = owner_client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "Secret project widget",
+                "widget_type": "number",
+                "query_config": {
+                    "schema_version": 1,
+                    "version": 1,
+                    "metrics": [{"key": "work_item_count"}],
+                    "filters": {"project_id": [str(acme["proj_a"].id), str(hidden.id)]},
+                    "pql": f"project_id = '{hidden.id}'",
+                    "time": {"preset": "none"},
+                },
+            },
+            format="json",
+        )
+        assert widget.status_code == 201
+        return slug, dashboard_id, widget.data["id"], hidden
+
+    def test_editor_layout_and_patch_redact_query_config(self, acme):
+        owner_client = _client_for(acme["owner"])
+        editor_client = _client_for(acme["y"])
+        slug, dashboard_id, widget_id, hidden = self._private_dashboard_with_secret_widget(
+            acme, owner_client
+        )
+
+        share = owner_client.post(
+            _members_url(slug, dashboard_id),
+            {"member": str(acme["y"].id), "access": DashboardMemberAccess.ACCESS_EDIT},
+            format="json",
+        )
+        assert share.status_code in (200, 201)
+
+        layout = editor_client.post(
+            _layout_url(slug, dashboard_id),
+            {"widgets": []},
+            format="json",
+        )
+        assert layout.status_code == 200
+        assert str(hidden.id) not in str(layout.data)
+
+        patched = editor_client.patch(
+            _widget_url(slug, dashboard_id, widget_id),
+            {"title": "Renamed only"},
+            format="json",
+        )
+        assert patched.status_code == 200
+        assert str(hidden.id) not in str(patched.data.get("query_config", patched.data))
+
+        created = editor_client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "Editor-created",
+                "widget_type": "number",
+                "query_config": {
+                    "schema_version": 1,
+                    "version": 1,
+                    "metrics": [{"key": "work_item_count"}],
+                    "filters": {"project_id": [str(acme["proj_a"].id), str(hidden.id)]},
+                    "time": {"preset": "none"},
+                },
+            },
+            format="json",
+        )
+        assert created.status_code == 201
+        assert str(hidden.id) not in str(created.data.get("query_config", created.data))
 
 
 class TestDashboardDataWidgetCap:
