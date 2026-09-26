@@ -623,6 +623,16 @@ SEED_DIR = os.path.join(BASE_DIR, "seeds")
 
 ENABLE_DRF_SPECTACULAR = os.environ.get("ENABLE_DRF_SPECTACULAR", "0") == "1"
 
+# Workspace dashboards (RD-452 / spec §44.3).
+#
+# Master flag for the P0 dashboards data model and the future API endpoints
+# (RD-453). The data model itself ships unconditionally — the spec requires
+# the tables to be present so downstream migrations are not blocked — but
+# every consumer (URL routes, settings UI, batch data endpoint, etc.) MUST
+# gate on this flag before exposing dashboard behaviour. Default off until
+# P0 acceptance criteria pass.
+WORKSPACE_DASHBOARDS = os.environ.get("WORKSPACE_DASHBOARDS", "0") == "1"
+
 if ENABLE_DRF_SPECTACULAR:
     REST_FRAMEWORK["DEFAULT_SCHEMA_CLASS"] = "drf_spectacular.openapi.AutoSchema"
     INSTALLED_APPS.append("drf_spectacular")
