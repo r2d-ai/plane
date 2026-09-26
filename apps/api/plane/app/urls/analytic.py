@@ -19,6 +19,13 @@ from plane.app.views import (
     ProjectAdvanceAnalyticsStatsEndpoint,
     ProjectAdvanceAnalyticsChartEndpoint,
 )
+from plane.app.views.analytic_v2 import (
+    AnalyticsV2QueryEndpoint,
+    AnalyticsV2StatsEndpoint,
+    AnalyticsV2ChartsEndpoint,
+    AnalyticsV2DrilldownEndpoint,
+    AnalyticsV2BatchEndpoint,
+)
 
 
 urlpatterns = [
@@ -26,6 +33,33 @@ urlpatterns = [
         "workspaces/<str:slug>/analytics/",
         AnalyticsEndpoint.as_view(),
         name="plane-analytics",
+    ),
+    # Analytics Engine V2 — additive endpoints (RD-451). Legacy routes above
+    # are untouched; V2 lives alongside them per §44.2.
+    path(
+        "workspaces/<str:slug>/analytics/v2/query/",
+        AnalyticsV2QueryEndpoint.as_view(),
+        name="analytics-v2-query",
+    ),
+    path(
+        "workspaces/<str:slug>/analytics/v2/stats/",
+        AnalyticsV2StatsEndpoint.as_view(),
+        name="analytics-v2-stats",
+    ),
+    path(
+        "workspaces/<str:slug>/analytics/v2/charts/",
+        AnalyticsV2ChartsEndpoint.as_view(),
+        name="analytics-v2-charts",
+    ),
+    path(
+        "workspaces/<str:slug>/analytics/v2/drilldown/",
+        AnalyticsV2DrilldownEndpoint.as_view(),
+        name="analytics-v2-drilldown",
+    ),
+    path(
+        "workspaces/<str:slug>/analytics/v2/batch/",
+        AnalyticsV2BatchEndpoint.as_view(),
+        name="analytics-v2-batch",
     ),
     path(
         "workspaces/<str:slug>/analytic-view/",
