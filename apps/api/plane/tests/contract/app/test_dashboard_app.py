@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 from rest_framework.test import APIClient
 
+from plane.analytics.v2.query import MAX_BATCH_QUERIES
 from plane.db.models import (
     Dashboard,
     DashboardFavorite,
@@ -481,3 +482,229 @@ class TestDashboardExportAndDrilldown:
         )
         assert drill.status_code == 200
         assert drill.data["contributions"]["work_item_count"] == aggregate_total
+
+
+def _assert_no_project_leak(payload, hidden: Project):
+    blob = str(payload)
+    assert str(hidden.id) not in blob
+    assert hidden.name not in blob
+    assert hidden.identifier not in blob
+
+
+@pytest.fixture
+def acl_abc():
+    """§49.3: public A; private B (X only); private C (Y only)."""
+    owner = _make_user("owner-493@plane.so")
+    workspace = Workspace.objects.create(
+        name="ACL-493", slug="acl-493", owner=owner, timezone="UTC"
+    )
+    proj_a = Project.objects.create(
+        workspace=workspace,
+        name="Project-A",
+        identifier="PRA",
+        created_by=owner,
+        updated_by=owner,
+        network=ProjectNetwork.PUBLIC.value,
+    )
+    proj_b = Project.objects.create(
+        workspace=workspace,
+        name="Project-B-secret",
+        identifier="PRB",
+        created_by=owner,
+        updated_by=owner,
+        network=ProjectNetwork.SECRET.value,
+    )
+    proj_c = Project.objects.create(
+        workspace=workspace,
+        name="Project-C-secret",
+        identifier="PRC",
+        created_by=owner,
+        updated_by=owner,
+        network=ProjectNetwork.SECRET.value,
+    )
+    states = {p.id: _state(p) for p in (proj_a, proj_b, proj_c)}
+
+    x = _make_user("x-493@plane.so")
+    y = _make_user("y-493@plane.so")
+    WorkspaceMember.objects.create(workspace=workspace, member=owner, role=20, is_active=True)
+    WorkspaceMember.objects.create(workspace=workspace, member=x, role=15, is_active=True)
+    WorkspaceMember.objects.create(workspace=workspace, member=y, role=15, is_active=True)
+    ProjectMember.objects.create(project=proj_a, member=x, role=20, is_active=True)
+    ProjectMember.objects.create(project=proj_b, member=x, role=20, is_active=True)
+    ProjectMember.objects.create(project=proj_a, member=y, role=20, is_active=True)
+    ProjectMember.objects.create(project=proj_c, member=y, role=20, is_active=True)
+
+    for project in (proj_a, proj_b, proj_c):
+        Issue.objects.create(
+            project=project,
+            workspace=workspace,
+            name=f"Issue-{project.identifier}",
+            state=states[project.id],
+            priority="medium",
+            created_by=x,
+        )
+
+    return {
+        "workspace": workspace,
+        "owner": owner,
+        "proj_a": proj_a,
+        "proj_b": proj_b,
+        "proj_c": proj_c,
+        "x": x,
+        "y": y,
+    }
+
+
+class TestDashboardACLRegression493:
+    """Single end-to-end scenario across metadata + data surfaces (spec §49.3)."""
+
+    def _create_shared_dashboard(self, acl_abc, owner_client):
+        slug = acl_abc["workspace"].slug
+        created = owner_client.post(
+            _dashboards_url(slug),
+            {
+                "name": "ACL regression",
+                "visibility": Dashboard.VISIBILITY_WORKSPACE,
+                "project_ids": [
+                    str(acl_abc["proj_a"].id),
+                    str(acl_abc["proj_b"].id),
+                    str(acl_abc["proj_c"].id),
+                ],
+                "filters": {
+                    "project_id": [
+                        str(acl_abc["proj_a"].id),
+                        str(acl_abc["proj_b"].id),
+                        str(acl_abc["proj_c"].id),
+                    ]
+                },
+                "pql": f"project_id = '{acl_abc['proj_c'].id}'",
+                "default_time_scope": {"preset": "none"},
+            },
+            format="json",
+        )
+        assert created.status_code == 201
+        dashboard_id = created.data["id"]
+        widget = owner_client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "By project",
+                "widget_type": "table",
+                "query_config": {
+                    "schema_version": 1,
+                    "version": 1,
+                    "metrics": [{"key": "work_item_count"}],
+                    "dimensions": [{"key": "project"}],
+                    "filters": {
+                        "project_id": [
+                            str(acl_abc["proj_a"].id),
+                            str(acl_abc["proj_b"].id),
+                            str(acl_abc["proj_c"].id),
+                        ]
+                    },
+                    "time": {"preset": "none"},
+                },
+            },
+            format="json",
+        )
+        assert widget.status_code == 201
+        return slug, dashboard_id, widget.data["id"]
+
+    def test_cross_surface_acl_regression(self, acl_abc):
+        owner_client = _client_for(acl_abc["owner"])
+        x_client = _client_for(acl_abc["x"])
+        y_client = _client_for(acl_abc["y"])
+        slug, dashboard_id, widget_id = self._create_shared_dashboard(acl_abc, owner_client)
+
+        for client, hidden, expected_total in (
+            (x_client, acl_abc["proj_c"], 2.0),
+            (y_client, acl_abc["proj_b"], 2.0),
+        ):
+            listed = client.get(_dashboards_url(slug))
+            assert listed.status_code == 200
+            row = next(item for item in listed.data if item["id"] == dashboard_id)
+            _assert_no_project_leak(row, hidden)
+            assert str(hidden.id) not in row["projects"]
+
+            detail = client.get(_dashboard_url(slug, dashboard_id))
+            assert detail.status_code == 200
+            _assert_no_project_leak(detail.data, hidden)
+            assert str(hidden.id) not in str(detail.data["widgets"])
+
+            batch = client.post(_data_url(slug, dashboard_id), {}, format="json")
+            assert batch.status_code == 200
+            _assert_no_project_leak(batch.data, hidden)
+            widget_payload = batch.data["widgets"][str(widget_id)]
+            assert widget_payload["status"] == "ok"
+            assert widget_payload["data"]["totals"]["work_item_count"] == expected_total
+            groups = {str(row.get("group")) for row in widget_payload["data"]["data"]}
+            assert str(hidden.id) not in groups
+
+            drill = client.post(
+                _drilldown_url(slug, dashboard_id, widget_id),
+                {"selection": {"project": [str(acl_abc["proj_a"].id)]}, "page_size": 50},
+                format="json",
+            )
+            assert drill.status_code == 200
+            _assert_no_project_leak(drill.data, hidden)
+
+            export = client.get(_export_url(slug, dashboard_id, widget_id))
+            assert export.status_code == 200
+            _assert_no_project_leak(export.content.decode(), hidden)
+
+        bad = owner_client.post(
+            _widgets_url(slug, dashboard_id),
+            {
+                "title": "Bad",
+                "widget_type": "number",
+                "query_config": {
+                    "schema_version": 1,
+                    "version": 1,
+                    "metrics": [{"key": "not_a_real_metric"}],
+                    "time": {"preset": "none"},
+                },
+            },
+            format="json",
+        )
+        assert bad.status_code == 201
+        over = x_client.post(_data_url(slug, dashboard_id), {}, format="json")
+        assert over.status_code == 200
+        err_blob = str(over.data)
+        assert str(acl_abc["proj_c"].id) not in err_blob
+        assert "not_a_real_metric" not in err_blob
+
+
+class TestDashboardDataWidgetCap:
+    def test_oversized_widget_batch_rejected(self, acme):
+        client = _client_for(acme["owner"])
+        slug = acme["workspace"].slug
+        dash = client.post(
+            _dashboards_url(slug),
+            {
+                "name": "Cap board",
+                "visibility": Dashboard.VISIBILITY_WORKSPACE,
+                "project_ids": [str(acme["proj_a"].id)],
+                "default_time_scope": {"preset": "none"},
+            },
+            format="json",
+        )
+        dashboard_id = dash.data["id"]
+        for index in range(MAX_BATCH_QUERIES + 1):
+            client.post(
+                _widgets_url(slug, dashboard_id),
+                {
+                    "title": f"W{index}",
+                    "widget_type": "number",
+                    "query_config": {
+                        "schema_version": 1,
+                        "version": 1,
+                        "metrics": [{"key": "work_item_count"}],
+                        "time": {"preset": "none"},
+                    },
+                },
+                format="json",
+            )
+
+        response = client.post(_data_url(slug, dashboard_id), {}, format="json")
+        assert response.status_code == 400
+        assert response.data["code"] == "INVALID_QUERY"
+        assert str(MAX_BATCH_QUERIES + 1) not in str(response.data)

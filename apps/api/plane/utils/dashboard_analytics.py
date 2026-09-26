@@ -9,7 +9,8 @@ from __future__ import annotations
 import csv
 import io
 from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
+from uuid import UUID
 
 from plane.analytics.v2.acl import visible_project_ids
 from plane.analytics.v2.query import AnalyticsQueryV2, AnalyticsResponseV2
@@ -17,6 +18,166 @@ from plane.analytics.v2.serializer import serialise_response
 from plane.db.models import Dashboard, DashboardProject, DashboardWidget
 
 VIEWER_FILTER_TOKENS = frozenset({"current_user", "@current_user"})
+PROJECT_SCOPE_KEYS = frozenset({"project_id", "project_ids", "project"})
+
+
+def _is_uuid_string(value: Any) -> bool:
+    try:
+        UUID(str(value))
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _viewer_accessible_project_id_set(*, workspace, principal) -> Set[str]:
+    return set(visible_project_ids(workspace=workspace, principal=principal))
+
+
+def _inaccessible_workspace_project_ids(*, workspace, principal) -> Set[str]:
+    from plane.db.models import Project
+
+    all_ids = {
+        str(pid)
+        for pid in Project.objects.filter(
+            workspace_id=workspace.id, deleted_at__isnull=True
+        ).values_list("id", flat=True)
+    }
+    return all_ids - _viewer_accessible_project_id_set(
+        workspace=workspace, principal=principal
+    )
+
+
+def filter_project_scope_value(value: Any, accessible: Set[str]) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        return [str(item) for item in value if str(item) in accessible]
+    if isinstance(value, str):
+        return value if value in accessible else None
+    return value
+
+
+def redact_json_metadata(
+    value: Any,
+    *,
+    accessible: Set[str],
+    hidden: Set[str],
+) -> Any:
+    """Drop project identifiers the viewer cannot access (spec §28.3)."""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        out: Dict[str, Any] = {}
+        for key, raw in value.items():
+            if key in PROJECT_SCOPE_KEYS:
+                filtered = filter_project_scope_value(raw, accessible)
+                if filtered not in (None, [], {}):
+                    out[key] = filtered
+                continue
+            child = redact_json_metadata(raw, accessible=accessible, hidden=hidden)
+            if child not in (None, [], {}):
+                out[key] = child
+        return out
+    if isinstance(value, list):
+        if value and all(_is_uuid_string(item) for item in value):
+            return [str(item) for item in value if str(item) in accessible]
+        return [
+            redact_json_metadata(item, accessible=accessible, hidden=hidden)
+            for item in value
+        ]
+    if isinstance(value, str) and value in hidden:
+        return None
+    return value
+
+
+def redact_pql_for_viewer(pql: Optional[str], hidden: Set[str]) -> Optional[str]:
+    if not pql:
+        return pql
+    for project_id in hidden:
+        if project_id in pql:
+            return None
+    return pql
+
+
+def viewer_dashboard_project_scope(
+    dashboard: Dashboard,
+    *,
+    principal,
+) -> Tuple[Set[str], Set[str]]:
+    accessible = set(
+        resolve_scoped_project_ids(
+            dashboard, workspace=dashboard.workspace, principal=principal
+        )
+    )
+    hidden = _inaccessible_workspace_project_ids(
+        workspace=dashboard.workspace, principal=principal
+    )
+    return accessible, hidden
+
+
+def redact_widget_query_config_for_viewer(
+    query_config: Optional[Dict[str, Any]],
+    *,
+    dashboard: Dashboard,
+    workspace,
+    principal,
+) -> Dict[str, Any]:
+    config = deepcopy(query_config or {})
+    config["project_ids"] = resolve_scoped_project_ids(
+        dashboard, workspace=workspace, principal=principal
+    )
+    accessible, hidden = viewer_dashboard_project_scope(dashboard, principal=principal)
+    if hidden:
+        if "filters" in config:
+            config["filters"] = redact_json_metadata(
+                config.get("filters"), accessible=accessible, hidden=hidden
+            ) or {}
+        if config.get("pql"):
+            config["pql"] = redact_pql_for_viewer(config.get("pql"), hidden)
+    return config
+
+
+def redact_dashboard_representation_for_viewer(
+    representation: Dict[str, Any],
+    *,
+    dashboard: Dashboard,
+    principal,
+) -> Dict[str, Any]:
+    """Read-side ACL on dashboard metadata (spec §28.3)."""
+    accessible, hidden = viewer_dashboard_project_scope(dashboard, principal=principal)
+    representation["projects"] = sorted(accessible)
+    if not hidden:
+        return representation
+
+    representation["filters"] = (
+        redact_json_metadata(
+            representation.get("filters"), accessible=accessible, hidden=hidden
+        )
+        or {}
+    )
+    representation["pql"] = redact_pql_for_viewer(representation.get("pql"), hidden)
+    representation["default_time_scope"] = (
+        redact_json_metadata(
+            representation.get("default_time_scope"),
+            accessible=accessible,
+            hidden=hidden,
+        )
+        or {}
+    )
+    representation["comparison"] = (
+        redact_json_metadata(
+            representation.get("comparison"), accessible=accessible, hidden=hidden
+        )
+        or {}
+    )
+    for widget in representation.get("widgets") or []:
+        widget["query_config"] = redact_widget_query_config_for_viewer(
+            widget.get("query_config"),
+            dashboard=dashboard,
+            workspace=dashboard.workspace,
+            principal=principal,
+        )
+    return representation
 
 
 def _principal_id(principal) -> str:
@@ -129,7 +290,16 @@ def compose_widget_query_payload(
         )
     widget_filters = resolve_viewer_filter_placeholders(widget_filters, principal)
 
+    scoped_ids = payload["project_ids"]
+    accessible = set(scoped_ids)
+    hidden = _inaccessible_workspace_project_ids(workspace=workspace, principal=principal)
     payload["filters"] = intersect_structured_filters(dashboard.filters, widget_filters)
+    payload["filters"] = (
+        redact_json_metadata(payload["filters"], accessible=accessible, hidden=hidden)
+        or {}
+    )
+    if payload.get("pql"):
+        payload["pql"] = redact_pql_for_viewer(payload.get("pql"), hidden)
 
     if widget.inherit_time_scope:
         if dashboard.default_time_scope:

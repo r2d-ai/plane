@@ -7,11 +7,14 @@
 from rest_framework import serializers
 
 from plane.app.serializers.base import BaseSerializer
+from plane.utils.dashboard_analytics import (
+    redact_dashboard_representation_for_viewer,
+    resolve_scoped_project_ids,
+)
 from plane.db.models import (
     Dashboard,
     DashboardFavorite,
     DashboardMemberAccess,
-    DashboardProject,
     DashboardWidget,
 )
 
@@ -85,12 +88,21 @@ class DashboardSerializer(BaseSerializer):
         read_only_fields = ["workspace", "owner"]
 
     def get_projects(self, obj):
-        return [
-            str(pid)
-            for pid in DashboardProject.objects.filter(
-                dashboard=obj, deleted_at__isnull=True
-            ).values_list("project_id", flat=True)
-        ]
+        request = self.context.get("request")
+        if request is None or request.user.is_anonymous:
+            return []
+        return resolve_scoped_project_ids(
+            obj, workspace=obj.workspace, principal=request.user
+        )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if request is None or request.user.is_anonymous:
+            return data
+        return redact_dashboard_representation_for_viewer(
+            data, dashboard=instance, principal=request.user
+        )
 
     def get_is_favorited(self, obj):
         request = self.context.get("request")
