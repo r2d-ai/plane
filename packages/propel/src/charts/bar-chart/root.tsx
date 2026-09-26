@@ -42,6 +42,7 @@ export const BarChart = React.memo(function BarChart<K extends string, T extends
     customTicks,
     showTooltip = true,
     customTooltipContent,
+    onBarClick,
   } = props;
   // states
   const [activeBar, setActiveBar] = useState<string | null>(null);
@@ -110,13 +111,16 @@ export const BarChart = React.memo(function BarChart<K extends string, T extends
             const node = shapeVariant(shapeProps, bar, stackKeys);
             return React.isValidElement(node) ? node : <>{node}</>;
           }}
-          className="[&_path]:transition-opacity [&_path]:duration-200"
+          className="[&_path]:cursor-pointer [&_path]:transition-opacity [&_path]:duration-200"
           onMouseEnter={() => setActiveBar(bar.key)}
           onMouseLeave={() => setActiveBar(null)}
           fill={getBarColor(data, bar.key)}
+          onClick={
+            onBarClick ? (entry: any) => onBarClick({ datum: entry?.payload ?? entry, barKey: bar.key }) : undefined
+          }
         />
       )),
-    [activeLegend, stackKeys, bars, getBarColor, data]
+    [activeLegend, stackKeys, bars, getBarColor, data, onBarClick]
   );
 
   return (
@@ -136,9 +140,9 @@ export const BarChart = React.memo(function BarChart<K extends string, T extends
           <CartesianGrid stroke="var(--border-color-subtle)" vertical={false} />
           <XAxis
             dataKey={xAxis.key}
-            tick={(props) => {
+            tick={(tickProps) => {
               const TickComponent = customTicks?.x || CustomXAxisTick;
-              return <TickComponent {...props} />;
+              return <TickComponent {...tickProps} />;
             }}
             tickLine={false}
             axisLine={false}
@@ -161,9 +165,9 @@ export const BarChart = React.memo(function BarChart<K extends string, T extends
               dx: yAxis.dx ?? -16,
               className: AXIS_LABEL_CLASSNAME,
             }}
-            tick={(props) => {
+            tick={(tickProps) => {
               const TickComponent = customTicks?.y || CustomYAxisTick;
-              return <TickComponent {...props} />;
+              return <TickComponent {...tickProps} />;
             }}
             tickCount={tickCount.y}
             allowDecimals={!!yAxis.allowDecimals}

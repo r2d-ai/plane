@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 
 from . import allocation as allocation_module
 from . import filters as filters_module
@@ -44,6 +44,7 @@ from .time_scope import (
     ALL_DATE_BASIS,
     ALL_DATE_GROUPS,
     ALL_PRESETS,
+    DATE_GROUP_DAY,
     ResolvedTimeScope,
     apply_time_basis,
     resolve_preset,
@@ -373,13 +374,26 @@ class AnalyticsEngineV2:
         # (state, project), and ``F("project_id")`` can resolve to a joined
         # table — that produces duplicate rows when filtering.
         work_cap = self._bucket_work_cap(len(metrics))
+        date_group = (query.time or {}).get("group") or DATE_GROUP_DAY
+
         if len(dimensions) == 0:
             rows = list(self._no_dimension_rows(qs, metrics))
         elif len(dimensions) == 1:
-            rows = list(self._one_dimension_rows(qs, dimensions[0], metrics, work_cap=work_cap))
+            rows = list(
+                self._one_dimension_rows(
+                    qs, dimensions[0], metrics, date_group=date_group, work_cap=work_cap
+                )
+            )
         else:
             rows = list(
-                self._two_dimension_rows(qs, dimensions[0], dimensions[1], metrics, work_cap=work_cap)
+                self._two_dimension_rows(
+                    qs,
+                    dimensions[0],
+                    dimensions[1],
+                    metrics,
+                    date_group=date_group,
+                    work_cap=work_cap,
+                )
             )
 
         # Sort + cap.
@@ -391,55 +405,112 @@ class AnalyticsEngineV2:
         values = {spec.key: self._aggregate_metric(qs, spec, mode) for spec, mode in metrics}
         return [((), values)]
 
-    def _one_dimension_rows(self, qs: QuerySet, spec_dim, metrics, *, work_cap: int):
+    def _one_dimension_rows(
+        self, qs: QuerySet, spec_dim, metrics, *, date_group: str, work_cap: int
+    ):
         # Distinct values for the underlying field. Use the original column
         # rather than an annotation alias so that the bucket filter resolves
         # to the Issue table itself and never picks up a joined column.
-        group_field = spec_dim.group_field_resolved
-        # ``values_list(..., flat=True).distinct()`` can still return duplicate
-        # dimension values when the queryset carries joins; dedupe while capping.
-        groups: List[object] = []
-        seen: set[object] = set()
-        distinct_values = (
-            qs.order_by(group_field)
-            .values_list(group_field, flat=True)
-            .distinct()
-            .iterator()
-        )
-        for dim_value in distinct_values:
-            if dim_value in seen:
-                continue
-            seen.add(dim_value)
-            if len(groups) >= work_cap:
-                self._note_truncation()
-                break
-            groups.append(dim_value)
         out = []
-        for dim_value in groups:
-            bucket = qs.filter(**{group_field: dim_value}).distinct()
-            values = {spec.key: self._aggregate_metric(bucket, spec, mode) for spec, mode in metrics}
-            out.append(((dim_value,), values))
-        return out
-
-    def _two_dimension_rows(self, qs: QuerySet, spec_dim_a, spec_dim_b, metrics, *, work_cap: int):
-        group_field_a = spec_dim_a.group_field_resolved
-        group_field_b = spec_dim_b.group_field_resolved
-        pair_rows = (
-            qs.order_by(group_field_a, group_field_b)
-            .values(group_field_a, group_field_b)
-            .distinct()
-            .iterator()
-        )
-        out = []
-        for index, row in enumerate(pair_rows):
+        buckets = self._dimension_buckets(qs, spec_dim, date_group)
+        for index, (label, bucket_q) in enumerate(buckets):
             if index >= work_cap:
                 self._note_truncation()
                 break
-            g = row[group_field_a]
-            s = row[group_field_b]
-            bucket = qs.filter(**{group_field_a: g, group_field_b: s}).distinct()
+            bucket = qs.filter(bucket_q).distinct()
             values = {spec.key: self._aggregate_metric(bucket, spec, mode) for spec, mode in metrics}
-            out.append(((g, s), values))
+            out.append(((label,), values))
+        return out
+
+    def _dimension_buckets(self, qs: QuerySet, spec, date_group: str) -> List[Tuple[Any, Q]]:
+        """Return ``(label, Q)`` for every chart bucket of ``spec``.
+
+        Categorical dimensions bucket one-per-distinct-value using the real
+        Issue column (never a joined alias). Date dimensions bucket by
+        ``time.group`` — day / week / month / quarter / year (§9.3) — so a
+        calendar axis is not exploded into one bar per day.
+        """
+        field = spec.effective_field
+        # ``values_list(...).distinct()`` can still return duplicate dimension
+        # values when the queryset carries joins; dedupe while reading.
+        raw_values: List[Any] = []
+        seen: set = set()
+        for value in qs.order_by(field).values_list(field, flat=True).distinct().iterator():
+            if value in seen:
+                continue
+            seen.add(value)
+            raw_values.append(value)
+
+        if not spec.is_date:
+            return [
+                (
+                    self._stringify(value),
+                    Q(**{f"{field}__isnull": True}) if value is None else Q(**{field: value}),
+                )
+                for value in raw_values
+            ]
+
+        buckets: Dict[str, List[Any]] = {}
+        for value in raw_values:
+            label = dimensions_module.bucket_label(value, date_group)
+            if label is None:
+                continue
+            buckets.setdefault(label, []).append(value)
+        return [
+            (label, Q(**{f"{field}__in": values}))
+            for label, values in sorted(buckets.items())
+        ]
+
+    def _two_dimension_rows(
+        self, qs: QuerySet, spec_dim_a, spec_dim_b, metrics, *, date_group: str, work_cap: int
+    ):
+        field_a = spec_dim_a.effective_field
+        field_b = spec_dim_b.effective_field
+        pair_rows = (
+            qs.order_by(field_a, field_b)
+            .values(field_a, field_b)
+            .distinct()
+            .iterator()
+        )
+        # Collapse raw pairs into label pairs so a date bucket (many raw dates)
+        # and a categorical value stay aligned without a cartesian product.
+        grouped: Dict[Tuple[Any, Any], Tuple[List[Any], List[Any]]] = {}
+        truncated = False
+        for row in pair_rows:
+            g = row[field_a]
+            s = row[field_b]
+            label_a = (
+                dimensions_module.bucket_label(g, date_group)
+                if spec_dim_a.is_date
+                else self._stringify(g)
+            )
+            label_b = (
+                dimensions_module.bucket_label(s, date_group)
+                if spec_dim_b.is_date
+                else self._stringify(s)
+            )
+            if (label_a, label_b) not in grouped and len(grouped) >= work_cap:
+                truncated = True
+                break
+            gvals, svals = grouped.setdefault((label_a, label_b), ([], []))
+            if g is not None:
+                gvals.append(g)
+            if s is not None:
+                svals.append(s)
+        if truncated:
+            self._note_truncation()
+        out = []
+        for (label_a, label_b), (gvals, svals) in grouped.items():
+            bucket_q = Q()
+            bucket_q &= (
+                Q(**{f"{field_a}__isnull": True}) if not gvals else Q(**{f"{field_a}__in": gvals})
+            )
+            bucket_q &= (
+                Q(**{f"{field_b}__isnull": True}) if not svals else Q(**{f"{field_b}__in": svals})
+            )
+            bucket = qs.filter(bucket_q).distinct()
+            values = {spec.key: self._aggregate_metric(bucket, spec, mode) for spec, mode in metrics}
+            out.append(((label_a, label_b), values))
         return out
 
     def _aggregate_metric(self, qs: QuerySet, spec, mode: str) -> float:

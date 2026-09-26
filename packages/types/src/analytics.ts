@@ -49,6 +49,8 @@ export type TAnalyticsFilterParams = {
   project_ids?: string;
   cycle_id?: string;
   module_id?: string;
+  date_filter?: string;
+  epic?: boolean;
 };
 
 // service types
@@ -89,10 +91,17 @@ export type AnalyticsTableDataMap = {
   "work-items": WorkItemInsightColumns;
 };
 
+export type TAnalyticsDateGrouping = "day" | "week" | "month" | "quarter" | "year";
+
 export interface IAnalyticsParams {
   x_axis: ChartXAxisProperty;
   y_axis: ChartYAxisMetric;
   group_by?: ChartXAxisProperty;
+  // Customized Insights V2 (RD-454) — §17.4 / §17 / §15 / §9.3
+  date_grouping?: TAnalyticsDateGrouping;
+  display?: TAnalyticsDisplay;
+  normalization?: TAnalyticsNormalization;
+  allocation?: TAnalyticsAllocation;
 }
 
 // ---------------------------------------------------------------------------
