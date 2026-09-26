@@ -242,4 +242,72 @@ export interface TDashboardWidgetPayload {
   widget_type: TDashboardWidgetType;
   query_config: TDashboardWidgetQueryConfig;
   sort_order?: number;
+  layout_config?: TDashboardWidgetLayoutConfig;
+  style_config?: Record<string, unknown>;
+  inherit_time_scope?: boolean;
+  custom_time_scope?: Record<string, unknown> | null;
 }
+
+/** Responsive grid placement (12-column desktop grid, §7). */
+export interface TDashboardWidgetLayoutConfig {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  minH?: number;
+}
+
+/** §27.3 — workspace dashboard widget from CRUD API. */
+export interface TWorkspaceDashboardWidget {
+  id: string;
+  dashboard?: string;
+  title: string;
+  description?: string;
+  widget_type: TDashboardWidgetType;
+  widget_model?: string;
+  query_config: TDashboardWidgetQueryConfig | Record<string, unknown>;
+  style_config?: Record<string, unknown>;
+  layout_config?: TDashboardWidgetLayoutConfig;
+  inherit_time_scope: boolean;
+  custom_time_scope?: Record<string, unknown> | null;
+  sort_order?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TWorkspaceDashboardDetail extends TWorkspaceDashboard {
+  widgets: TWorkspaceDashboardWidget[];
+}
+
+export interface TDashboardCreatePayload {
+  name: string;
+  description?: string;
+  visibility?: TDashboardVisibility;
+  project_ids?: string[];
+  filters?: Record<string, unknown>;
+  default_time_scope?: Record<string, unknown>;
+  comparison?: Record<string, unknown>;
+}
+
+export interface TDashboardLayoutUpdateEntry {
+  id: string;
+  layout_config?: TDashboardWidgetLayoutConfig;
+  sort_order?: number;
+}
+
+export interface TDashboardBatchWidgetResult {
+  status: "ok" | "error";
+  data?: unknown;
+  error?: { code: string; message: string };
+}
+
+export interface TDashboardBatchDataResponse {
+  dashboard_id: string;
+  resolved_time: Record<string, unknown>;
+  widgets: Record<string, TDashboardBatchWidgetResult>;
+}
+
+export type TDashboardViewMode = "view" | "edit";
+
+export type TDashboardListTab = "all" | "mine" | "shared" | "favorites";
