@@ -18,6 +18,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from plane.analytics.v2 import AnalyticsEngineV2, AnalyticsQueryV2
+from plane.analytics.v2.query import MAX_BATCH_QUERIES
 from plane.analytics.v2.drilldown import DrilldownSelection
 from plane.analytics.v2.serializer import serialise_response
 from plane.app.permissions import ROLE, allow_permission
@@ -205,6 +206,8 @@ class AnalyticsV2BatchEndpoint(BaseAPIView):
         entries = payload.get("queries") or []
         if not isinstance(entries, list):
             return _bad_request("queries must be an array", code="INVALID_QUERY")
+        if len(entries) > MAX_BATCH_QUERIES:
+            return _bad_request("Invalid query payload.", code="INVALID_QUERY")
 
         engine = AnalyticsEngineV2(workspace=workspace, principal=request.user)
         out: Dict[str, Any] = {"workspace_slug": slug, "results": []}
