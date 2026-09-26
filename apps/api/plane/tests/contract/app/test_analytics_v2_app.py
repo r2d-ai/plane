@@ -22,7 +22,17 @@ from uuid import uuid4
 
 import pytest
 import pytz
+from freezegun import freeze_time
 from rest_framework.test import APIClient
+
+from plane.analytics.v2.query import MAX_BATCH_QUERIES
+from plane.tests.fixtures.v3_dashboard_batch import (
+    V3_DASHBOARD_CARD_COUNT,
+    V3_MAX_DRILLDOWN_REFETCHES_UNDER_CAP,
+    build_v3_card_query,
+    build_v3_dashboard_batch_payload,
+    v3_batch_response_contract_keys,
+)
 
 from plane.db.models import (
     Issue,
@@ -336,6 +346,71 @@ class TestV2BatchEndpoint:
         by_key = {entry["key"]: entry for entry in response.data["results"]}
         assert by_key["widget-ok"]["status"] == "ok"
         assert by_key["widget-broken"]["status"] == "error"
+
+    def test_v3_batch_twelve_cards_with_global_scope_round_trip(self, acme):
+        """C.9 — v3 dashboard sends 12 §7 cards with merged global scope filters."""
+        client = _client_for(acme["x"])
+        payload = build_v3_dashboard_batch_payload(
+            project_ids=[str(acme["proj_public"].id)],
+        )
+        assert len(payload["queries"]) == V3_DASHBOARD_CARD_COUNT
+        frozen = datetime(2026, 9, 15, 12, 0, tzinfo=pytz.UTC)
+        with freeze_time(frozen):
+            response = client.post(
+                _batch_url(acme["workspace"].slug),
+                payload,
+                format="json",
+            )
+        assert response.status_code == 200, response.data
+        assert response.data["workspace_slug"] == acme["workspace"].slug
+        results = response.data["results"]
+        assert len(results) == V3_DASHBOARD_CARD_COUNT
+        by_key = {entry["key"]: entry for entry in results}
+        for card_id in "ABCDEFGHIJKL":
+            key = f"card-{card_id}"
+            assert key in by_key, key
+            assert by_key[key]["status"] == "ok", by_key[key]
+            assert "data" in by_key[key]
+            assert "totals" in by_key[key]["data"]
+
+    def test_v3_batch_partial_failure_one_malformed_of_twelve(self, acme):
+        client = _client_for(acme["x"])
+        queries = []
+        for card_id in "ABCDEFGHIJKL":
+            if card_id == "F":
+                queries.append(
+                    {
+                        "key": "card-F",
+                        "version": 1,
+                        "source": "work_items",
+                        "metrics": [{"key": "unknown_metric"}],
+                        "time": {"preset": "none"},
+                    }
+                )
+            else:
+                queries.append(build_v3_card_query(card_id))
+        assert len(queries) == 12
+        response = client.post(
+            _batch_url(acme["workspace"].slug),
+            {"queries": queries},
+            format="json",
+        )
+        assert response.status_code == 200
+        by_key = {entry["key"]: entry for entry in response.data["results"]}
+        assert by_key["card-F"]["status"] == "error"
+        ok_keys = [k for k, v in by_key.items() if v["status"] == "ok"]
+        assert len(ok_keys) == 11
+
+    def test_v3_dashboard_batch_fits_max_batch_queries_cap(self):
+        """12 cards + drill-down refetch headroom stays within MAX_BATCH_QUERIES."""
+        assert V3_DASHBOARD_CARD_COUNT == 12
+        assert V3_MAX_DRILLDOWN_REFETCHES_UNDER_CAP == 8
+        assert V3_DASHBOARD_CARD_COUNT + V3_MAX_DRILLDOWN_REFETCHES_UNDER_CAP == MAX_BATCH_QUERIES
+        # Document response envelope for batch-composer.ts (stable keys).
+        envelope = v3_batch_response_contract_keys()
+        assert "results" in envelope
+        assert envelope["results"][0]["status"] == "ok"
+        assert envelope["results"][1]["status"] == "error"
 
 
 # ----- Legacy advance-analytics regression -------------------------------

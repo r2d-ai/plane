@@ -22,15 +22,22 @@ Plan §12.3, spec §21.
 
 from __future__ import annotations
 
+import json
 import os
+import time
 import uuid
+from datetime import datetime
 
 import pytest
+from freezegun import freeze_time
+from rest_framework.test import APIClient
 
 from django.db import connection
 from django.utils import timezone
 
 from plane.db.models import Page, PageCollection, PageCollectionPage, PageView, User, Workspace, WorkspaceMember
+from plane.tests.fixtures.v3_dashboard_batch import build_v3_dashboard_batch_payload
+from plane.tests.perf.dashboard_v3_fixtures import build_v3_perf_workspace
 
 SHIPPED_INDEXES = [
     (
@@ -300,3 +307,83 @@ def test_page_analytics_perf_report():
 
     # Evidence, not a gate: but the dataset must have been materialised.
     assert rows >= PAGE_COUNT * VIEWS_PER_PAGE
+
+
+V3_BATCH_BUDGETS_MS = {
+    "small": {"p50": 200.0, "p95": 400.0, "p99": 800.0},
+    "medium": {"p50": 600.0, "p95": 1200.0, "p99": 2000.0},
+    "large": {"p50": 2000.0, "p95": 4000.0, "p99": 6000.0},
+}
+
+V3_PERF_ITERATIONS = 21
+FROZEN_V3_NOW = datetime(2026, 9, 15, 12, 0, tzinfo=timezone.utc)
+
+
+def _percentile_ms(samples, percentile):
+    ordered = sorted(samples)
+    if not ordered:
+        return 0.0
+    rank = (len(ordered) - 1) * (percentile / 100.0)
+    lower = int(rank)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = rank - lower
+    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+
+
+def _batch_url(slug):
+    return f"/api/workspaces/{slug}/analytics/v2/batch/"
+
+
+def _measure_v3_batch(client, slug, iterations=V3_PERF_ITERATIONS):
+    payload = build_v3_dashboard_batch_payload()
+    url = _batch_url(slug)
+    timings = []
+    with freeze_time(FROZEN_V3_NOW):
+        for _ in range(2):
+            client.post(url, payload, format="json")
+        for _ in range(iterations):
+            started = time.perf_counter()
+            response = client.post(url, payload, format="json")
+            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            assert response.status_code == 200, response.data
+            timings.append(elapsed_ms)
+    return {
+        "iterations": iterations,
+        "p50_ms": round(_percentile_ms(timings, 50), 2),
+        "p95_ms": round(_percentile_ms(timings, 95), 2),
+        "p99_ms": round(_percentile_ms(timings, 99), 2),
+        "samples_ms": [round(value, 2) for value in timings],
+    }
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("profile", ["small", "medium", "large"])
+@pytest.mark.skipif(
+    not os.environ.get("DASHBOARD_V3_PERF"),
+    reason="opt-in v3 dashboard batch perf (set DASHBOARD_V3_PERF=1)",
+)
+def test_batch_12_card_dashboard(profile):
+    workspace, owner, meta = build_v3_perf_workspace(profile)
+    client = APIClient()
+    client.force_authenticate(user=owner)
+    measured = _measure_v3_batch(client, workspace.slug)
+    budgets = V3_BATCH_BUDGETS_MS[profile]
+    assert measured["p50_ms"] <= budgets["p50"], measured
+    assert measured["p95_ms"] <= budgets["p95"], measured
+    assert measured["p99_ms"] <= budgets["p99"], measured
+
+    report = {
+        "profile": profile,
+        "workspace_slug": workspace.slug,
+        "projects": meta["spec"]["projects"],
+        "issues_per_project": meta["spec"]["issues_per_project"],
+        "budgets_ms": budgets,
+        "measured": measured,
+        "recorded_at": timezone.now().isoformat(),
+    }
+    baseline_path = os.environ.get("DASHBOARD_V3_PERF_BASELINE")
+    if baseline_path:
+        with open(baseline_path, "w", encoding="utf-8") as handle:
+            json.dump(report, handle, indent=2)
+    else:
+        print(json.dumps(report, indent=2))
