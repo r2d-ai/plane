@@ -199,7 +199,13 @@ export function DashboardAnalyticsWidget({ widget, response, workspaceSlug, dash
         ) : null;
       case "line":
         return chartData ? (
-          <LineChartView chartData={chartData} baseColors={baseColors} hasBreakdown={hasBreakdown} />
+          <LineChartView
+            chartData={chartData}
+            baseColors={baseColors}
+            hasBreakdown={hasBreakdown}
+            canDrilldown={canDrilldown}
+            onPointClick={(group, series) => openDrilldown(group, series)}
+          />
         ) : null;
       case "pie":
       case "donut":
@@ -209,6 +215,8 @@ export function DashboardAnalyticsWidget({ widget, response, workspaceSlug, dash
             donut={widget.widget_type === "donut"}
             progress={widget.style_config?.donut_variant === "progress"}
             baseColors={baseColors}
+            canDrilldown={canDrilldown}
+            onSliceClick={(group) => openDrilldown(group, null)}
           />
         ) : null;
       case "matrix":
@@ -344,17 +352,24 @@ function LineChartView({
   chartData,
   baseColors,
   hasBreakdown,
+  canDrilldown,
+  onPointClick,
 }: {
   chartData: ReturnType<typeof buildInsightChartData>;
   baseColors: string[];
   hasBreakdown: boolean;
+  canDrilldown: boolean;
+  onPointClick: (group: string | null, series: string | null) => void;
 }) {
   const extended = generateExtendedColors(baseColors, chartData.seriesKeys.length);
   const lines = chartData.seriesKeys.map((key, index) => ({
     key,
     label: chartData.schema[key] ?? key,
     stroke: extended[index] ?? baseColors[0] ?? "#6172E8",
-    dot: true,
+    fill: extended[index] ?? baseColors[0] ?? "#6172E8",
+    dashedLine: false,
+    showDot: true,
+    smoothCurves: false,
   }));
   const dataKey = hasBreakdown ? (chartData.seriesKeys[0] ?? "count") : "count";
 
@@ -365,6 +380,12 @@ function LineChartView({
       lines={lines}
       xAxis={{ key: "name", label: "", dy: 20 }}
       yAxis={{ key: dataKey, label: "", offset: -40, dx: -10 }}
+      onLineClick={
+        canDrilldown
+          ? ({ datum, lineKey }) =>
+              onPointClick((datum?.__group as string | null) ?? null, hasBreakdown ? lineKey : null)
+          : undefined
+      }
     />
   );
 }
@@ -374,11 +395,15 @@ function PieChartView({
   donut,
   progress,
   baseColors,
+  canDrilldown,
+  onSliceClick,
 }: {
   chartData: ReturnType<typeof buildInsightChartData>;
   donut: boolean;
   progress: boolean;
   baseColors: string[];
+  canDrilldown: boolean;
+  onSliceClick: (group: string | null) => void;
 }) {
   const extended = generateExtendedColors(baseColors, chartData.rows.length);
   const pieData = chartData.rows.map((row, index) => ({
@@ -407,6 +432,7 @@ function PieChartView({
           ? { text: `${progressPct.toFixed(0)}%`, fill: "var(--text-color-primary)" }
           : undefined
       }
+      onPieClick={canDrilldown ? ({ datum }) => onSliceClick((datum?.__group as string | null) ?? null) : undefined}
     />
   );
 }
