@@ -194,3 +194,73 @@ export function buildInsightChartData(options: TBuildInsightChartData): InsightC
 
   return { rows, schema, seriesKeys: seriesOrder, hasBreakdown };
 }
+
+/** §20 cross-tab model, shaped structurally so any producer can feed the renderer. */
+export type MatrixTableModel = {
+  rowKeys: string[];
+  colKeys: string[];
+  cells: Record<string, Record<string, { raw: number; display: string }>>;
+  rowTotals: Record<string, number>;
+  colTotals: Record<string, number>;
+  grandTotal: number;
+};
+
+/**
+ * §12 / §20 — the flat V2 cell list as a matrix model with row, column and
+ * grand totals. Lives here rather than in a dashboard surface so the matrix
+ * renderer has one generic producer no matter which surface asks for it.
+ */
+export function buildMatrixTableModel(
+  cells: TAnalyticsCell[],
+  display: TAnalyticsDisplay,
+  unit = ""
+): MatrixTableModel {
+  const rowKeys: string[] = [];
+  const colKeys: string[] = [];
+  const rowSet = new Set<string>();
+  const colSet = new Set<string>();
+  const grid = new Map<string, Map<string, TAnalyticsCell>>();
+
+  for (const cell of cells ?? []) {
+    const row = cell.group === null || cell.group === undefined ? "" : String(cell.group);
+    const col = cell.series === null || cell.series === undefined ? "" : String(cell.series);
+    if (!rowSet.has(row)) {
+      rowSet.add(row);
+      rowKeys.push(row);
+    }
+    if (!colSet.has(col)) {
+      colSet.add(col);
+      colKeys.push(col);
+    }
+    if (!grid.has(row)) grid.set(row, new Map());
+    grid.get(row)?.set(col, cell);
+  }
+
+  const cellsOut: MatrixTableModel["cells"] = {};
+  const rowTotals: Record<string, number> = {};
+  const colTotals: Record<string, number> = {};
+  let grandTotal = 0;
+
+  for (const row of rowKeys) {
+    cellsOut[row] = {};
+    let rowSum = 0;
+    for (const col of colKeys) {
+      const cell = grid.get(row)?.get(col);
+      const raw = cell?.value ?? 0;
+      rowSum += raw;
+      colTotals[col] = (colTotals[col] ?? 0) + raw;
+      const displayStr =
+        cell?.display ??
+        (display === "percentage"
+          ? formatPercentage(cell?.percentage)
+          : display === "value_and_percentage"
+            ? `${formatValue(raw, unit)} · ${formatPercentage(cell?.percentage)}`
+            : formatValue(raw, unit));
+      cellsOut[row][col] = { raw, display: displayStr };
+    }
+    rowTotals[row] = rowSum;
+    grandTotal += rowSum;
+  }
+
+  return { rowKeys, colKeys, cells: cellsOut, rowTotals, colTotals, grandTotal };
+}
