@@ -1,4 +1,8 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+
+vi.mock("react-router", () => ({
+  redirect: (url: string) => new Response(null, { status: 302, headers: { Location: url } }),
+}));
 import type { RouteConfigEntry } from "@react-router/dev/routes";
 import { coreRoutes } from "../../app/routes/core";
 import { workspaceDashboardRoutePaths } from "../../app/routes/workspace-dashboards";
