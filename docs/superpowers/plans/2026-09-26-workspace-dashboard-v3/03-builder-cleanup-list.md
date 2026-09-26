@@ -13,7 +13,7 @@
 | `apps/api/plane/app/permissions/dashboard.py` | 76 | views above | Phase E.3 |
 | `apps/api/plane/app/serializers/dashboard.py` | 135 | views above | Phase E.3 |
 | `apps/api/plane/app/urls/dashboard.py` | 82 | `apps/api/plane/app/urls/__init__.py` (or equivalent) | Phase E.1 |
-| `apps/api/plane/utils/dashboard_analytics.py` | 391 | views above | Phase E.4 (after B.4 lands the V2 batch replacement) |
+| `apps/api/plane/utils/dashboard_analytics.py` | 391 | views above | Phase E.4 (only 2 consumers, both deleted in Phase E — no replacement module needed) |
 | `apps/api/plane/db/models/dashboard.py` | ~360 | `apps/api/plane/db/models/__init__.py` | Phase E.7 (after E.6 migration) |
 
 ## Backend — Test files to delete

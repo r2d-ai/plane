@@ -21,7 +21,7 @@ Each is a self-contained file in this folder. They are sequenced: 01 defines wha
 | 02 | `02-phase-task-breakdown.md` | Phase A–F task list, each task has a real path |
 | 03 | `03-builder-cleanup-list.md` | Exhaustive list of builder-only files + i18n keys + flag plumbing to delete |
 | 04 | `04-perf-plan.md` | Performance targets + measurement plan for the new dashboard |
-| 05 | `05-child-issue-proposal.md` | Proposed RD-477… child issues, owner assignment, dependency order |
+| 05 | `05-child-issue-proposal.md` | Proposed 9 child issues (RD-477…RD-485), owner assignment, dependency order |
 
 ## Out of scope for Phase 0
 
@@ -34,7 +34,8 @@ Each is a self-contained file in this folder. They are sequenced: 01 defines wha
 1. Route stays at `/:workspaceSlug/dashboards` (plural) for migration ease per spec §4.1, and renders a single fixed dashboard — no list.
 2. Per-user preference persistence uses localStorage keyed by `(workspaceId, userId)` per §15.1 — no new backend table for v1.
 3. Analytics V2 `/analytics/v2/batch/` endpoint already exists at `apps/api/plane/app/urls/analytic.py:60`. New dashboard will reuse it (no new endpoint needed).
-4. `WORKSPACE_DASHBOARDS` env flag (`apps/api/plane/settings/common.py:634`) stays fail-closed until Phase C ships.
+4. `WORKSPACE_DASHBOARDS` env flag (`apps/api/plane/settings/common.py:634`) stays fail-closed; Alex flips the default after RD-482 (cutover) lands.
+5. **No extract of `apps/api/plane/utils/dashboard_analytics.py`** — Alex verified (2026-09-26 follow-up): only 2 consumers, both deleted in Phase E. `/analytics/v2/batch/` already implements generic batch with `MAX_BATCH_QUERIES=20`. Phase B is now frontend-only; backend contract + perf proof moved to RD-480.
 
 ## Done-when for RD-476
 

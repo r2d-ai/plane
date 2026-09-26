@@ -82,8 +82,8 @@ Renderer primitives to identify and extract during Phase B (current location ins
 
 | Path | Lines | Bucket | Notes |
 |------|-------|--------|-------|
-| `apps/api/plane/utils/dashboard_analytics.py` | 391 | **EXTRACT** → `plane/analytics/v2/batch.py` | Dashboard-specific global+card composition; generic batch is already in `analytics/v2/query.py:MAX_BATCH_QUERIES`. |
-| `apps/api/plane/app/views/dashboard/base.py` `WorkspaceDashboardDataViewSet` | — | **REMOVE** (eventually) | Current `/dashboards/{id}/data/` endpoint; replaced by `/analytics/v2/batch/` after Phase B parity check (§11.1). |
+| `apps/api/plane/utils/dashboard_analytics.py` | 391 | **REMOVE in Phase E.4** | Only imported by `app/serializers/dashboard.py` + `app/views/dashboard/base.py`; both deleted in Phase E. `/analytics/v2/batch/` (`apps/api/plane/app/urls/analytic.py:60`, with `MAX_BATCH_QUERIES=20` at `apps/api/plane/analytics/v2/query.py:64`) already implements generic batch — no extract needed. |
+| `apps/api/plane/app/views/dashboard/base.py` `WorkspaceDashboardDataViewSet` | — | **REMOVE in Phase E** | Current `/dashboards/{id}/data/` endpoint. Drop together with the rest of `dashboard/base.py` once Phase C uses `/analytics/v2/batch/`. |
 
 Generic batch behaviour we must preserve per §16.4:
 - base/global query + card-local query composition

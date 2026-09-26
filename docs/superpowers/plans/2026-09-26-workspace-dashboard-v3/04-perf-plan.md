@@ -26,13 +26,13 @@ P50 / P95 / P99 latency on `/analytics/v2/batch/` when sending a single batch wi
 
 1. **Extend `apps/api/plane/tests/perf/test_page_analytics_perf.py`** with a new test `test_batch_12_card_dashboard[small|medium|large]` that sends all 12 card queries plus a global scope in a single batch and asserts the P95 targets above. Use the existing fixtures in the file (don't duplicate data generation logic).
 2. **Add a CLI script** at `apps/api/plane/management/commands/perf_dashboard_v3.py` that wraps the perf test and writes results to `apps/api/plane/tests/perf/baselines/v3-batch-<date>.json` so we can track regressions over time.
-3. **Existing batch cap:** `apps/api/plane/analytics/v2/query.py:MAX_BATCH_QUERIES` (already imported in `test_dashboard_app.py`). Phase B.4 keeps this cap; Phase C.6 enforces it from the v3 composer.
+3. **Existing batch cap:** `apps/api/plane/analytics/v2/query.py:MAX_BATCH_QUERIES` (already imported in `test_dashboard_app.py`). Phase C.6 enforces this cap from the v3 composer.
 
 ### Optimization opportunities (no premature optimization — only what the perf test points to)
 
 | Bottleneck candidate | Where | Mitigation |
 |----------------------|-------|------------|
-| Repeated ACL subquery per card | `apps/api/plane/analytics/v2/acl.py` | Hoist ACL CTE to outer query; pass scoped queryset into the batch composer (`B.4`) |
+| Repeated ACL subquery per card | `apps/api/plane/analytics/v2/acl.py` | Hoist ACL CTE to outer query; pass scoped queryset into the batch composer (RD-480's job) |
 | Date group recomputed per metric | `apps/api/plane/analytics/v2/metrics.py` | Materialize a per-card date-bucket CTE shared across metrics |
 | Workload allocation matrix (cards H, I) | `apps/api/plane/analytics/v2/allocation.py` | Pre-aggregate per-assignee base set once, then split |
 | Truncation warnings recompute count | `apps/api/plane/analytics/v2/normalization.py` | Cache total count per `(scope, dimension)` for the batch lifetime |

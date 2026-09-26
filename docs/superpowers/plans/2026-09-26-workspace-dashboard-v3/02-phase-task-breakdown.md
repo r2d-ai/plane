@@ -20,23 +20,22 @@
 
 ## Phase B — Extract reusable analytics presentation infrastructure
 
-**Goal:** Pull generic dashboard widgets out of the builder namespace into a shared Analytics V2 presentation layer; prove `/analytics/v2/batch/` parity with the old `/dashboards/{id}/data/`.
+**Goal:** Pull generic dashboard widgets out of the builder namespace into a shared Analytics V2 presentation layer.
+
+> **Backend batch work moved to RD-480 (B/C backend).** No extract of `apps/api/plane/utils/dashboard_analytics.py` — it has only 2 consumers, both deleted in Phase E. `/analytics/v2/batch/` (`apps/api/plane/app/urls/analytic.py:60`, `MAX_BATCH_QUERIES=20` at `apps/api/plane/analytics/v2/query.py:64`) already implements generic batch; no new module, no deprecation shim.
 
 | # | Task | Owner | Path | Acceptance |
 |---|------|-------|------|------------|
 | B.1 | Move `apps/web/core/components/dashboards/widgets/truncation-banner.tsx` → `apps/web/core/components/analytics/v2/renderers/truncation-banner.tsx`; update barrel `apps/web/core/components/analytics/v2/index.ts` | Pixel | new + 1 edit | Existing dashboard tests still green; new path exported from v2 barrel |
 | B.2 | Extract renderer primitives from `apps/web/core/components/dashboards/widgets/analytics-widget.tsx` into `apps/web/core/components/analytics/v2/renderers/{number,gauge,bar,line,pie,donut,matrix,aggregate-table,work-item-table}.tsx` | Pixel | 9 new files + 1 edit | Same render output for the same input fixture (add render-equality test) |
 | B.3 | Move `apps/web/core/components/dashboards/widgets/widget-drilldown-drawer.tsx` → `apps/web/core/components/analytics/v2/renderers/widget-drilldown-drawer.tsx`; it already wraps `insight-drilldown.tsx` | Pixel | new + 1 edit | Customized Insights drill-down still works |
-| B.4 | Move `apps/api/plane/utils/dashboard_analytics.py` → `apps/api/plane/analytics/v2/batch.py`; rewrite the public surface to take a list of queries + a global scope, not a `dashboard_id` | Coda | new + deprecation shim | Parity test: same input payload through `/dashboards/{id}/data/` vs `/analytics/v2/batch/` returns same JSON shape |
-| B.5 | Add `apps/api/plane/tests/contract/app/test_analytics_v2_batch_parity.py` that replays 5 saved dashboard payloads through both endpoints and asserts shape equality (excludes `request_id`) | Coda | new file | Test passes; old endpoint still works |
-| B.6 | Refactor `apps/web/core/components/dashboards/widgets/analytics-data.ts` to call `/analytics/v2/batch/` instead of `/dashboards/{id}/data/` | Pixel | edit | Existing dashboard widgets still render; only the network call changed |
-| B.7 | Mark `apps/api/plane/utils/dashboard_analytics.py` deprecated with `DeprecationWarning`; keep import-compatible until Phase E | Coda | edit + new `apps/api/plane/utils/dashboard_analytics.py` docstring note | Deprecation warning emits in tests |
+| B.4 | Refactor `apps/web/core/components/dashboards/widgets/analytics-data.ts` to call `/analytics/v2/batch/` instead of `/dashboards/{id}/data/` | Pixel | edit | Existing dashboard widgets still render; only the network call changed |
 
 **Exit gate (§17.B acceptance):**
 - All `analytics_v2/*` unit tests pass.
 - All `apps/web/tests/dashboards/dashboard-widgets.render.test.tsx` cases pass against the extracted renderers.
-- Batch result parity test (B.5) green.
 - Drill-down/CSV behavior preserved (existing tests in `apps/web/tests/dashboards/`).
+- Backend `/analytics/v2/batch/` parity + perf proof is RD-480's gate, not Phase B's.
 
 ## Phase C — Build fixed Workspace Dashboard
 
@@ -88,10 +87,10 @@
 
 | # | Task | Owner | Path | Acceptance |
 |---|------|-------|------|------------|
-| E.1 | Remove builder endpoints from `apps/api/plane/app/urls/dashboard.py` (everything except keep-as-deprecated `workspace-dashboard-data` until B.5 parity ship) | Coda | edit | URL list = empty or single deprecated entry |
+| E.1 | Remove builder endpoints from `apps/api/plane/app/urls/dashboard.py` (everything except keep-as-deprecated `workspace-dashboard-data` until RD-480 parity ship) | Coda | edit | URL list = empty or single deprecated entry |
 | E.2 | Remove views in `apps/api/plane/app/views/dashboard/base.py` corresponding to removed URLs | Coda | edit | No dead view code |
 | E.3 | Remove `apps/api/plane/app/permissions/dashboard.py` and `apps/api/plane/app/serializers/dashboard.py` (or trim if reused by analytics) | Coda | delete or trim | No dangling imports |
-| E.4 | Remove `apps/api/plane/utils/dashboard_analytics.py` (replaced by `analytics/v2/batch.py` in B.4) | Coda | delete file | No imports remain |
+| E.4 | Delete `apps/api/plane/utils/dashboard_analytics.py` straight — no replacement module, no deprecation shim | Coda | delete file | No imports remain; no other consumer besides the two files deleted in E.2/E.3 |
 | E.5 | Drop deprecated service `apps/web/core/services/dashboard.service.ts`; ensure `apps/web/core/services/` has no `dashboard.*` import | Pixel | delete file | Web build green |
 | E.6 | Write forward migration `apps/api/plane/db/migrations/0135_drop_dashboard_tables.py` that drops `dashboard`, `dashboard_project`, `dashboard_widget`, `dashboard_member_access`, `dashboard_favorite` after verifying no production rows reference them | Coda | new migration | Migration applies cleanly on staging DB; rollback also written |
 | E.7 | Remove `Dashboard`, `DashboardProject`, `DashboardWidget`, `DashboardMemberAccess`, `DashboardFavorite` from `apps/api/plane/db/models/dashboard.py` and `apps/api/plane/db/models/__init__.py` | Coda | edit | `python manage.py makemigrations --check` clean |
